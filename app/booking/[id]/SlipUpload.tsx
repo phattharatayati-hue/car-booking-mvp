@@ -28,16 +28,22 @@ export default function SlipUpload({
     try {
       const uploadForm = new FormData();
       uploadForm.append("file", file);
+      uploadForm.append("kind", "slip");
       const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(uploadData.error ?? "อัปโหลดไม่สำเร็จ");
+      const uploadData = await uploadRes.json().catch(() => null);
+      if (!uploadRes.ok || !uploadData?.url) {
+        throw new Error(uploadData?.error ?? `อัปโหลดไม่สำเร็จ (${uploadRes.status})`);
+      }
 
       const depositRes = await fetch(`/api/bookings/${bookingId}/deposit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slipImageUrl: uploadData.url, amount }),
       });
-      if (!depositRes.ok) throw new Error("บันทึกไม่สำเร็จ");
+      if (!depositRes.ok) {
+        const depositData = await depositRes.json().catch(() => null);
+        throw new Error(depositData?.error ?? `บันทึกไม่สำเร็จ (${depositRes.status})`);
+      }
 
       router.refresh();
     } catch (err) {
