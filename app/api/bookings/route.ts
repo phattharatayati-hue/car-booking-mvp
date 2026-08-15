@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyAdmin, buildNewBookingMessage, siteUrl } from "@/lib/line";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -36,6 +37,24 @@ export async function POST(request: Request) {
       totalPrice,
     },
   });
+
+  // แจ้งเตือนแอดมินทาง LINE — ถ้าส่งไม่สำเร็จก็ไม่ควรทำให้การจองล้มเหลว
+  try {
+    await notifyAdmin(
+      buildNewBookingMessage({
+        bookingId: booking.id,
+        carLabel: `${car.brand} ${car.name}`,
+        customerName: fullName,
+        phone,
+        startDate: start,
+        endDate: end,
+        totalPrice,
+        siteUrl: siteUrl(),
+      })
+    );
+  } catch (err) {
+    console.error("notifyAdmin failed:", err);
+  }
 
   return NextResponse.json({ bookingId: booking.id });
 }
