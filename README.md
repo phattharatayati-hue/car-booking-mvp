@@ -26,3 +26,4 @@ Next.js + Prisma + Neon Postgres + Auth.js + Vercel Blob
 ก่อน deploy ครั้งแรกให้จริง ต้องตั้งค่า Environment Variable `AUTH_SECRET` ในหน้า Vercel Dashboard → Settings → Environment Variables ด้วย (ค่าเดียวกับที่ใช้ตอนรันในเครื่อง หรือสร้างใหม่ก็ได้)
 
 หลัง deploy แล้วต้องรัน `npm run db:push` และ `npm run db:seed` อีกครั้งจากเครื่องตัวเอง (ชี้ไปที่ฐานข้อมูล Neon เดียวกัน) เพื่อสร้างตารางและบัญชีแอดมินบนฐานข้อมูลจริง
+
