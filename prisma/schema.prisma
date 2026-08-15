@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum UserRole {
+  ADMIN
+}
+
+enum CarSource {
+  OWN
+  PARTNER
+}
+
+enum CarStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum BookingStatus {
+  PENDING_DEPOSIT   // ลูกค้าจองแล้วรออัปโหลด/ตรวจสลิปมัดจำ
+  CONFIRMED         // แอดมินยืนยันมัดจำแล้ว
+  CANCELLED
+  COMPLETED
+}
+
+enum DepositStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(ADMIN)
+  createdAt    DateTime @default(now())
+}
+
+model Car {
+  id            String    @id @default(cuid())
+  name          String
+  brand         String
+  licensePlate  String    @unique
+  pricePerDay   Int
+  photoUrl      String?
+  source        CarSource @default(OWN)
+  status        CarStatus @default(AVAILABLE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  bookings      Booking[]
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  fullName    String
+  phone       String
+  email       String?
+  idCardNumber String?
+  isBlacklisted Boolean @default(false)
+  createdAt   DateTime  @default(now())
+  bookings    Booking[]
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  car         Car           @relation(fields: [carId], references: [id])
+  carId       String
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  customerId  String
+  startDate   DateTime
+  endDate     DateTime
+  totalPrice  Int
+  status      BookingStatus @default(PENDING_DEPOSIT)
+  note        String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deposit     Deposit?
+}
+
+model Deposit {
+  id            String        @id @default(cuid())
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  bookingId     String        @unique
+  amount        Int
+  slipImageUrl  String
+  status        DepositStatus @default(PENDING)
+  confirmedBy   String?
+  confirmedAt   DateTime?
+  createdAt     DateTime      @default(now())
+}
