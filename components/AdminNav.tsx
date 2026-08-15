@@ -1,0 +1,78 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const ITEMS = [
+  {
+    href: "/admin",
+    label: "แดชบอร์ด",
+    icon: (
+      <path
+        d="M4 13h6V4H4v9zm10 7h6v-9h-6v9zM4 20h6v-4H4v4zm10-11h6V4h-6v5z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    href: "/admin/bookings",
+    label: "รายการจอง",
+    icon: (
+      <>
+        <rect x="4" y="5" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M8 3v4M16 3v4M4 10h16M9 14l2 2 4-4"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  {
+    href: "/admin/cars",
+    label: "จัดการรถ",
+    icon: (
+      <path
+        d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11m-14 0h14m-14 0a1 1 0 00-1 1v4h2m13-5a1 1 0 011 1v4h-2m0 0H7"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+];
+
+export default function AdminNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
+      {ITEMS.map((item) => {
+        const active =
+          item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+              active
+                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/25"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0">
+              {item.icon}
+            </svg>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

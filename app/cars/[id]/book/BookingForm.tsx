@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const inputClass =
+  "w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
+const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
+
 export default function BookingForm({
   carId,
   pricePerDay,
@@ -16,10 +20,18 @@ export default function BookingForm({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const days =
     startDate && endDate
-      ? Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000))
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
+          )
+        )
       : 0;
+  const total = days * pricePerDay;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,87 +39,147 @@ export default function BookingForm({
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const res = await fetch("/api/bookings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        carId,
-        startDate: formData.get("startDate"),
-        endDate: formData.get("endDate"),
-        fullName: formData.get("fullName"),
-        phone: formData.get("phone"),
-        email: formData.get("email"),
-      }),
-    });
 
-    const data = await res.json();
-    setSubmitting(false);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          carId,
+          startDate: formData.get("startDate"),
+          endDate: formData.get("endDate"),
+          fullName: formData.get("fullName"),
+          phone: formData.get("phone"),
+          email: formData.get("email"),
+        }),
+      });
 
-    if (!res.ok) {
-      setError(data.error ?? "เกิดข้อผิดพลาด กรุณาลองใหม่");
-      return;
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.bookingId) {
+        setError(data?.error ?? "เกิดข้อผิดพลาด กรุณาลองใหม่");
+        setSubmitting(false);
+        return;
+      }
+
+      router.push(`/booking/${data.bookingId}`);
+    } catch {
+      setError("เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่");
+      setSubmitting(false);
     }
-
-    router.push(`/booking/${data.bookingId}`);
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       {error && (
-        <p className="text-red-400 text-sm bg-red-950/50 px-3 py-2 rounded-md">{error}</p>
+        <div className="flex gap-3 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0 text-red-500">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M12 8v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <circle cx="12" cy="16" r="1" fill="currentColor" />
+          </svg>
+          {error}
+        </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm text-neutral-300 mb-1">วันรับรถ</label>
-          <input
-            type="date"
-            name="startDate"
-            required
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white"
-          />
+      <section>
+        <h2 className="text-sm font-semibold text-slate-900 mb-3">ช่วงเวลาเช่า</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass} htmlFor="startDate">วันรับรถ</label>
+            <input
+              id="startDate"
+              type="date"
+              name="startDate"
+              required
+              min={today}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="endDate">วันคืนรถ</label>
+            <input
+              id="endDate"
+              type="date"
+              name="endDate"
+              required
+              min={startDate || today}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className={inputClass}
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm text-neutral-300 mb-1">วันคืนรถ</label>
-          <input
-            type="date"
-            name="endDate"
-            required
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white"
-          />
+
+        {days > 0 && (
+          <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
+            <div className="text-sm text-slate-600">
+              {days} วัน × {pricePerDay.toLocaleString()} ฿
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-500">ยอดรวม</p>
+              <p className="text-xl font-bold text-slate-900">
+                {total.toLocaleString()} ฿
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-900 mb-3">ข้อมูลผู้เช่า</h2>
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className={labelClass} htmlFor="fullName">ชื่อ-นามสกุล</label>
+            <input
+              id="fullName"
+              name="fullName"
+              required
+              placeholder="เช่น สมชาย ใจดี"
+              className={inputClass}
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="phone">เบอร์โทร</label>
+              <input
+                id="phone"
+                name="phone"
+                required
+                inputMode="tel"
+                placeholder="08X-XXX-XXXX"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="email">
+                อีเมล <span className="text-slate-400 font-normal">(ถ้ามี)</span>
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </div>
+          </div>
         </div>
-      </div>
-
-      {days > 0 && (
-        <p className="text-sm text-neutral-400">
-          {days} วัน · รวม {(days * pricePerDay).toLocaleString()} บาท
-        </p>
-      )}
-
-      <div>
-        <label className="block text-sm text-neutral-300 mb-1">ชื่อ-นามสกุล</label>
-        <input name="fullName" required className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white" />
-      </div>
-      <div>
-        <label className="block text-sm text-neutral-300 mb-1">เบอร์โทร</label>
-        <input name="phone" required className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white" />
-      </div>
-      <div>
-        <label className="block text-sm text-neutral-300 mb-1">อีเมล (ถ้ามี)</label>
-        <input name="email" type="email" className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white" />
-      </div>
+      </section>
 
       <button
         type="submit"
         disabled={submitting}
-        className="mt-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-md py-2.5"
+        className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg shadow-blue-600/25 transition-colors"
       >
         {submitting ? "กำลังบันทึก..." : "ยืนยันการจอง"}
       </button>
+
+      <p className="text-xs text-slate-500 text-center -mt-2">
+        การกดยืนยันถือว่าคุณยอมรับเงื่อนไขการเช่ารถของเรา
+      </p>
     </form>
   );
 }

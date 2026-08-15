@@ -54,35 +54,92 @@ export default function SlipUpload({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 flex flex-col gap-4">
-      <p className="text-sm text-neutral-300">อัปโหลดสลิปมัดจำเพื่อยืนยันการจอง</p>
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col gap-5"
+    >
+      <div>
+        <h3 className="font-semibold text-slate-900">อัปโหลดสลิปมัดจำ</h3>
+        <p className="text-sm text-slate-500 mt-1">
+          โอนมัดจำแล้วแนบสลิปเพื่อยืนยันการจอง
+        </p>
+      </div>
 
-      {error && <p className="text-red-400 text-sm bg-red-950/50 px-3 py-2 rounded-md">{error}</p>}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <p className="text-xs text-blue-900 mb-1">ยอดมัดจำที่แนะนำ (30%)</p>
+        <p className="text-2xl font-bold text-blue-900">
+          {suggestedAmount.toLocaleString()} ฿
+        </p>
+        <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
+          โอนเข้าบัญชี ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent
+        </p>
+      </div>
+
+      {error && (
+        <div className="flex gap-3 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+          <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0 text-red-500">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M12 8v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <circle cx="12" cy="16" r="1" fill="currentColor" />
+          </svg>
+          {error}
+        </div>
+      )}
 
       <div>
-        <label className="block text-sm text-neutral-300 mb-1">ยอดมัดจำ (บาท)</label>
+        <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1.5">
+          ยอดที่โอนจริง (บาท)
+        </label>
         <input
+          id="amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full rounded-md bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white"
+          className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         />
       </div>
 
       <div>
-        <label className="block text-sm text-neutral-300 mb-1">รูปสลิปโอนเงิน</label>
+        <span className="block text-sm font-medium text-slate-700 mb-1.5">
+          รูปสลิปโอนเงิน
+        </span>
+        <label
+          htmlFor="slip"
+          className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl py-8 px-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50/40 transition-colors text-center"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-slate-400">
+            <path
+              d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {file ? (
+            <span className="text-sm font-medium text-slate-900 break-all">{file.name}</span>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-slate-700">
+                คลิกเพื่อเลือกรูปสลิป
+              </span>
+              <span className="text-xs text-slate-400">JPG, PNG หรือ WEBP (สูงสุด 8MB)</span>
+            </>
+          )}
+        </label>
         <input
+          id="slip"
           type="file"
           accept="image/*"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="w-full text-sm text-neutral-300"
+          className="hidden"
         />
       </div>
 
       <button
         type="submit"
         disabled={submitting}
-        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium rounded-md py-2.5"
+        className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg shadow-blue-600/25 transition-colors"
       >
         {submitting ? "กำลังอัปโหลด..." : "ส่งสลิป"}
       </button>
