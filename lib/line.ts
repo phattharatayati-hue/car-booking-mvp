@@ -207,20 +207,37 @@ export function buildNewBookingMessage(data: {
   endDate: Date;
   totalPrice: number;
   siteUrl: string;
+  isRequest?: boolean;
+  partnerName?: string;
+  partnerPhone?: string;
 }) {
-  return [
-    "🚗 มีการจองใหม่",
+  const lines = [
+    data.isRequest ? "📩 มีคำขอจองรถพาร์ทเนอร์" : "🚗 มีการจองใหม่",
     "",
     `รถ: ${data.carLabel}`,
     `ลูกค้า: ${data.customerName}`,
     `เบอร์: ${data.phone}`,
-    `วันที่: ${fmtDate(data.startDate)} - ${fmtDate(data.endDate)}`,
+    `รับรถ: ${fmtDate(data.startDate)}`,
+    `คืนรถ: ${fmtDate(data.endDate)}`,
     `ยอดรวม: ${data.totalPrice.toLocaleString()} บาท`,
     `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
     "",
-    "สถานะ: รอลูกค้าโอนมัดจำ",
-    `${data.siteUrl}/admin/bookings`,
-  ].join("\n");
+  ];
+
+  if (data.isRequest) {
+    if (data.partnerName) {
+      lines.push(`เจ้าของรถ: ${data.partnerName}`);
+      if (data.partnerPhone) lines.push(`โทร: ${data.partnerPhone}`);
+      lines.push("");
+    }
+    lines.push("⚠️ กรุณาติดต่อเจ้าของรถเพื่อเช็ครถว่าง");
+    lines.push("แล้วกดอนุมัติหรือปฏิเสธในหลังบ้าน");
+  } else {
+    lines.push("สถานะ: รอลูกค้าโอนมัดจำ");
+  }
+
+  lines.push(`${data.siteUrl}/admin/bookings`);
+  return lines.join("\n");
 }
 
 export function buildSlipUploadedMessage(data: {

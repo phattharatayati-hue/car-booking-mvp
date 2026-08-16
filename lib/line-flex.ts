@@ -25,6 +25,27 @@ function absoluteUrl(url: string | null, site: string): string {
   return `${site}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
+/** ลิงก์ LIFF สำหรับเปิดปฏิทินจองในแอป LINE (ถ้าตั้งค่าไว้) */
+function bookingAction(car: FlexCar) {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_BOOKING_ID;
+
+  if (liffId) {
+    return {
+      type: "uri",
+      label: "เลือกวัน",
+      uri: `https://liff.line.me/${liffId}?car=${car.id}`,
+    };
+  }
+
+  // ไม่มี LIFF — ใช้ขั้นตอนถาม-ตอบในแชทแทน
+  return {
+    type: "postback",
+    label: "เลือกคันนี้",
+    data: `action=pick_car&carId=${car.id}`,
+    displayText: `เลือก ${car.brand} ${car.name}`,
+  };
+}
+
 /** การ์ดรถ 1 ใบ */
 function carBubble(car: FlexCar, site: string) {
   return {
@@ -81,12 +102,7 @@ function carBubble(car: FlexCar, site: string) {
           style: "primary",
           color: BLUE,
           height: "sm",
-          action: {
-            type: "postback",
-            label: "เลือกคันนี้",
-            data: `action=pick_car&carId=${car.id}`,
-            displayText: `เลือก ${car.brand} ${car.name}`,
-          },
+          action: bookingAction(car),
         },
       ],
     },

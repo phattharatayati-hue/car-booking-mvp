@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { needsApproval } from "@/lib/booking-status";
 
 type CarCardProps = {
   car: {
@@ -10,10 +11,23 @@ type CarCardProps = {
     photoUrl: string | null;
     source: string;
     licensePlate: string;
+    partnerId?: string | null;
   };
+  /** สถานะว่างวันนี้ + วันว่างถัดไป (ถ้าวันนี้ไม่ว่าง) */
+  availability?: { busyToday: boolean; nextFree: string | null };
 };
 
-export default function CarCard({ car }: CarCardProps) {
+export default function CarCard({ car, availability }: CarCardProps) {
+  const isRequest = needsApproval(car);
+
+  const freeLabel = !availability
+    ? null
+    : !availability.busyToday
+    ? "ว่างวันนี้"
+    : availability.nextFree
+    ? `ว่าง ${new Date(`${availability.nextFree}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`
+    : "ไม่ว่างช่วงนี้";
+
   return (
     <div className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-lg hover:shadow-slate-200/60 hover:-translate-y-0.5 transition-all duration-200">
       <div className="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden">
@@ -39,9 +53,9 @@ export default function CarCard({ car }: CarCardProps) {
           </div>
         )}
 
-        {car.source === "PARTNER" && (
-          <span className="absolute top-3 left-3 text-[11px] font-medium px-2 py-1 rounded-full bg-white/95 text-slate-700 shadow-sm">
-            รถพาร์ทเนอร์
+        {isRequest && (
+          <span className="absolute top-3 left-3 text-[11px] font-medium px-2 py-1 rounded-full bg-violet-600 text-white shadow-sm">
+            ต้องรอยืนยัน
           </span>
         )}
       </div>
@@ -51,13 +65,28 @@ export default function CarCard({ car }: CarCardProps) {
         <h3 className="font-semibold text-slate-900 text-lg leading-snug">{car.name}</h3>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1.5">
-            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-slate-400">
-              <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
-            </svg>
-            รับรถได้ทันที
-          </span>
+          {freeLabel && (
+            <span
+              className={`inline-flex items-center gap-1.5 font-medium ${
+                availability && !availability.busyToday
+                  ? "text-emerald-600"
+                  : availability?.nextFree
+                  ? "text-amber-600"
+                  : "text-red-500"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  availability && !availability.busyToday
+                    ? "bg-emerald-500"
+                    : availability?.nextFree
+                    ? "bg-amber-500"
+                    : "bg-red-500"
+                }`}
+              />
+              {freeLabel}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5">
             <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4 text-slate-400">
               <path
@@ -82,9 +111,13 @@ export default function CarCard({ car }: CarCardProps) {
           </div>
           <Link
             href={`/cars/${car.id}/book`}
-            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm shadow-blue-600/25 transition-colors"
+            className={`px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm transition-colors ${
+              isRequest
+                ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/25"
+                : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25"
+            }`}
           >
-            จองรถ
+            {isRequest ? "ขอจอง" : "จองรถ"}
           </Link>
         </div>
       </div>

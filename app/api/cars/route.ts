@@ -21,7 +21,9 @@ export async function POST(request: Request) {
       licensePlate: body.licensePlate,
       pricePerDay: Number(body.pricePerDay),
       photoUrl: body.photoUrl || null,
-      source: body.source ?? "OWN",
+      partnerId: body.partnerId || null,
+      costPerDay: body.costPerDay ? Number(body.costPerDay) : null,
+      source: body.partnerId ? "PARTNER" : body.source ?? "OWN",
       status: body.status ?? "AVAILABLE",
     },
   });

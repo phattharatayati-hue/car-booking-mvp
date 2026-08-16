@@ -7,24 +7,7 @@ import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
 import { formatBangkokDateTime } from "@/lib/settings";
 
-const STATUS_STYLE: Record<string, { label: string; className: string }> = {
-  PENDING_DEPOSIT: {
-    label: "รอตรวจสลิปมัดจำ",
-    className: "bg-amber-50 text-amber-800 border-amber-200",
-  },
-  CONFIRMED: {
-    label: "ยืนยันแล้ว",
-    className: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  },
-  CANCELLED: {
-    label: "ยกเลิกแล้ว",
-    className: "bg-red-50 text-red-800 border-red-200",
-  },
-  COMPLETED: {
-    label: "เสร็จสิ้น",
-    className: "bg-slate-100 text-slate-700 border-slate-200",
-  },
-};
+import { STATUS_LABEL, STATUS_CLASS, needsApproval } from "@/lib/booking-status";
 
 export default async function BookingStatusPage({
   params,
@@ -39,15 +22,25 @@ export default async function BookingStatusPage({
 
   if (!booking) notFound();
 
-  const status = STATUS_STYLE[booking.status] ?? STATUS_STYLE.PENDING_DEPOSIT;
+  const isRequest = needsApproval(booking.car);
+  const approved = !["REQUESTED", "REJECTED"].includes(booking.status);
 
-  // ขั้นตอน: จองแล้ว → อัปโหลดสลิป → ยืนยันแล้ว
-  const stepDone = [
-    true,
-    Boolean(booking.deposit),
-    booking.status === "CONFIRMED" || booking.status === "COMPLETED",
-  ];
-  const steps = ["จองสำเร็จ", "อัปโหลดสลิป", "ยืนยันแล้ว"];
+  const steps = isRequest
+    ? ["ส่งคำขอ", "ร้านยืนยัน", "อัปโหลดสลิป", "จองสำเร็จ"]
+    : ["จองสำเร็จ", "อัปโหลดสลิป", "ยืนยันแล้ว"];
+
+  const stepDone = isRequest
+    ? [
+        true,
+        approved,
+        Boolean(booking.deposit),
+        booking.status === "CONFIRMED" || booking.status === "COMPLETED",
+      ]
+    : [
+        true,
+        Boolean(booking.deposit),
+        booking.status === "CONFIRMED" || booking.status === "COMPLETED",
+      ];
 
   return (
     <PublicShell>
@@ -129,9 +122,11 @@ export default async function BookingStatusPage({
               <h2 className="text-lg font-bold text-slate-900">{booking.car.name}</h2>
             </div>
             <span
-              className={`text-xs font-medium px-3 py-1.5 rounded-full border shrink-0 ${status.className}`}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border shrink-0 ${
+                STATUS_CLASS[booking.status] ?? STATUS_CLASS.PENDING_DEPOSIT
+              }`}
             >
-              {status.label}
+              {STATUS_LABEL[booking.status] ?? booking.status}
             </span>
           </div>
 
@@ -200,6 +195,35 @@ export default async function BookingStatusPage({
             >
               เชื่อมต่อกับ LINE
             </a>
+          </div>
+        )}
+
+        {booking.status === "REQUESTED" && (
+          <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 mb-5">
+            <p className="font-semibold text-violet-900 text-sm mb-1">
+              กำลังเช็ควันว่างกับเจ้าของรถ
+            </p>
+            <p className="text-sm text-violet-900/90 leading-relaxed">
+              รถคันนี้เป็นรถจากพาร์ทเนอร์ เราจะติดต่อเจ้าของรถและแจ้งผลกลับโดยเร็วที่สุด
+              <br />
+              <strong>ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน</strong>
+            </p>
+          </div>
+        )}
+
+        {booking.status === "REJECTED" && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-5">
+            <p className="font-semibold text-red-900 text-sm mb-1">รถไม่ว่างในช่วงที่ขอ</p>
+            <p className="text-sm text-red-900/90 leading-relaxed">
+              ขออภัยครับ เจ้าของรถแจ้งว่ารถไม่ว่างในช่วงเวลาที่คุณเลือก
+              กรุณาเลือกวันอื่นหรือรถคันอื่น
+            </p>
+            <Link
+              href="/cars"
+              className="inline-block mt-4 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+            >
+              ดูรถคันอื่น
+            </Link>
           </div>
         )}
 

@@ -1,0 +1,358 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
+
+import type { Liff } from "@/lib/liff-types";
+
+const SDK_URL = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+
+function loadSdk(): Promise<Liff> {
+  return new Promise((resolve, reject) => {
+    if (window.liff) return resolve(window.liff);
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${SDK_URL}"]`);
+    const done = () =>
+      window.liff ? resolve(window.liff) : reject(new Error("โหลด LIFF ไม่สำเร็จ"));
+    if (existing) {
+      existing.addEventListener("load", done);
+      existing.addEventListener("error", () => reject(new Error("โหลด LIFF ไม่สำเร็จ")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = SDK_URL;
+    script.async = true;
+    script.onload = done;
+    script.onerror = () => reject(new Error("โหลด LIFF ไม่สำเร็จ"));
+    document.head.appendChild(script);
+  });
+}
+
+export type LiffCar = {
+  id: string;
+  brand: string;
+  name: string;
+  pricePerDay: number;
+  photoUrl: string | null;
+  isRequest: boolean;
+};
+
+type Result = {
+  bookingId: string;
+  isRequest: boolean;
+  totalPrice: number;
+  deposit: number;
+};
+
+export default function LiffBooking({
+  car,
+  availability,
+  timeOptions,
+  liffId,
+}: {
+  car: LiffCar;
+  availability: Record<string, DayStatus>;
+  timeOptions: string[];
+  liffId: string;
+}) {
+  const [ready, setReady] = useState(false);
+  const [idToken, setIdToken] = useState<string | null>(null);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
+  const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
+  const [phone, setPhone] = useState("");
+  const [needPhone, setNeedPhone] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (!liffId) {
+        setInitError("ระบบยังไม่ได้ตั้งค่า LIFF");
+        return;
+      }
+      try {
+        const liff = await loadSdk();
+        await liff.init({ liffId });
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: window.location.href });
+          return;
+        }
+        const token = liff.getIDToken();
+        if (cancelled) return;
+        if (!token) {
+          setInitError("ไม่ได้รับข้อมูลยืนยันตัวตนจาก LINE");
+          return;
+        }
+        setIdToken(token);
+        setReady(true);
+      } catch (err) {
+        if (!cancelled) {
+          setInitError(err instanceof Error ? err.message : "เชื่อมต่อ LINE ไม่สำเร็จ");
+        }
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [liffId]);
+
+  const days =
+    startDate && endDate
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(`${endDate}T${endTime}`).getTime() -
+              new Date(`${startDate}T${startTime}`).getTime()) /
+              86400000
+          )
+        )
+      : 0;
+  const total = days * car.pricePerDay;
+
+  async function handleSubmit() {
+    if (!startDate || !endDate) {
+      setError("กรุณาเลือกวันรับและวันคืนรถ");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/line/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          carId: car.id,
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+          phone: phone || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        if (data?.needPhone) setNeedPhone(true);
+        setError(data?.error ?? `จองไม่สำเร็จ (${res.status})`);
+        setSubmitting(false);
+        return;
+      }
+
+      setResult(data as Result);
+    } catch {
+      setError("เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function closeLiff() {
+    if (window.liff?.isInClient()) window.liff.closeWindow();
+  }
+
+  if (initError) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+        <p className="text-slate-700">{initError}</p>
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
+        <span className="w-10 h-10 rounded-full border-[3px] border-slate-200 border-t-blue-600 animate-spin block mx-auto mb-4" />
+        <p className="text-slate-500 text-sm">กำลังเชื่อมต่อ LINE...</p>
+      </div>
+    );
+  }
+
+  if (result) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+        <span
+          className={`w-14 h-14 rounded-2xl text-white grid place-items-center mx-auto mb-5 ${
+            result.isRequest ? "bg-violet-600" : "bg-emerald-500"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7">
+            <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+
+        <h1 className="text-xl font-bold text-slate-900 mb-2">
+          {result.isRequest ? "ส่งคำขอจองแล้ว" : "จองสำเร็จ"}
+        </h1>
+        <p className="text-sm text-slate-500 mb-5">
+          รหัส {result.bookingId.slice(0, 8).toUpperCase()}
+        </p>
+
+        {result.isRequest ? (
+          <p className="text-sm text-slate-600 leading-relaxed">
+            รถคันนี้เป็นรถจากพาร์ทเนอร์ เราจะเช็ควันว่างกับเจ้าของรถ
+            แล้วแจ้งผลกลับทางแชท LINE
+            <br />
+            <strong>ยังไม่ต้องโอนมัดจำ</strong>
+          </p>
+        ) : (
+          <div className="bg-blue-50 rounded-xl p-4 text-left">
+            <p className="text-xs text-blue-900 mb-1">โอนมัดจำ 30%</p>
+            <p className="text-2xl font-bold text-blue-900">
+              {result.deposit.toLocaleString()} ฿
+            </p>
+            <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
+              ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent
+              <br />
+              โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย
+            </p>
+          </div>
+        )}
+
+        <button
+          onClick={closeLiff}
+          className="mt-6 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 transition-colors"
+        >
+          กลับไปที่แชท
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* รถที่เลือก */}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="flex gap-4 p-4">
+          <div className="relative w-24 h-20 rounded-xl overflow-hidden bg-slate-100 shrink-0">
+            {car.photoUrl ? (
+              <Image src={car.photoUrl} alt={car.name} fill className="object-cover" unoptimized />
+            ) : (
+              <div className="w-full h-full grid place-items-center text-xs text-slate-400">
+                ไม่มีรูป
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-slate-500">{car.brand}</p>
+            <h1 className="font-bold text-slate-900 leading-snug">{car.name}</h1>
+            <p className="text-blue-700 font-semibold mt-1">
+              {car.pricePerDay.toLocaleString()} ฿ / วัน
+            </p>
+            {car.isRequest && (
+              <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                ต้องรอยืนยันจากเจ้าของรถ
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {error && (
+        <div className="text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
+      <AvailabilityCalendar
+        availability={availability}
+        startDate={startDate}
+        endDate={endDate}
+        onSelect={(s, e) => {
+          setStartDate(s);
+          setEndDate(e);
+        }}
+        months={1}
+      />
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="st">
+            เวลารับรถ
+          </label>
+          <select
+            id="st"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+          >
+            {timeOptions.map((t) => (
+              <option key={t} value={t}>{t} น.</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="et">
+            เวลาคืนรถ
+          </label>
+          <select
+            id="et"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+          >
+            {timeOptions.map((t) => (
+              <option key={t} value={t}>{t} น.</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {needPhone && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="ph">
+            เบอร์โทรศัพท์
+          </label>
+          <input
+            id="ph"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
+            placeholder="0812345678"
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
+          />
+        </div>
+      )}
+
+      {days > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            {days} วัน × {car.pricePerDay.toLocaleString()} ฿
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-slate-500">ยอดรวม</p>
+            <p className="text-xl font-bold text-slate-900">{total.toLocaleString()} ฿</p>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        disabled={submitting || !startDate || !endDate}
+        className={`w-full rounded-xl text-white font-semibold py-4 shadow-lg transition-colors disabled:opacity-50 ${
+          car.isRequest
+            ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/25"
+            : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25"
+        }`}
+      >
+        {submitting
+          ? "กำลังบันทึก..."
+          : car.isRequest
+          ? "ส่งคำขอจอง"
+          : "ยืนยันการจอง"}
+      </button>
+    </div>
+  );
+}

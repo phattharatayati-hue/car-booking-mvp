@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import CarCard from "@/components/CarCard";
+import { getAvailability, firstFreeDate } from "@/lib/availability";
+import { bangkokDateStr } from "@/lib/settings";
 
 type CarCardData = {
   id: string;
@@ -50,6 +52,22 @@ export default async function CarsPage({
   const brands: string[] = Array.from(
     new Set(allCars.map((c: { brand: string }) => c.brand) as string[])
   ).sort();
+
+
+  const fromStr = bangkokDateStr(new Date());
+  const availabilityMap = await getAvailability(
+    cars.map((c: CarCardData) => c.id),
+    fromStr,
+    60
+  );
+
+  function availabilityFor(carId: string) {
+    const map = availabilityMap.get(carId) ?? {};
+    return {
+      busyToday: map[fromStr] === "full",
+      nextFree: firstFreeDate(map, fromStr, 60),
+    };
+  }
 
   function linkFor(next: { brand?: string; sort?: string }) {
     const params = new URLSearchParams();
@@ -128,7 +146,7 @@ export default async function CarsPage({
         {cars.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {cars.map((car: CarCardData) => (
-              <CarCard key={car.id} car={car} />
+              <CarCard key={car.id} car={car} availability={availabilityFor(car.id)} />
             ))}
           </div>
         ) : (

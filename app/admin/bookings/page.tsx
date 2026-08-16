@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { pushMessage, siteUrl } from "@/lib/line";
 import { formatBangkokDateTime } from "@/lib/settings";
+import { STATUS_LABEL, STATUS_CLASS } from "@/lib/booking-status";
 
 type BookingRow = {
   id: string;
@@ -14,7 +15,14 @@ type BookingRow = {
   startDate: Date;
   endDate: Date;
   note: string | null;
-  car: { brand: string; name: string; licensePlate: string };
+  adminNote: string | null;
+  car: {
+    brand: string;
+    name: string;
+    licensePlate: string;
+    costPerDay: number | null;
+    partner: { name: string; phone: string; lineId: string | null } | null;
+  };
   customer: { fullName: string; phone: string };
   deposit: {
     amount: number;
@@ -90,6 +98,66 @@ async function rejectDepositAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
+/** เจ้าของรถแจ้งว่าว่าง — เปิดให้ลูกค้าโอนมัดจำ */
+async function approveRequestAction(formData: FormData) {
+  "use server";
+  const bookingId = formData.get("bookingId") as string;
+  const adminNote = String(formData.get("adminNote") ?? "").trim() || null;
+
+  const booking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: "PENDING_DEPOSIT", adminNote },
+    include: { car: true },
+  });
+
+  await notifyCustomer(
+    bookingId,
+    [
+      "✅ รถว่าง! ยืนยันคำขอจองแล้ว",
+      "",
+      `รถ: ${booking.car.brand} ${booking.car.name}`,
+      `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
+      `คืนรถ: ${formatBangkokDateTime(booking.endDate)}`,
+      `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
+      "",
+      `กรุณาโอนมัดจำ ${Math.round(booking.totalPrice * 0.3).toLocaleString()} บาท`,
+      "แล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ",
+      "",
+      `${siteUrl()}/booking/${bookingId}`,
+    ].join("\n")
+  );
+
+  revalidatePath("/admin/bookings");
+}
+
+/** เจ้าของรถแจ้งว่าไม่ว่าง */
+async function rejectRequestAction(formData: FormData) {
+  "use server";
+  const bookingId = formData.get("bookingId") as string;
+  const adminNote = String(formData.get("adminNote") ?? "").trim() || null;
+
+  const booking = await prisma.booking.update({
+    where: { id: bookingId },
+    data: { status: "REJECTED", adminNote },
+    include: { car: true },
+  });
+
+  await notifyCustomer(
+    bookingId,
+    [
+      "😔 ขออภัย รถไม่ว่างในช่วงที่ขอ",
+      "",
+      `รถ: ${booking.car.brand} ${booking.car.name}`,
+      `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
+      "",
+      "เจ้าของรถแจ้งว่ารถไม่ว่างในช่วงเวลานี้",
+      'พิมพ์ "จองรถ" เพื่อเลือกรถคันอื่นหรือวันอื่นได้เลยครับ',
+    ].join("\n")
+  );
+
+  revalidatePath("/admin/bookings");
+}
+
 async function cancelBookingAction(formData: FormData) {
   "use server";
   const bookingId = formData.get("bookingId") as string;
@@ -100,15 +168,9 @@ async function cancelBookingAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
-const STATUS: Record<string, { text: string; cls: string }> = {
-  PENDING_DEPOSIT: { text: "รอตรวจสลิปมัดจำ", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  CONFIRMED: { text: "ยืนยันแล้ว", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  CANCELLED: { text: "ยกเลิก", cls: "bg-red-50 text-red-700 border-red-200" },
-  COMPLETED: { text: "เสร็จสิ้น", cls: "bg-slate-100 text-slate-600 border-slate-200" },
-};
-
 const FILTERS = [
   { key: "all", label: "ทั้งหมด" },
+  { key: "REQUESTED", label: "คำขอรอเช็ค" },
   { key: "PENDING_DEPOSIT", label: "รอตรวจสลิป" },
   { key: "CONFIRMED", label: "ยืนยันแล้ว" },
   { key: "COMPLETED", label: "เสร็จสิ้น" },
@@ -126,8 +188,14 @@ export default async function AdminBookingsPage({
   const bookings = await prisma.booking.findMany({
     where: active ? { status: active as never } : {},
     orderBy: { createdAt: "desc" },
-    include: { car: true, customer: true, deposit: true },
+    include: {
+      car: { include: { partner: true } },
+      customer: true,
+      deposit: true,
+    },
   });
+
+  const requestCount = await prisma.booking.count({ where: { status: "REQUESTED" } });
 
   return (
     <div>
@@ -135,6 +203,11 @@ export default async function AdminBookingsPage({
         <h1 className="text-2xl font-bold text-slate-900">รายการจอง</h1>
         <p className="text-slate-500 text-sm mt-1">
           พบ {bookings.length} รายการ
+          {requestCount > 0 && (
+            <span className="ml-2 text-violet-700 font-medium">
+              · มีคำขอรอเช็ค {requestCount} รายการ
+            </span>
+          )}
         </p>
       </div>
 
@@ -159,7 +232,8 @@ export default async function AdminBookingsPage({
 
       <div className="flex flex-col gap-4">
         {bookings.map((b: BookingRow) => {
-          const st = STATUS[b.status] ?? STATUS.PENDING_DEPOSIT;
+          const label = STATUS_LABEL[b.status] ?? b.status;
+          const cls = STATUS_CLASS[b.status] ?? STATUS_CLASS.PENDING_DEPOSIT;
           return (
             <div
               key={b.id}
@@ -196,12 +270,84 @@ export default async function AdminBookingsPage({
                     {b.totalPrice.toLocaleString()} ฿
                   </p>
                   <span
-                    className={`inline-block mt-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${st.cls}`}
+                    className={`inline-block mt-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${cls}`}
                   >
-                    {st.text}
+                    {label}
                   </span>
                 </div>
               </div>
+
+              {b.status === "REQUESTED" && (
+                <div className="mt-5 pt-5 border-t border-slate-100">
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 mb-4">
+                    <p className="text-sm font-semibold text-violet-900 mb-2">
+                      ติดต่อเจ้าของรถเพื่อเช็ควันว่าง
+                    </p>
+                    {b.car.partner ? (
+                      <div className="text-sm text-violet-900/90 space-y-0.5">
+                        <p>ชื่อ: {b.car.partner.name}</p>
+                        <p>
+                          โทร:{" "}
+                          <a href={`tel:${b.car.partner.phone}`} className="underline font-medium">
+                            {b.car.partner.phone}
+                          </a>
+                        </p>
+                        {b.car.partner.lineId && <p>LINE: {b.car.partner.lineId}</p>}
+                        {b.car.costPerDay != null && (
+                          <p className="pt-1">
+                            ทุน {b.car.costPerDay.toLocaleString()} ฿/วัน · กำไรประมาณ{" "}
+                            <strong>
+                              {(
+                                b.totalPrice -
+                                b.car.costPerDay *
+                                  Math.max(
+                                    1,
+                                    Math.ceil(
+                                      (new Date(b.endDate).getTime() -
+                                        new Date(b.startDate).getTime()) /
+                                        86400000
+                                    )
+                                  )
+                              ).toLocaleString()}{" "}
+                              ฿
+                            </strong>
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-violet-900/90">
+                        ยังไม่ได้ผูกรถคันนี้กับเจ้าของรถ — ไปตั้งค่าได้ที่หน้าจัดการรถ
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <form action={approveRequestAction} className="flex flex-wrap gap-2 flex-1">
+                      <input type="hidden" name="bookingId" value={b.id} />
+                      <input
+                        name="adminNote"
+                        placeholder="บันทึกภายใน (ไม่บังคับ)"
+                        className="flex-1 min-w-[180px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm"
+                      />
+                      <button className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm shadow-emerald-600/25 transition-colors">
+                        รถว่าง — แจ้งลูกค้าโอนมัดจำ
+                      </button>
+                    </form>
+                    <form action={rejectRequestAction}>
+                      <input type="hidden" name="bookingId" value={b.id} />
+                      <button className="text-sm font-semibold bg-white border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl transition-colors">
+                        รถไม่ว่าง
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {b.adminNote && (
+                <p className="mt-3 text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                  บันทึกภายใน: {b.adminNote}
+                </p>
+              )}
 
               {b.deposit && (
                 <div className="mt-5 pt-5 border-t border-slate-100 flex flex-wrap items-center gap-5">

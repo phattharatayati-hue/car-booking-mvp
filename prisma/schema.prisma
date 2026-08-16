@@ -21,6 +21,8 @@ enum CarStatus {
 }
 
 enum BookingStatus {
+  REQUESTED         // รถพาร์ทเนอร์ — รอแอดมินเช็คกับเจ้าของรถ
+  REJECTED          // เจ้าของรถแจ้งว่าไม่ว่าง
   PENDING_DEPOSIT   // ลูกค้าจองแล้วรออัปโหลด/ตรวจสลิปมัดจำ
   CONFIRMED         // แอดมินยืนยันมัดจำแล้ว
   CANCELLED
@@ -51,13 +53,29 @@ model Car {
   name          String
   brand         String
   licensePlate  String    @unique
-  pricePerDay   Int
+  pricePerDay   Int       // ราคาที่ลูกค้าจ่าย
+  costPerDay    Int?      // ราคาทุนที่จ่ายเจ้าของรถ (เฉพาะรถพาร์ทเนอร์)
   photoUrl      String?
   source        CarSource @default(OWN)
   status        CarStatus @default(AVAILABLE)
+  partner       Partner?  @relation(fields: [partnerId], references: [id])
+  partnerId     String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   bookings      Booking[]
+}
+
+/// เจ้าของรถที่เอารถมาฝากปล่อยเช่า
+model Partner {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  lineId    String?
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cars      Car[]
 }
 
 model Customer {
@@ -83,6 +101,7 @@ model Booking {
   totalPrice  Int
   status      BookingStatus @default(PENDING_DEPOSIT)
   note        String?
+  adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

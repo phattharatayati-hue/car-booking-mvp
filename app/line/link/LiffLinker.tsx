@@ -3,18 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-type Liff = {
-  init: (config: { liffId: string }) => Promise<void>;
-  isLoggedIn: () => boolean;
-  login: (config?: { redirectUri?: string }) => void;
-  getIDToken: () => string | null;
-};
-
-declare global {
-  interface Window {
-    liff?: Liff;
-  }
-}
+import type { Liff } from "@/lib/liff-types";
 
 type State =
   | { status: "loading"; message: string }

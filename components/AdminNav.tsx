@@ -62,6 +62,21 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/partners",
+    label: "คลังรถพาร์ทเนอร์",
+    icon: (
+      <>
+        <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M3.5 19a5.5 5.5 0 0111 0M17 3.5a2.5 2.5 0 010 5M19 19a5 5 0 00-2-4"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/settings",
     label: "ตั้งค่าระบบ",
     icon: (

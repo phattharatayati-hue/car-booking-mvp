@@ -15,7 +15,14 @@ export default async function EditCarPage({
   const car = await prisma.car.findUnique({ where: { id } });
   if (!car) notFound();
 
-  const bookingCount = await prisma.booking.count({ where: { carId: id } });
+  const [bookingCount, partners] = await Promise.all([
+    prisma.booking.count({ where: { carId: id } }),
+    prisma.partner.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   return (
     <div className="max-w-3xl">
@@ -44,8 +51,11 @@ export default async function EditCarPage({
           photoUrl: car.photoUrl,
           source: car.source,
           status: car.status,
+          costPerDay: car.costPerDay,
+          partnerId: car.partnerId,
           bookingCount,
         }}
+        partners={partners}
       />
     </div>
   );

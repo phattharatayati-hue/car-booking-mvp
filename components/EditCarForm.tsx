@@ -17,10 +17,20 @@ export type CarForEdit = {
   photoUrl: string | null;
   source: string;
   status: string;
+  costPerDay: number | null;
+  partnerId: string | null;
   bookingCount: number;
 };
 
-export default function EditCarForm({ car }: { car: CarForEdit }) {
+export type PartnerOption = { id: string; name: string };
+
+export default function EditCarForm({
+  car,
+  partners,
+}: {
+  car: CarForEdit;
+  partners: PartnerOption[];
+}) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -62,6 +72,8 @@ export default function EditCarForm({ car }: { car: CarForEdit }) {
           pricePerDay: data.get("pricePerDay"),
           source: data.get("source"),
           status: data.get("status"),
+          costPerDay: data.get("costPerDay") || null,
+          partnerId: data.get("partnerId") || null,
           ...(photoUrl ? { photoUrl } : {}),
         }),
       });
@@ -159,7 +171,42 @@ export default function EditCarForm({ car }: { car: CarForEdit }) {
               <option value="UNAVAILABLE">ปิดใช้งาน</option>
             </select>
           </div>
+          <div>
+            <label className={labelClass} htmlFor="partnerId">
+              เจ้าของรถ <span className="text-slate-400 font-normal">(ถ้าเป็นรถพาร์ทเนอร์)</span>
+            </label>
+            <select
+              id="partnerId"
+              name="partnerId"
+              defaultValue={car.partnerId ?? ""}
+              className={inputClass}
+            >
+              <option value="">— รถของเราเอง —</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="costPerDay">
+              ราคาทุน/วัน <span className="text-slate-400 font-normal">(จ่ายเจ้าของรถ)</span>
+            </label>
+            <input
+              id="costPerDay"
+              name="costPerDay"
+              type="number"
+              min="0"
+              defaultValue={car.costPerDay ?? ""}
+              placeholder="เว้นว่างถ้าเป็นรถของเรา"
+              className={inputClass}
+            />
+          </div>
         </div>
+
+        <p className="mt-4 text-xs text-slate-500">
+          ถ้าเลือกเจ้าของรถ ระบบจะถือว่าเป็นรถพาร์ทเนอร์ —
+          ลูกค้าจะเห็นปุ่ม “ขอจอง” และการจองจะเข้าคิวรอคุณเช็คกับเจ้าของรถก่อน
+        </p>
 
         <div className="mt-5 pt-5 border-t border-slate-100">
           <span className={labelClass}>รูปรถ</span>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -11,10 +12,14 @@ export default function BookingForm({
   carId,
   pricePerDay,
   timeOptions,
+  isRequest = false,
+  availability,
 }: {
   carId: string;
   pricePerDay: number;
   timeOptions: string[];
+  isRequest?: boolean;
+  availability: Record<string, DayStatus>;
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -23,8 +28,6 @@ export default function BookingForm({
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
   const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
-
-  const today = new Date().toISOString().slice(0, 10);
 
   const days =
     startDate && endDate
@@ -43,6 +46,12 @@ export default function BookingForm({
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+
+    if (!startDate || !endDate) {
+      setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
+      setSubmitting(false);
+      return;
+    }
 
     const formData = new FormData(e.currentTarget);
 
@@ -92,65 +101,55 @@ export default function BookingForm({
 
       <section>
         <h2 className="text-sm font-semibold text-slate-900 mb-3">ช่วงเวลาเช่า</h2>
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <div>
-              <label className={labelClass} htmlFor="startDate">วันรับรถ</label>
-              <input
-                id="startDate"
-                type="date"
-                name="startDate"
-                required
-                min={today}
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="startTime">เวลา</label>
-              <select
-                id="startTime"
-                name="startTime"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className={inputClass}
-              >
-                {timeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <AvailabilityCalendar
+          availability={availability}
+          startDate={startDate}
+          endDate={endDate}
+          onSelect={(s, e) => {
+            setStartDate(s);
+            setEndDate(e);
+          }}
+        />
 
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <div>
-              <label className={labelClass} htmlFor="endDate">วันคืนรถ</label>
-              <input
-                id="endDate"
-                type="date"
-                name="endDate"
-                required
-                min={startDate || today}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="endTime">เวลา</label>
-              <select
-                id="endTime"
-                name="endTime"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className={inputClass}
-              >
-                {timeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+        <input type="hidden" name="startDate" value={startDate} />
+        <input type="hidden" name="endDate" value={endDate} />
+
+        <p className="mt-3 text-sm text-slate-500">
+          {!startDate
+            ? "กดเลือกวันรับรถบนปฏิทิน"
+            : !endDate
+            ? "กดเลือกวันคืนรถอีกครั้ง"
+            : `เลือกแล้ว ${startDate} ถึง ${endDate}`}
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className={labelClass} htmlFor="startTime">เวลารับรถ</label>
+            <select
+              id="startTime"
+              name="startTime"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className={inputClass}
+            >
+              {timeOptions.map((t) => (
+                <option key={t} value={t}>{t} น.</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="endTime">เวลาคืนรถ</label>
+            <select
+              id="endTime"
+              name="endTime"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className={inputClass}
+            >
+              {timeOptions.map((t) => (
+                <option key={t} value={t}>{t} น.</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -216,9 +215,13 @@ export default function BookingForm({
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg shadow-blue-600/25 transition-colors"
+        className={`w-full rounded-xl disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg transition-colors ${
+          isRequest
+            ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/25"
+            : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/25"
+        }`}
       >
-        {submitting ? "กำลังบันทึก..." : "ยืนยันการจอง"}
+        {submitting ? "กำลังบันทึก..." : isRequest ? "ส่งคำขอจอง" : "ยืนยันการจอง"}
       </button>
 
       <p className="text-xs text-slate-500 text-center -mt-2">

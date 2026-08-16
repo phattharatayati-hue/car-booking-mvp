@@ -22,8 +22,21 @@ export async function PATCH(
       licensePlate: body.licensePlate,
       pricePerDay: body.pricePerDay !== undefined ? Number(body.pricePerDay) : undefined,
       photoUrl: body.photoUrl,
-      source: body.source,
       status: body.status,
+      costPerDay:
+        body.costPerDay === undefined
+          ? undefined
+          : body.costPerDay === null || body.costPerDay === ""
+          ? null
+          : Number(body.costPerDay),
+      partnerId: body.partnerId === undefined ? undefined : body.partnerId || null,
+      // ผูกเจ้าของรถ = รถพาร์ทเนอร์เสมอ กันข้อมูลขัดกัน
+      source:
+        body.partnerId !== undefined
+          ? body.partnerId
+            ? "PARTNER"
+            : "OWN"
+          : body.source,
     },
   });
 

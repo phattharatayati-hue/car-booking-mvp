@@ -20,7 +20,10 @@ import {
 } from "@/lib/settings";
 
 const DAY_MS = 86400000;
-const ACTIVE = ["PENDING_DEPOSIT", "CONFIRMED"] as const;
+import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
+import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
+
+const ACTIVE = ACTIVE_BOOKING_STATUSES;
 const BANK_INFO = "ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent";
 
 /** ค่า min ของ datetimepicker — รูปแบบ YYYY-MM-ddTHH:mm ตามเวลาไทย */
@@ -89,9 +92,15 @@ async function handlePickCar(replyToken: string, lineUserId: string, carId: stri
     update: { step: "pick_start", carId, startDate: null, endDate: null },
   });
 
-  const settings = await getSettings();
+  const [settings, busy] = await Promise.all([
+    getSettings(),
+    getBusyRanges(car.id, 60),
+  ]);
+
+  const busyText = formatBusyRanges(busy);
 
   await replyRaw(replyToken, [
+    { type: "text", text: `${car.brand} ${car.name}\n\n${busyText}` },
     datePicker({
       title: `${car.brand} ${car.name}`,
       description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนรถได้ ${hoursLabel(
@@ -249,7 +258,10 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     return;
   }
 
-  const car = await prisma.car.findUnique({ where: { id: draft.carId } });
+  const car = await prisma.car.findUnique({
+    where: { id: draft.carId },
+    include: { partner: true },
+  });
   if (!car) {
     await replyMessage(replyToken, "ไม่พบรถคันนี้แล้วครับ");
     await clearDraft(lineUserId);
@@ -302,6 +314,8 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     });
   }
 
+  const isRequest = needsApproval(car);
+
   const booking = await prisma.booking.create({
     data: {
       carId: car.id,
@@ -309,6 +323,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
       startDate: start,
       endDate: end,
       totalPrice: total,
+      status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
     },
   });
 
@@ -316,15 +331,36 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
 
   const deposit = Math.round(total * 0.3);
 
-  await replyRaw(replyToken, [
-    bookingDone({
-      bookingId: booking.id,
-      carLabel: `${car.brand} ${car.name}`,
-      total,
-      deposit,
-      bankInfo: BANK_INFO,
-    }),
-  ]);
+  if (isRequest) {
+    await replyMessage(
+      replyToken,
+      [
+        "📩 ส่งคำขอจองเรียบร้อยแล้ว",
+        "",
+        `รถ: ${car.brand} ${car.name}`,
+        `รับรถ: ${formatBangkokDateTime(start)}`,
+        `คืนรถ: ${formatBangkokDateTime(end)}`,
+        `ยอดรวม: ${total.toLocaleString()} บาท`,
+        `รหัสคำขอ: ${booking.id.slice(0, 8).toUpperCase()}`,
+        "",
+        "รถคันนี้เป็นรถจากพาร์ทเนอร์",
+        "เราจะติดต่อเจ้าของรถเพื่อเช็ควันว่าง",
+        "แล้วแจ้งผลกลับทางแชทนี้โดยเร็วที่สุดครับ",
+        "",
+        "⚠️ ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน",
+      ].join("\n")
+    );
+  } else {
+    await replyRaw(replyToken, [
+      bookingDone({
+        bookingId: booking.id,
+        carLabel: `${car.brand} ${car.name}`,
+        total,
+        deposit,
+        bankInfo: BANK_INFO,
+      }),
+    ]);
+  }
 
   try {
     await notifyAdmin(
@@ -337,6 +373,9 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         endDate: end,
         totalPrice: total,
         siteUrl: siteUrl(),
+        isRequest,
+        partnerName: car.partner?.name,
+        partnerPhone: car.partner?.phone,
       })
     );
   } catch (err) {

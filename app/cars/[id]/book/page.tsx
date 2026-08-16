@@ -7,6 +7,9 @@ import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import BookingForm from "./BookingForm";
 import { getSettings, timeOptions } from "@/lib/settings";
+import { needsApproval } from "@/lib/booking-status";
+import { getAvailability } from "@/lib/availability";
+import { bangkokDateStr } from "@/lib/settings";
 
 export default async function BookCarPage({
   params,
@@ -22,6 +25,11 @@ export default async function BookCarPage({
 
   const settings = await getSettings();
   const times = timeOptions(settings.openHour, settings.closeHour);
+  const isRequest = needsApproval(car);
+
+  const fromStr = bangkokDateStr(new Date());
+  const availabilityMap = await getAvailability([car.id], fromStr, 90);
+  const availability = availabilityMap.get(car.id) ?? {};
 
   return (
     <PublicShell>
@@ -37,7 +45,9 @@ export default async function BookCarPage({
         <div className="grid gap-8 lg:grid-cols-[1fr_380px] items-start">
           {/* ฟอร์ม */}
           <div className="order-2 lg:order-1 bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
-            <h1 className="text-2xl font-bold text-slate-900">รายละเอียดการจอง</h1>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {isRequest ? "ขอจองรถ" : "รายละเอียดการจอง"}
+            </h1>
             <p className="text-slate-500 text-sm mt-1 mb-7">
               กรอกข้อมูลให้ครบถ้วน เราจะติดต่อกลับเพื่อยืนยัน
             </p>
@@ -45,6 +55,8 @@ export default async function BookCarPage({
               carId={car.id}
               pricePerDay={car.pricePerDay}
               timeOptions={times}
+              isRequest={isRequest}
+              availability={availability}
             />
           </div>
 
@@ -97,12 +109,26 @@ export default async function BookCarPage({
                   </div>
                 </dl>
 
-                <div className="mt-5 bg-blue-50 rounded-xl p-4 text-xs text-blue-900 leading-relaxed">
+                <div
+                  className={`mt-5 rounded-xl p-4 text-xs leading-relaxed ${
+                    isRequest ? "bg-violet-50 text-violet-900" : "bg-blue-50 text-blue-900"
+                  }`}
+                >
                   รับ-คืนรถได้เวลา {String(settings.openHour).padStart(2, "0")}:00 -{" "}
                   {String(settings.closeHour).padStart(2, "0")}:00 น.
                   <br />
-                  หลังจองสำเร็จ ระบบจะแสดงยอดมัดจำ 30%
-                  ให้โอนแล้วอัปโหลดสลิปเพื่อยืนยันการจอง
+                  {isRequest ? (
+                    <>
+                      รถคันนี้เป็นรถจากพาร์ทเนอร์ — เมื่อส่งคำขอแล้ว
+                      เราจะเช็ควันว่างกับเจ้าของรถและแจ้งผลกลับ
+                      <strong> ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน</strong>
+                    </>
+                  ) : (
+                    <>
+                      หลังจองสำเร็จ ระบบจะแสดงยอดมัดจำ 30%
+                      ให้โอนแล้วอัปโหลดสลิปเพื่อยืนยันการจอง
+                    </>
+                  )}
                 </div>
               </div>
             </div>
