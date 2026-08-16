@@ -8,6 +8,7 @@ const NAV = [
   { href: "/", label: "หน้าแรก" },
   { href: "/cars", label: "รถทั้งหมด" },
   { href: "/how-to-book", label: "วิธีการจอง" },
+  { href: "/line/connect", label: "เชื่อมต่อ LINE" },
   { href: "/contact", label: "ติดต่อเรา" },
 ];
 

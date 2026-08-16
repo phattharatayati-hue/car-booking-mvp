@@ -31,6 +31,7 @@ export default function SiteFooter() {
             <ul className="flex flex-col gap-2 text-sm text-slate-600">
               <li><Link href="/cars" className="hover:text-blue-700">รถทั้งหมด</Link></li>
               <li><Link href="/how-to-book" className="hover:text-blue-700">วิธีการจอง</Link></li>
+              <li><Link href="/line/connect" className="hover:text-blue-700">เชื่อมต่อ LINE</Link></li>
               <li><Link href="/contact" className="hover:text-blue-700">ติดต่อเรา</Link></li>
               <li><Link href="/login" className="hover:text-blue-700">สำหรับแอดมิน</Link></li>
             </ul>

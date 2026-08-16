@@ -159,6 +159,50 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* เชื่อมต่อ LINE */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-4">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden sm:flex items-center">
+          <div className="p-6 sm:p-8 flex-1">
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className="w-9 h-9 rounded-xl bg-[#06C755] text-white grid place-items-center font-bold">
+                L
+              </span>
+              <span className="text-sm font-semibold text-slate-900">
+                รับแจ้งเตือนทาง LINE
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug">
+              ไม่ต้องคอยเปิดเว็บเช็คเอง
+            </h2>
+            <p className="text-slate-600 text-sm mt-2 leading-relaxed">
+              เชื่อมต่อ LINE ครั้งเดียว แล้วรู้ทันทีเมื่อแอดมินตรวจสลิปเสร็จ
+              พร้อมเตือนก่อนถึงวันคืนรถ และเช็คสถานะได้ในแชท
+            </p>
+            <Link
+              href="/line/connect"
+              className="inline-block mt-5 px-6 py-3 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold transition-colors"
+            >
+              เชื่อมต่อ LINE
+            </Link>
+          </div>
+          <div className="hidden sm:block w-px self-stretch bg-slate-100" />
+          <ul className="p-6 sm:p-8 sm:w-72 text-sm text-slate-600 space-y-2.5 shrink-0">
+            <li className="flex gap-2">
+              <span className="text-emerald-500">✓</span> แจ้งผลตรวจสลิปทันที
+            </li>
+            <li className="flex gap-2">
+              <span className="text-emerald-500">✓</span> เตือนก่อนวันคืนรถ
+            </li>
+            <li className="flex gap-2">
+              <span className="text-emerald-500">✓</span> เช็คสถานะในแชท
+            </li>
+            <li className="flex gap-2">
+              <span className="text-emerald-500">✓</span> จองครั้งหน้าในแชทได้เลย
+            </li>
+          </ul>
+        </div>
+      </section>
+
       {/* รถแนะนำ */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-20">
         <div className="flex items-end justify-between gap-4 mb-6">
