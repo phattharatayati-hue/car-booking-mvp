@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import Image from "next/image";
+import Link from "next/link";
 import AddCarForm from "@/components/AddCarForm";
 
 type CarRow = {
@@ -111,14 +112,22 @@ export default async function AdminCarsPage() {
                       {car.status === "AVAILABLE" ? "ว่าง" : "ปิดใช้งาน"}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <form action={toggleStatusAction}>
-                      <input type="hidden" name="id" value={car.id} />
-                      <input type="hidden" name="currentStatus" value={car.status} />
-                      <button className="text-sm font-medium text-blue-700 hover:text-blue-800 hover:underline">
-                        {car.status === "AVAILABLE" ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                      </button>
-                    </form>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center justify-end gap-3">
+                      <Link
+                        href={`/admin/cars/${car.id}`}
+                        className="text-sm font-medium text-slate-600 hover:text-slate-900 hover:underline"
+                      >
+                        แก้ไข
+                      </Link>
+                      <form action={toggleStatusAction}>
+                        <input type="hidden" name="id" value={car.id} />
+                        <input type="hidden" name="currentStatus" value={car.status} />
+                        <button className="text-sm font-medium text-blue-700 hover:text-blue-800 hover:underline">
+                          {car.status === "AVAILABLE" ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

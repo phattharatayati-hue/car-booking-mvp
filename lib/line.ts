@@ -48,6 +48,73 @@ export async function replyMessage(replyToken: string, text: string) {
   }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+/**
+ * ตอบกลับด้วยข้อความรูปแบบอิสระ (Flex / quick reply) — ฟรีเหมือน replyMessage
+ */
+export async function replyRaw(replyToken: string, messages: any[]) {
+  if (!token()) return;
+
+  try {
+    const res = await fetch(`${LINE_API}/message/reply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token()}`,
+      },
+      body: JSON.stringify({ replyToken, messages: messages.slice(0, 5) }),
+    });
+    if (!res.ok) {
+      console.error("LINE replyRaw failed:", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("LINE replyRaw error:", err);
+  }
+}
+
+/** ดึงชื่อผู้ใช้จากโปรไฟล์ LINE (ใช้เป็นชื่อผู้เช่าตอนจองในแชท) */
+export async function getProfileName(userId: string): Promise<string | null> {
+  if (!token()) return null;
+
+  try {
+    const res = await fetch(`${LINE_API}/profile/${userId}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { displayName?: string };
+    return data.displayName ?? null;
+  } catch (err) {
+    console.error("LINE profile error:", err);
+    return null;
+  }
+}
+
+/** ดาวน์โหลดรูปที่ลูกค้าส่งมาในแชท (ใช้รับสลิปมัดจำ) */
+export async function getMessageContent(
+  messageId: string
+): Promise<{ buffer: ArrayBuffer; contentType: string } | null> {
+  if (!token()) return null;
+
+  try {
+    const res = await fetch(
+      `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+      { headers: { Authorization: `Bearer ${token()}` } }
+    );
+    if (!res.ok) {
+      console.error("LINE content failed:", res.status);
+      return null;
+    }
+    return {
+      buffer: await res.arrayBuffer(),
+      contentType: res.headers.get("content-type") ?? "image/jpeg",
+    };
+  } catch (err) {
+    console.error("LINE content error:", err);
+    return null;
+  }
+}
+
 /**
  * ส่งข้อความหาผู้ใช้ — คิดโควตา ใช้เท่าที่จำเป็น
  */

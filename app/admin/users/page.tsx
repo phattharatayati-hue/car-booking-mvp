@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { pushMessage } from "@/lib/line";
+import { createLinkCode } from "@/lib/line-link";
 import AddAdminForm from "@/components/AddAdminForm";
 
 type AdminRow = {
@@ -13,12 +14,19 @@ type AdminRow = {
   email: string;
   name: string;
   lineUserId: string | null;
+  lineLinkCode: string | null;
+  lineLinkExpiresAt: Date | null;
   createdAt: Date;
 };
 
-/** ตรวจรูปแบบ LINE ID: ขึ้นต้นด้วย U (คน) หรือ C (กลุ่ม) ตามด้วย hex 32 ตัว */
-function isValidLineId(id: string) {
-  return /^[UC][0-9a-f]{32}$/i.test(id);
+/** คำนวณสถานะรหัสผูก — แยกออกมานอก component เพราะอ่านเวลาปัจจุบัน */
+function linkCodeState(code: string | null, expiresAt: Date | null) {
+  const expires = expiresAt?.getTime() ?? 0;
+  const remaining = expires - Date.now();
+  return {
+    isValid: Boolean(code) && remaining > 0,
+    minutesLeft: Math.max(1, Math.ceil(remaining / 60000)),
+  };
 }
 
 async function addAdminAction(formData: FormData) {
@@ -29,13 +37,9 @@ async function addAdminAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const lineUserId = String(formData.get("lineUserId") ?? "").trim();
 
   if (!email || !name || password.length < 8) {
     redirect("/admin/users?error=invalid");
-  }
-  if (lineUserId && !isValidLineId(lineUserId)) {
-    redirect("/admin/users?error=lineid");
   }
 
   const existing = await prisma.adminUser.findUnique({ where: { email } });
@@ -45,32 +49,38 @@ async function addAdminAction(formData: FormData) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.adminUser.create({
-    data: { email, name, passwordHash, lineUserId: lineUserId || null },
+    data: { email, name, passwordHash },
   });
 
   revalidatePath("/admin/users");
   redirect("/admin/users?ok=added");
 }
 
-async function updateLineIdAction(formData: FormData) {
+async function createLinkCodeAction(formData: FormData) {
   "use server";
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   const id = String(formData.get("id") ?? "");
-  const lineUserId = String(formData.get("lineUserId") ?? "").trim();
+  await createLinkCode(id);
 
-  if (lineUserId && !isValidLineId(lineUserId)) {
-    redirect("/admin/users?error=lineid");
-  }
+  revalidatePath("/admin/users");
+  redirect("/admin/users?ok=code");
+}
 
+async function unlinkLineAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const id = String(formData.get("id") ?? "");
   await prisma.adminUser.update({
     where: { id },
-    data: { lineUserId: lineUserId || null },
+    data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
   });
 
   revalidatePath("/admin/users");
-  redirect("/admin/users?ok=updated");
+  redirect("/admin/users?ok=unlinked");
 }
 
 async function resetPasswordAction(formData: FormData) {
@@ -136,6 +146,8 @@ async function testLineAction(formData: FormData) {
 
 const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
   added: { text: "เพิ่มแอดมินเรียบร้อยแล้ว", tone: "ok" },
+  code: { text: "สร้างรหัสผูกบัญชีแล้ว — นำไปพิมพ์ในแชท LINE ภายใน 10 นาที", tone: "ok" },
+  unlinked: { text: "ยกเลิกการผูก LINE เรียบร้อยแล้ว", tone: "ok" },
   updated: { text: "อัปเดต LINE ID เรียบร้อยแล้ว", tone: "ok" },
   deleted: { text: "ลบแอดมินเรียบร้อยแล้ว", tone: "ok" },
   password: { text: "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว", tone: "ok" },
@@ -191,18 +203,22 @@ export default async function AdminUsersPage({
 
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
         <h2 className="font-semibold text-blue-900 text-sm mb-2">
-          วิธีหา LINE User ID
+          วิธีผูก LINE เพื่อรับแจ้งเตือน
         </h2>
         <ol className="text-sm text-blue-900/90 leading-relaxed list-decimal list-inside space-y-1">
+          <li>กดปุ่ม <span className="font-semibold">สร้างรหัสผูก LINE</span> ที่บัญชีของคนนั้น</li>
           <li>เพิ่มเพื่อน LINE Official Account ของร้าน</li>
-          <li>พิมพ์คำว่า <span className="font-semibold">ไอดี</span> ส่งไปในแชท</li>
-          <li>บอทจะตอบ User ID กลับมา (ขึ้นต้นด้วย U) → นำมากรอกที่นี่</li>
+          <li>พิมพ์<span className="font-semibold">เลข 6 หลัก</span>ที่ได้ ส่งในแชท — ระบบจะผูกให้อัตโนมัติ</li>
         </ol>
       </div>
 
       <div className="flex flex-col gap-4">
         {admins.map((admin: AdminRow) => {
           const isSelf = admin.email === session?.user?.email;
+          const { isValid: codeIsValid, minutesLeft } = linkCodeState(
+            admin.lineLinkCode,
+            admin.lineLinkExpiresAt
+          );
           return (
             <div
               key={admin.id}
@@ -237,28 +253,42 @@ export default async function AdminUsersPage({
                 </span>
               </div>
 
-              {/* ผูก LINE ID */}
-              <form action={updateLineIdAction} className="flex flex-wrap gap-2 items-end">
-                <input type="hidden" name="id" value={admin.id} />
-                <div className="flex-1 min-w-[260px]">
-                  <label
-                    htmlFor={`line-${admin.id}`}
-                    className="block text-sm font-medium text-slate-700 mb-1.5"
-                  >
-                    LINE User ID
-                  </label>
-                  <input
-                    id={`line-${admin.id}`}
-                    name="lineUserId"
-                    defaultValue={admin.lineUserId ?? ""}
-                    placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (เว้นว่างเพื่อยกเลิกการผูก)"
-                    className="w-full rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-mono text-slate-900 placeholder:text-slate-400 placeholder:font-sans focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-                  />
+              {/* ผูก LINE */}
+              {admin.lineUserId ? (
+                <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                  <span className="text-sm text-emerald-900">
+                    ผูกบัญชี LINE เรียบร้อยแล้ว
+                  </span>
+                  <form action={unlinkLineAction} className="ml-auto">
+                    <input type="hidden" name="id" value={admin.id} />
+                    <button className="text-sm font-medium text-emerald-800 hover:text-red-600 transition-colors">
+                      ยกเลิกการผูก
+                    </button>
+                  </form>
                 </div>
-                <button className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
-                  บันทึก
-                </button>
-              </form>
+              ) : codeIsValid ? (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4">
+                  <p className="text-sm text-blue-900 mb-2">
+                    พิมพ์รหัสนี้ส่งในแชท LINE ของร้าน (หมดอายุใน {minutesLeft} นาที)
+                  </p>
+                  <p className="text-4xl font-bold tracking-[0.3em] text-blue-900 font-mono">
+                    {admin.lineLinkCode}
+                  </p>
+                  <form action={createLinkCodeAction} className="mt-3">
+                    <input type="hidden" name="id" value={admin.id} />
+                    <button className="text-sm font-medium text-blue-700 hover:text-blue-900">
+                      ขอรหัสใหม่
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <form action={createLinkCodeAction}>
+                  <input type="hidden" name="id" value={admin.id} />
+                  <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
+                    🔗 สร้างรหัสผูก LINE
+                  </button>
+                </form>
+              )}
 
               <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-end">
                 {admin.lineUserId && (

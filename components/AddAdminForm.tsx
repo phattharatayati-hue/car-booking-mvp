@@ -72,18 +72,11 @@ export default function AddAdminForm({
             className={inputClass}
           />
         </div>
-        <div>
-          <label className={labelClass} htmlFor="new-line">
-            LINE User ID <span className="text-slate-400 font-normal">(ใส่ทีหลังได้)</span>
-          </label>
-          <input
-            id="new-line"
-            name="lineUserId"
-            placeholder="Uxxxxxxxxxxxx..."
-            className={`${inputClass} font-mono placeholder:font-sans`}
-          />
-        </div>
       </div>
+
+      <p className="mt-4 text-sm text-slate-500">
+        สร้างบัญชีเสร็จแล้วค่อยกด “สร้างรหัสผูก LINE” ที่การ์ดของคนนั้นเพื่อเชื่อมการแจ้งเตือน
+      </p>
 
       <button
         type="submit"

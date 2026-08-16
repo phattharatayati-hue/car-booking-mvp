@@ -168,6 +168,48 @@ export default async function BookingStatusPage({
           </dl>
         </div>
 
+        {/* รับแจ้งเตือนทาง LINE */}
+        {booking.customer.lineUserId ? (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 flex items-center gap-3">
+            <span className="w-9 h-9 rounded-xl bg-emerald-500 text-white grid place-items-center shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+                <path
+                  d="M5 12.5l4.5 4.5L19 7.5"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <p className="text-sm text-emerald-900">
+              เปิดรับแจ้งเตือนทาง LINE แล้ว — เราจะแจ้งทันทีที่ตรวจสลิปเสร็จ
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+            <div className="flex items-start gap-3 mb-4">
+              <span className="w-9 h-9 rounded-xl bg-[#06C755] text-white grid place-items-center shrink-0 font-bold text-sm">
+                L
+              </span>
+              <div>
+                <p className="font-semibold text-slate-900 text-sm">
+                  รับแจ้งเตือนทาง LINE
+                </p>
+                <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">
+                  รู้ผลทันทีที่แอดมินตรวจสลิปเสร็จ ไม่ต้องคอยเปิดหน้านี้เช็คเอง
+                </p>
+              </div>
+            </div>
+            <a
+              href={`/line/link?booking=${booking.id}`}
+              className="block text-center w-full rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold py-3 transition-colors"
+            >
+              เชื่อมต่อกับ LINE
+            </a>
+          </div>
+        )}
+
         {!booking.deposit && booking.status === "PENDING_DEPOSIT" && (
           <SlipUpload
             bookingId={booking.id}

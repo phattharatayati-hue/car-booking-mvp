@@ -40,6 +40,18 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  // ลบรถที่มีประวัติการจองไม่ได้ ไม่งั้นข้อมูลการจองจะเสียหาย
+  const bookingCount = await prisma.booking.count({ where: { carId: id } });
+  if (bookingCount > 0) {
+    return NextResponse.json(
+      {
+        error: `ลบไม่ได้ เพราะรถคันนี้มีประวัติการจอง ${bookingCount} รายการ — แนะนำให้ "ปิดใช้งาน" แทน`,
+      },
+      { status: 409 }
+    );
+  }
+
   await prisma.car.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

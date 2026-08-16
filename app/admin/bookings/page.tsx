@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
+import { pushMessage, siteUrl } from "@/lib/line";
 
 type BookingRow = {
   id: string;
@@ -21,6 +22,20 @@ type BookingRow = {
   } | null;
 };
 
+/** แจ้งลูกค้าทาง LINE ถ้าเขาผูกบัญชีไว้ — ส่งไม่สำเร็จก็ไม่ให้กระทบงานหลัก */
+async function notifyCustomer(bookingId: string, text: string) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: { customer: true },
+    });
+    const lineUserId = booking?.customer.lineUserId;
+    if (lineUserId) await pushMessage(lineUserId, text);
+  } catch (err) {
+    console.error("notifyCustomer failed:", err);
+  }
+}
+
 async function confirmDepositAction(formData: FormData) {
   "use server";
   const bookingId = formData.get("bookingId") as string;
@@ -34,6 +49,20 @@ async function confirmDepositAction(formData: FormData) {
       data: { status: "CONFIRMED" },
     }),
   ]);
+
+  await notifyCustomer(
+    bookingId,
+    [
+      "✅ ยืนยันการจองเรียบร้อยแล้ว",
+      "",
+      "เราตรวจสอบสลิปมัดจำของคุณเรียบร้อยแล้ว",
+      `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
+      "",
+      "แล้วพบกันวันรับรถครับ 🚗",
+      `${siteUrl()}/booking/${bookingId}`,
+    ].join("\n")
+  );
+
   revalidatePath("/admin/bookings");
 }
 
@@ -44,6 +73,19 @@ async function rejectDepositAction(formData: FormData) {
     where: { bookingId },
     data: { status: "REJECTED" },
   });
+
+  await notifyCustomer(
+    bookingId,
+    [
+      "⚠️ สลิปมัดจำไม่ผ่านการตรวจสอบ",
+      "",
+      `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
+      "",
+      "กรุณาติดต่อแอดมินเพื่อตรวจสอบอีกครั้ง",
+      `${siteUrl()}/booking/${bookingId}`,
+    ].join("\n")
+  );
+
   revalidatePath("/admin/bookings");
 }
 

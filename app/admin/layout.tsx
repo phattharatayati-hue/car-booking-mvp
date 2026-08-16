@@ -61,10 +61,12 @@ export default async function AdminLayout({
           <span className="w-9 h-9 rounded-full bg-slate-900 text-white grid place-items-center text-sm font-semibold shrink-0">
             {initial}
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-slate-500">แอดมิน</p>
-            <p className="text-sm font-medium text-slate-900 truncate">{email}</p>
-          </div>
+          <Link href="/admin/account" className="min-w-0 flex-1 group">
+            <p className="text-xs text-slate-500 group-hover:text-blue-700">บัญชีของฉัน</p>
+            <p className="text-sm font-medium text-slate-900 truncate group-hover:text-blue-700">
+              {email}
+            </p>
+          </Link>
           <form
             action={async () => {
               "use server";

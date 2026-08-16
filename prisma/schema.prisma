@@ -40,6 +40,9 @@ model AdminUser {
   name         String
   role         UserRole @default(ADMIN)
   lineUserId   String?  // LINE User ID สำหรับรับแจ้งเตือน (ขึ้นต้นด้วย U)
+  // รหัสผูกบัญชี LINE แบบใช้ครั้งเดียว มีอายุ 10 นาที
+  lineLinkCode      String?   @unique
+  lineLinkExpiresAt DateTime?
   createdAt    DateTime @default(now())
 }
 
@@ -64,6 +67,7 @@ model Customer {
   email       String?
   idCardNumber String?
   isBlacklisted Boolean @default(false)
+  lineUserId  String?   // ผูกผ่าน LIFF / LINE Login เพื่อรับแจ้งเตือน
   createdAt   DateTime  @default(now())
   bookings    Booking[]
 }
@@ -82,6 +86,18 @@ model Booking {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
+}
+
+/// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)
+model LineDraft {
+  id         String   @id @default(cuid())
+  lineUserId String   @unique
+  step       String   // pick_car | pick_start | pick_end | confirm | ask_phone
+  carId      String?
+  startDate  DateTime?
+  endDate    DateTime?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 }
 
 model Deposit {

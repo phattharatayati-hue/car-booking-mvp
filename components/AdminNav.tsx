@@ -34,6 +34,21 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/calendar",
+    label: "ปฏิทินการจอง",
+    icon: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M8 3v4M16 3v4M3 10h18M7 14h3M7 17.5h7"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/cars",
     label: "จัดการรถ",
     icon: (
