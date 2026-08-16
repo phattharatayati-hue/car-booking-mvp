@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyLineSignature, replyMessage } from "@/lib/line";
 import { consumeLinkCode } from "@/lib/line-link";
+import { formatBangkokDateTime } from "@/lib/settings";
 import {
   startBooking,
   handlePostback,
@@ -17,7 +18,7 @@ type LineEvent = {
   replyToken?: string;
   source?: { userId?: string; type?: string };
   message?: { type: string; text?: string; id?: string };
-  postback?: { data: string; params?: { date?: string } };
+  postback?: { data: string; params?: { date?: string; datetime?: string } };
 };
 
 const STATUS_TH: Record<string, string> = {
@@ -74,7 +75,7 @@ async function handleEvent(event: LineEvent) {
       replyToken,
       userId,
       event.postback.data,
-      event.postback.params?.date
+      event.postback.params?.datetime ?? event.postback.params?.date
     );
     return;
   }
@@ -232,9 +233,8 @@ function formatBooking(booking: BookingForDisplay) {
     `📋 การจอง ${booking.id.slice(0, 8).toUpperCase()}`,
     "",
     `รถ: ${booking.car.brand} ${booking.car.name}`,
-    `วันที่: ${new Date(booking.startDate).toLocaleDateString("th-TH")} - ${new Date(
-      booking.endDate
-    ).toLocaleDateString("th-TH")}`,
+    `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
+    `คืนรถ: ${formatBangkokDateTime(booking.endDate)}`,
     `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
     `สถานะ: ${STATUS_TH[booking.status] ?? booking.status}`,
   ];

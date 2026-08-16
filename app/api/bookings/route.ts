@@ -1,36 +1,51 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmin, buildNewBookingMessage, siteUrl } from "@/lib/line";
+import { getSettings, toBangkokDate, isWithinHours } from "@/lib/settings";
 
 /** สถานะที่ถือว่ารถถูกจองอยู่จริง (ยกเลิกแล้วไม่นับ) */
 const ACTIVE_STATUSES = ["PENDING_DEPOSIT", "CONFIRMED"] as const;
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { carId, startDate, endDate, fullName, phone, email } = body;
+  const { carId, startDate, endDate, startTime, endTime, fullName, phone, email } = body;
 
   if (!carId || !startDate || !endDate || !fullName || !phone) {
     return NextResponse.json({ error: "ข้อมูลไม่ครบ" }, { status: 400 });
   }
 
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const settings = await getSettings();
+
+  const start = toBangkokDate(String(startDate), startTime ? String(startTime) : undefined);
+  const end = toBangkokDate(String(endDate), endTime ? String(endTime) : undefined);
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return NextResponse.json({ error: "รูปแบบวันที่ไม่ถูกต้อง" }, { status: 400 });
+    return NextResponse.json({ error: "รูปแบบวันเวลาไม่ถูกต้อง" }, { status: 400 });
   }
 
   if (end <= start) {
     return NextResponse.json(
-      { error: "วันคืนรถต้องหลังวันรับรถ" },
+      { error: "เวลาคืนรถต้องหลังเวลารับรถ" },
       { status: 400 }
     );
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (start < today) {
-    return NextResponse.json({ error: "เลือกวันรับรถย้อนหลังไม่ได้" }, { status: 400 });
+  if (start.getTime() < Date.now()) {
+    return NextResponse.json({ error: "เลือกเวลารับรถย้อนหลังไม่ได้" }, { status: 400 });
+  }
+
+  if (
+    !isWithinHours(start, settings.openHour, settings.closeHour) ||
+    !isWithinHours(end, settings.openHour, settings.closeHour)
+  ) {
+    return NextResponse.json(
+      {
+        error: `รับ-คืนรถได้เฉพาะเวลา ${String(settings.openHour).padStart(2, "0")}:00 - ${String(
+          settings.closeHour
+        ).padStart(2, "0")}:00 น.`,
+      },
+      { status: 400 }
+    );
   }
 
   const car = await prisma.car.findUnique({ where: { id: carId } });

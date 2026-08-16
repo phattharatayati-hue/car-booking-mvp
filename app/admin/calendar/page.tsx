@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { formatBangkokDateTime } from "@/lib/settings";
 
 type BookingLite = {
   id: string;
@@ -123,7 +124,9 @@ export default async function CalendarPage() {
                               booking
                                 ? `${booking.customer.fullName} · ${
                                     confirmed ? "ยืนยันแล้ว" : "รอตรวจสลิป"
-                                  }`
+                                  }\nรับ ${formatBangkokDateTime(
+                                    booking.startDate
+                                  )}\nคืน ${formatBangkokDateTime(booking.endDate)}`
                                 : "ว่าง"
                             }
                             className={`h-8 rounded ${

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
+import { formatBangkokDateTime } from "@/lib/settings";
 
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
   PENDING_DEPOSIT: {
@@ -140,23 +141,15 @@ export default async function BookingStatusPage({
               <dd className="font-medium text-slate-900">{booking.customer.fullName}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">วันรับรถ</dt>
+              <dt className="text-slate-500">รับรถ</dt>
               <dd className="font-medium text-slate-900">
-                {new Date(booking.startDate).toLocaleDateString("th-TH", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
+                {formatBangkokDateTime(booking.startDate)}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">วันคืนรถ</dt>
+              <dt className="text-slate-500">คืนรถ</dt>
               <dd className="font-medium text-slate-900">
-                {new Date(booking.endDate).toLocaleDateString("th-TH", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
+                {formatBangkokDateTime(booking.endDate)}
               </dd>
             </div>
             <div className="flex justify-between pt-3 border-t border-slate-100">

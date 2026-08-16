@@ -12,14 +12,34 @@ import {
 } from "@/lib/line";
 import { carCarousel, bookingSummary, datePicker, bookingDone, FlexCar } from "@/lib/line-flex";
 
+import {
+  getSettings,
+  toBangkokDate,
+  formatBangkokDateTime,
+  isWithinHours,
+} from "@/lib/settings";
+
 const DAY_MS = 86400000;
 const ACTIVE = ["PENDING_DEPOSIT", "CONFIRMED"] as const;
 const BANK_INFO = "ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent";
 
-function todayStr() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
+/** ค่า min ของ datetimepicker — รูปแบบ YYYY-MM-ddTHH:mm ตามเวลาไทย */
+function pickerMin(from: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(from);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+function hoursLabel(openHour: number, closeHour: number) {
+  return `${String(openHour).padStart(2, "0")}:00 - ${String(closeHour).padStart(2, "0")}:00 น.`;
 }
 
 function dayCount(start: Date, end: Date) {
@@ -69,13 +89,18 @@ async function handlePickCar(replyToken: string, lineUserId: string, carId: stri
     update: { step: "pick_start", carId, startDate: null, endDate: null },
   });
 
+  const settings = await getSettings();
+
   await replyRaw(replyToken, [
     datePicker({
       title: `${car.brand} ${car.name}`,
-      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันที่ต้องการรับรถ`,
-      label: "เลือกวันรับรถ",
+      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนรถได้ ${hoursLabel(
+        settings.openHour,
+        settings.closeHour
+      )})`,
+      label: "เลือกวัน-เวลารับรถ",
       action: "pick_start",
-      min: todayStr(),
+      min: pickerMin(new Date()),
     }),
   ]);
 }
@@ -88,8 +113,21 @@ async function handlePickStart(replyToken: string, lineUserId: string, dateStr: 
     return;
   }
 
-  const start = new Date(`${dateStr}T00:00:00`);
-  const minEnd = new Date(start.getTime() + DAY_MS);
+  const settings = await getSettings();
+  const start = toBangkokDate(dateStr);
+
+  if (!isWithinHours(start, settings.openHour, settings.closeHour)) {
+    await replyMessage(
+      replyToken,
+      `รับรถได้เฉพาะเวลา ${hoursLabel(
+        settings.openHour,
+        settings.closeHour
+      )}\nกรุณาเลือกเวลาใหม่ครับ`
+    );
+    return;
+  }
+
+  const minEnd = new Date(start.getTime() + 3600000);
 
   await prisma.lineDraft.update({
     where: { lineUserId },
@@ -98,15 +136,11 @@ async function handlePickStart(replyToken: string, lineUserId: string, dateStr: 
 
   await replyRaw(replyToken, [
     datePicker({
-      title: "เลือกวันคืนรถ",
-      description: `รับรถวันที่ ${start.toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })}`,
-      label: "เลือกวันคืนรถ",
+      title: "เลือกวัน-เวลาคืนรถ",
+      description: `รับรถ ${formatBangkokDateTime(start)}`,
+      label: "เลือกวัน-เวลาคืนรถ",
       action: "pick_end",
-      min: minEnd.toISOString().slice(0, 10),
+      min: pickerMin(minEnd),
     }),
   ]);
 }
@@ -126,11 +160,23 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     return;
   }
 
+  const settings = await getSettings();
   const start = new Date(draft.startDate);
-  const end = new Date(`${dateStr}T00:00:00`);
+  const end = toBangkokDate(dateStr);
 
   if (end <= start) {
-    await replyMessage(replyToken, "วันคืนรถต้องหลังวันรับรถครับ กรุณาเลือกใหม่");
+    await replyMessage(replyToken, "เวลาคืนรถต้องหลังเวลารับรถครับ กรุณาเลือกใหม่");
+    return;
+  }
+
+  if (!isWithinHours(end, settings.openHour, settings.closeHour)) {
+    await replyMessage(
+      replyToken,
+      `คืนรถได้เฉพาะเวลา ${hoursLabel(
+        settings.openHour,
+        settings.closeHour
+      )}\nกรุณาเลือกเวลาใหม่ครับ`
+    );
     return;
   }
 

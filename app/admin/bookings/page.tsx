@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import { pushMessage, siteUrl } from "@/lib/line";
+import { formatBangkokDateTime } from "@/lib/settings";
 
 type BookingRow = {
   id: string;
@@ -178,16 +179,10 @@ export default async function AdminBookingsPage({
                     {b.customer.fullName} · {b.customer.phone}
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    {new Date(b.startDate).toLocaleDateString("th-TH", {
-                      day: "numeric",
-                      month: "short",
-                    })}{" "}
-                    –{" "}
-                    {new Date(b.endDate).toLocaleDateString("th-TH", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    รับ {formatBangkokDateTime(b.startDate)}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    คืน {formatBangkokDateTime(b.endDate)}
                   </p>
                   {b.note && (
                     <p className="text-sm text-slate-500 mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">

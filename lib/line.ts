@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { formatBangkokDateTime } from "@/lib/settings";
 
 const LINE_API = "https://api.line.me/v2/bot";
 
@@ -194,11 +195,7 @@ export async function notifyAdmin(text: string) {
 }
 
 function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatBangkokDateTime(d);
 }
 
 export function buildNewBookingMessage(data: {

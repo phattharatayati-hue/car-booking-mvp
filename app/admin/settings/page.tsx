@@ -14,6 +14,8 @@ async function saveSettingsAction(formData: FormData) {
   const on = formData.get("returnReminderOn") === "on";
   const days = Number(formData.get("returnReminderDays"));
   const hour = Number(formData.get("returnReminderHour"));
+  const openHour = Number(formData.get("openHour"));
+  const closeHour = Number(formData.get("closeHour"));
 
   if (!Number.isInteger(days) || days < 0 || days > 14) {
     redirect("/admin/settings?error=days");
@@ -21,20 +23,28 @@ async function saveSettingsAction(formData: FormData) {
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
     redirect("/admin/settings?error=hour");
   }
+  if (
+    !Number.isInteger(openHour) ||
+    !Number.isInteger(closeHour) ||
+    openHour < 0 ||
+    closeHour > 23 ||
+    openHour >= closeHour
+  ) {
+    redirect("/admin/settings?error=hours");
+  }
+
+  const data = {
+    returnReminderOn: on,
+    returnReminderDays: days,
+    returnReminderHour: hour,
+    openHour,
+    closeHour,
+  };
 
   await prisma.settings.upsert({
     where: { id: SETTINGS_ID },
-    create: {
-      id: SETTINGS_ID,
-      returnReminderOn: on,
-      returnReminderDays: days,
-      returnReminderHour: hour,
-    },
-    update: {
-      returnReminderOn: on,
-      returnReminderDays: days,
-      returnReminderHour: hour,
-    },
+    create: { id: SETTINGS_ID, ...data },
+    update: data,
   });
 
   revalidatePath("/admin/settings");
@@ -44,6 +54,7 @@ async function saveSettingsAction(formData: FormData) {
 const ERRORS: Record<string, string> = {
   days: "จำนวนวันต้องอยู่ระหว่าง 0-14",
   hour: "เวลาต้องอยู่ระหว่าง 0-23",
+  hours: "เวลาเปิดต้องน้อยกว่าเวลาปิด",
 };
 
 const inputClass =
@@ -85,6 +96,46 @@ export default async function SettingsPage({
         className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col gap-5"
       >
         <div>
+          <h2 className="font-semibold text-slate-900">เวลารับ-คืนรถ</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            ลูกค้าจะเลือกเวลารับ-คืนรถได้เฉพาะในช่วงนี้ ทั้งบนเว็บและใน LINE
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass} htmlFor="openHour">เปิดเวลา</label>
+            <select
+              id="openHour"
+              name="openHour"
+              defaultValue={String(settings.openHour)}
+              className={inputClass}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00 น.
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="closeHour">ปิดเวลา</label>
+            <select
+              id="closeHour"
+              name="closeHour"
+              defaultValue={String(settings.closeHour)}
+              className={inputClass}
+            >
+              {Array.from({ length: 24 }, (_, h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, "0")}:00 น.
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
           <h2 className="font-semibold text-slate-900">แจ้งเตือนก่อนคืนรถ</h2>
           <p className="text-sm text-slate-500 mt-1">
             ส่งข้อความหาลูกค้าที่ผูก LINE ไว้ เฉพาะการจองที่ยืนยันแล้ว

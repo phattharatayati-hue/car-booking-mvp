@@ -105,12 +105,10 @@ export function carCarousel(cars: FlexCar[], site: string) {
   };
 }
 
+import { formatBangkokDateTime } from "@/lib/settings";
+
 function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatBangkokDateTime(d);
 }
 
 /** สรุปก่อนยืนยันการจอง */
@@ -200,7 +198,7 @@ export function datePicker(opts: {
   description: string;
   label: string;
   action: "pick_start" | "pick_end";
-  min: string; // YYYY-MM-DD
+  min: string; // YYYY-MM-ddTHH:mm
 }) {
   return {
     type: "flex",
@@ -228,7 +226,7 @@ export function datePicker(opts: {
               type: "datetimepicker",
               label: opts.label,
               data: `action=${opts.action}`,
-              mode: "date",
+              mode: "datetime",
               min: opts.min,
             },
           },

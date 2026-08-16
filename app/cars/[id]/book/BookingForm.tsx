@@ -10,15 +10,19 @@ const labelClass = "block text-sm font-medium text-slate-700 mb-1.5";
 export default function BookingForm({
   carId,
   pricePerDay,
+  timeOptions,
 }: {
   carId: string;
   pricePerDay: number;
+  timeOptions: string[];
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
+  const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -27,7 +31,9 @@ export default function BookingForm({
       ? Math.max(
           1,
           Math.ceil(
-            (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
+            (new Date(`${endDate}T${endTime}`).getTime() -
+              new Date(`${startDate}T${startTime}`).getTime()) /
+              86400000
           )
         )
       : 0;
@@ -48,6 +54,8 @@ export default function BookingForm({
           carId,
           startDate: formData.get("startDate"),
           endDate: formData.get("endDate"),
+          startTime: formData.get("startTime"),
+          endTime: formData.get("endTime"),
           fullName: formData.get("fullName"),
           phone: formData.get("phone"),
           email: formData.get("email"),
@@ -85,31 +93,64 @@ export default function BookingForm({
       <section>
         <h2 className="text-sm font-semibold text-slate-900 mb-3">ช่วงเวลาเช่า</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="startDate">วันรับรถ</label>
-            <input
-              id="startDate"
-              type="date"
-              name="startDate"
-              required
-              min={today}
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className={inputClass}
-            />
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <label className={labelClass} htmlFor="startDate">วันรับรถ</label>
+              <input
+                id="startDate"
+                type="date"
+                name="startDate"
+                required
+                min={today}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="startTime">เวลา</label>
+              <select
+                id="startTime"
+                name="startTime"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className={inputClass}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label className={labelClass} htmlFor="endDate">วันคืนรถ</label>
-            <input
-              id="endDate"
-              type="date"
-              name="endDate"
-              required
-              min={startDate || today}
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className={inputClass}
-            />
+
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <label className={labelClass} htmlFor="endDate">วันคืนรถ</label>
+              <input
+                id="endDate"
+                type="date"
+                name="endDate"
+                required
+                min={startDate || today}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="endTime">เวลา</label>
+              <select
+                id="endTime"
+                name="endTime"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className={inputClass}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -117,6 +158,9 @@ export default function BookingForm({
           <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
             <div className="text-sm text-slate-600">
               {days} วัน × {pricePerDay.toLocaleString()} ฿
+              <span className="block text-xs text-slate-500 mt-0.5">
+                รับ {startTime} น. · คืน {endTime} น.
+              </span>
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">ยอดรวม</p>

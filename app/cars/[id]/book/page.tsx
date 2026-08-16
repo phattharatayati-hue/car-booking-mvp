@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import BookingForm from "./BookingForm";
+import { getSettings, timeOptions } from "@/lib/settings";
 
 export default async function BookCarPage({
   params,
@@ -18,6 +19,9 @@ export default async function BookCarPage({
   if (!car || car.status !== "AVAILABLE") {
     notFound();
   }
+
+  const settings = await getSettings();
+  const times = timeOptions(settings.openHour, settings.closeHour);
 
   return (
     <PublicShell>
@@ -37,7 +41,11 @@ export default async function BookCarPage({
             <p className="text-slate-500 text-sm mt-1 mb-7">
               กรอกข้อมูลให้ครบถ้วน เราจะติดต่อกลับเพื่อยืนยัน
             </p>
-            <BookingForm carId={car.id} pricePerDay={car.pricePerDay} />
+            <BookingForm
+              carId={car.id}
+              pricePerDay={car.pricePerDay}
+              timeOptions={times}
+            />
           </div>
 
           {/* สรุปรถ */}
@@ -90,6 +98,9 @@ export default async function BookCarPage({
                 </dl>
 
                 <div className="mt-5 bg-blue-50 rounded-xl p-4 text-xs text-blue-900 leading-relaxed">
+                  รับ-คืนรถได้เวลา {String(settings.openHour).padStart(2, "0")}:00 -{" "}
+                  {String(settings.closeHour).padStart(2, "0")}:00 น.
+                  <br />
                   หลังจองสำเร็จ ระบบจะแสดงยอดมัดจำ 30%
                   ให้โอนแล้วอัปโหลดสลิปเพื่อยืนยันการจอง
                 </div>

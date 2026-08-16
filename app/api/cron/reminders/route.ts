@@ -6,6 +6,7 @@ import {
   bangkokHour,
   bangkokDateStr,
   bangkokDayRange,
+  formatBangkokDateTime,
 } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -91,12 +92,7 @@ export async function GET(request: Request) {
       "",
       `รถ: ${b.car.brand} ${b.car.name}`,
       `ทะเบียน: ${b.car.licensePlate}`,
-      `วันคืนรถ: ${new Date(b.endDate).toLocaleDateString("th-TH", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })}`,
+      `กำหนดคืนรถ: ${formatBangkokDateTime(b.endDate)}`,
       `รหัสจอง: ${b.id.slice(0, 8).toUpperCase()}`,
       "",
       "กรุณาเติมน้ำมันให้เท่าตอนรับรถ",
