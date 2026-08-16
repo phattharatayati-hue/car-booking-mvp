@@ -83,9 +83,19 @@ model Booking {
   totalPrice  Int
   status      BookingStatus @default(PENDING_DEPOSIT)
   note        String?
+  returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
+}
+
+/// ตั้งค่าระบบ — มีแถวเดียว (id = "default")
+model Settings {
+  id                  String   @id @default("default")
+  returnReminderOn    Boolean  @default(true)
+  returnReminderDays  Int      @default(1)   // เตือนล่วงหน้ากี่วันก่อนคืนรถ
+  returnReminderHour  Int      @default(9)   // เตือนเวลากี่โมง (0-23 เวลาไทย)
+  updatedAt           DateTime @updatedAt
 }
 
 /// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)
