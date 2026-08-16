@@ -46,6 +46,22 @@ const ITEMS = [
       />
     ),
   },
+  {
+    href: "/admin/users",
+    label: "จัดการแอดมิน",
+    icon: (
+      <>
+        <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M3.5 19a5.5 5.5 0 0111 0M17 11.5a2.5 2.5 0 100-5M18 19a4.5 4.5 0 00-2-3.7"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
 ];
 
 export default function AdminNav() {

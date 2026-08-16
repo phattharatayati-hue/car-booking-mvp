@@ -74,11 +74,56 @@ export async function pushMessage(to: string, text: string) {
   }
 }
 
-/** ส่งหาแอดมิน (ถ้าตั้งค่า LINE_ADMIN_USER_ID ไว้) */
+/**
+ * LINE ID จาก environment variable (ใช้เป็นตัวสำรอง)
+ *
+ * LINE_ADMIN_USER_ID รองรับหลายคน คั่นด้วยจุลภาค เช่น
+ *   Uaaa...,Ubbb...,Uccc...
+ *
+ * ถ้าใส่ ID ของกลุ่ม (ขึ้นต้นด้วย C) ก็ส่งเข้ากลุ่มได้เหมือนกัน
+ * แต่ต้องเปิด "Allow bot to join group chats" ใน LINE Developers Console ก่อน
+ */
+export function adminIdsFromEnv(): string[] {
+  return (process.env.LINE_ADMIN_USER_ID ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+/**
+ * รวมรายชื่อผู้รับแจ้งเตือน = แอดมินในฐานข้อมูลที่ผูก LINE ไว้ + ค่าจาก env
+ * (ถ้าซ้ำกันจะส่งครั้งเดียว)
+ */
+export async function adminIds(): Promise<string[]> {
+  const ids = new Set(adminIdsFromEnv());
+
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const admins = await prisma.adminUser.findMany({
+      where: { lineUserId: { not: null } },
+      select: { lineUserId: true },
+    });
+    for (const a of admins as { lineUserId: string | null }[]) {
+      if (a.lineUserId) ids.add(a.lineUserId.trim());
+    }
+  } catch (err) {
+    // อ่านฐานข้อมูลไม่ได้ก็ยังส่งตาม env ได้
+    console.error("load admin line ids failed:", err);
+  }
+
+  return [...ids].filter(Boolean);
+}
+
 export async function notifyAdmin(text: string) {
-  const adminId = process.env.LINE_ADMIN_USER_ID;
-  if (!adminId) return;
-  await pushMessage(adminId, text);
+  const ids = await adminIds();
+  if (ids.length === 0) return;
+
+  // ส่งพร้อมกัน — คนใดคนหนึ่งพังต้องไม่กระทบคนอื่น
+  await Promise.all(
+    ids.map((id) =>
+      pushMessage(id, text).catch((err) => console.error(`push to ${id} failed:`, err))
+    )
+  );
 }
 
 function fmtDate(d: Date) {

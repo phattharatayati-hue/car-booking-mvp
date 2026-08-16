@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -39,6 +39,7 @@ model AdminUser {
   passwordHash String
   name         String
   role         UserRole @default(ADMIN)
+  lineUserId   String?  // LINE User ID สำหรับรับแจ้งเตือน (ขึ้นต้นด้วย U)
   createdAt    DateTime @default(now())
 }
 
