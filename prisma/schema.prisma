@@ -29,6 +29,18 @@ enum BookingStatus {
   COMPLETED
 }
 
+enum DocumentKind {
+  ID_CARD          // บัตรประชาชน หรือ Passport
+  DRIVER_LICENSE   // ใบขับขี่
+  TRAVEL_PROOF     // เอกสารการจองเดินทาง หรือที่พัก
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum DepositStatus {
   PENDING
   CONFIRMED
@@ -100,12 +112,34 @@ model Booking {
   endDate     DateTime
   totalPrice  Int
   status      BookingStatus @default(PENDING_DEPOSIT)
+  pickupPlace String?    // จุดรับรถที่ลูกค้าเลือก (เก็บเป็นข้อความ กันจุดถูกลบทีหลัง)
+  returnPlace String?    // จุดคืนรถ
   note        String?
   adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
+  documents   BookingDocument[]
+}
+
+/// เอกสารที่ลูกค้าอัปโหลดก่อนรับรถ — เก็บแบบ private ดูผ่าน /api/file เท่านั้น
+model BookingDocument {
+  id        String       @id @default(cuid())
+  booking   Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId String
+  kind      DocumentKind
+  fileUrl   String
+  status       DocumentStatus @default(PENDING)
+  /// เหตุผลที่ไม่ผ่าน — แสดงให้ลูกค้าเห็นเพื่อส่งใหม่ให้ถูก
+  rejectReason String?
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  /// อัปโหลดใหม่ทับของเดิมได้ แต่เก็บชนิดละหนึ่งไฟล์ต่อการจอง
+  @@unique([bookingId, kind])
 }
 
 /// ตั้งค่าระบบ — มีแถวเดียว (id = "default")
@@ -114,8 +148,14 @@ model Settings {
   returnReminderOn    Boolean  @default(true)
   returnReminderDays  Int      @default(1)   // เตือนล่วงหน้ากี่วันก่อนคืนรถ
   returnReminderHour  Int      @default(9)   // เตือนเวลากี่โมง (0-23 เวลาไทย)
-  openHour            Int      @default(8)   // เวลาเปิดรับ-คืนรถ
+  openHour            Int      @default(6)   // เวลาเปิดรับ-คืนรถ
   closeHour           Int      @default(20)  // เวลาปิด
+  /// ค่าจองที่ลูกค้าโอนล่วงหน้าเพื่อกันวัน (บาท)
+  bookingFee          Int      @default(500)
+  /// เงินประกันรถที่เก็บวันรับรถและคืนให้หลังคืนรถ (บาท) — ไม่ได้เก็บผ่านเว็บ
+  securityDeposit     Int      @default(3000)
+  /// เงื่อนไขพื้นที่ให้บริการ — แสดงบนเว็บและใน LINE
+  serviceNote         String   @default("การเช่ารถขับเองในจังหวัดเชียงใหม่เท่านั้น หากออกต่างจังหวัดจะมีค่าใช้จ่ายเพิ่มเติมครับ")
   updatedAt           DateTime @updatedAt
 }
 
@@ -141,4 +181,26 @@ model Deposit {
   confirmedBy   String?
   confirmedAt   DateTime?
   createdAt     DateTime      @default(now())
+}
+
+/// รหัส OTP สำหรับให้ลูกค้าดูประวัติการจอง — ส่งทาง LINE มีอายุ 5 นาที
+model CustomerOtp {
+  phone     String   @id
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// จุดรับ-ส่งรถที่ให้ลูกค้าเลือกตอนจอง — แอดมินเพิ่ม/ปิดได้เองในหลังบ้าน
+model PickupPoint {
+  id        String   @id @default(cuid())
+  name      String
+  /// ค่าบริการรับ-ส่ง (บาท) — 0 คือฟรี
+  fee       Int      @default(0)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

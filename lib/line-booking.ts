@@ -223,6 +223,7 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
       days,
       pricePerDay: car.pricePerDay,
       total,
+      serviceNote: settings.serviceNote,
     }),
   ]);
 }
@@ -329,7 +330,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
 
   await clearDraft(lineUserId);
 
-  const deposit = Math.round(total * 0.3);
+  const deposit = (await getSettings()).bookingFee;
 
   if (isRequest) {
     await replyMessage(
@@ -347,7 +348,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         "เราจะติดต่อเจ้าของรถเพื่อเช็ควันว่าง",
         "แล้วแจ้งผลกลับทางแชทนี้โดยเร็วที่สุดครับ",
         "",
-        "⚠️ ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน",
+        "⚠️ ยังไม่ต้องโอนค่าจองจนกว่าจะได้รับการยืนยัน",
       ].join("\n")
     );
   } else {
@@ -358,6 +359,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         total,
         deposit,
         bankInfo: BANK_INFO,
+        bookingUrl: `${siteUrl()}/booking/${booking.id}`,
       }),
     ]);
   }
@@ -430,7 +432,7 @@ export async function handleSlipImage(
   if (!booking) {
     await replyMessage(
       replyToken,
-      "ไม่พบการจองที่รอสลิปมัดจำครับ\nถ้าต้องการจองใหม่ พิมพ์ \"จองรถ\" ได้เลย"
+      "ไม่พบการจองที่รอสลิปค่าจองครับ\nถ้าต้องการจองใหม่ พิมพ์ \"จองรถ\" ได้เลย"
     );
     return true;
   }
@@ -449,7 +451,8 @@ export async function handleSlipImage(
       contentType: content.contentType,
     });
 
-    const amount = booking.deposit?.amount || Math.round(booking.totalPrice * 0.3);
+    const settings = await getSettings();
+    const amount = booking.deposit?.amount || settings.bookingFee;
     const slipUrl = `/api/file?p=${encodeURIComponent(blob.pathname)}`;
 
     await prisma.deposit.upsert({

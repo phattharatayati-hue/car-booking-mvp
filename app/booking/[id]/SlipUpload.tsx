@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export default function SlipUpload({
   bookingId,
   suggestedAmount,
+  securityDeposit,
 }: {
   bookingId: string;
   suggestedAmount: number;
+  securityDeposit: number;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -59,20 +61,26 @@ export default function SlipUpload({
       className="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col gap-5"
     >
       <div>
-        <h3 className="font-semibold text-slate-900">อัปโหลดสลิปมัดจำ</h3>
+        <h3 className="font-semibold text-slate-900">อัปโหลดสลิปค่าจอง</h3>
         <p className="text-sm text-slate-500 mt-1">
-          โอนมัดจำแล้วแนบสลิปเพื่อยืนยันการจอง
+          โอนค่าจองแล้วแนบสลิปเพื่อกันวันให้คุณ
         </p>
       </div>
 
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-        <p className="text-xs text-blue-900 mb-1">ยอดมัดจำที่แนะนำ (30%)</p>
+        <p className="text-xs text-blue-900 mb-1">ค่าจอง (กันวัน)</p>
         <p className="text-2xl font-bold text-blue-900">
           {suggestedAmount.toLocaleString()} ฿
         </p>
         <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
           โอนเข้าบัญชี ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent
         </p>
+        {securityDeposit > 0 && (
+          <p className="text-xs text-blue-800/80 mt-2 leading-relaxed border-t border-blue-200/70 pt-2">
+            เงินประกันรถอีก {securityDeposit.toLocaleString()} บาท
+            ชำระวันรับรถ และคืนให้หลังส่งคืนรถเรียบร้อย
+          </p>
+        )}
       </div>
 
       {error && (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
+import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -14,12 +15,14 @@ export default function BookingForm({
   timeOptions,
   isRequest = false,
   availability,
+  pickupPoints,
 }: {
   carId: string;
   pricePerDay: number;
   timeOptions: string[];
   isRequest?: boolean;
   availability: Record<string, DayStatus>;
+  pickupPoints: PickupOption[];
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +71,8 @@ export default function BookingForm({
           fullName: formData.get("fullName"),
           phone: formData.get("phone"),
           email: formData.get("email"),
+          pickupPlace: formData.get("pickupPlace"),
+          returnPlace: formData.get("returnPlace"),
         }),
       });
 
@@ -152,6 +157,32 @@ export default function BookingForm({
             </select>
           </div>
         </div>
+
+        {pickupPoints.length > 0 && (
+          <div className="grid sm:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className={labelClass} htmlFor="pickupPlace">จุดรับรถ</label>
+              <select id="pickupPlace" name="pickupPlace" className={inputClass}>
+                {pickupPoints.map((p) => (
+                  <option key={p.id} value={p.name}>{pointLabel(p)}</option>
+                ))}
+                <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="returnPlace">จุดคืนรถ</label>
+              <select id="returnPlace" name="returnPlace" className={inputClass}>
+                {pickupPoints.map((p) => (
+                  <option key={p.id} value={p.name}>{pointLabel(p)}</option>
+                ))}
+                <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
+              </select>
+            </div>
+            <p className="sm:col-span-2 text-xs text-slate-500 -mt-1">
+              ถ้าต้องการจุดอื่นนอกรายการ เลือก “{OTHER_PLACE}” แล้วแอดมินจะติดต่อกลับไปนัดจุดรับ-ส่งครับ
+            </p>
+          </div>
+        )}
 
         {days > 0 && (
           <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">

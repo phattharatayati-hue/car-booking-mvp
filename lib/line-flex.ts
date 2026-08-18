@@ -135,6 +135,7 @@ export function bookingSummary(opts: {
   days: number;
   pricePerDay: number;
   total: number;
+  serviceNote?: string;
 }) {
   const row = (label: string, value: string, bold = false) => ({
     type: "box",
@@ -173,6 +174,19 @@ export function bookingSummary(opts: {
           row("ราคา/วัน", `${opts.pricePerDay.toLocaleString()} บาท`),
           { type: "separator", margin: "md" },
           row("ยอดรวม", `${opts.total.toLocaleString()} บาท`, true),
+          ...(opts.serviceNote?.trim()
+            ? [
+                { type: "separator", margin: "md" },
+                {
+                  type: "text",
+                  text: opts.serviceNote.trim(),
+                  size: "xs",
+                  color: MUTED,
+                  wrap: true,
+                  margin: "sm",
+                },
+              ]
+            : []),
         ],
       },
       footer: {
@@ -259,6 +273,7 @@ export function bookingDone(opts: {
   total: number;
   deposit: number;
   bankInfo: string;
+  bookingUrl?: string;
 }) {
   return {
     type: "flex",
@@ -288,7 +303,7 @@ export function bookingDone(opts: {
           { type: "separator", margin: "md" },
           {
             type: "text",
-            text: `โอนมัดจำ ${opts.deposit.toLocaleString()} บาท`,
+            text: `โอนค่าจอง ${opts.deposit.toLocaleString()} บาท`,
             weight: "bold",
             size: "lg",
             color: BLUE,
@@ -303,8 +318,36 @@ export function bookingDone(opts: {
             wrap: true,
             margin: "md",
           },
+          {
+            type: "text",
+            text: "อย่าลืมเลือกจุดรับ-ส่งรถ และส่งเอกสาร (บัตรประชาชน ใบขับขี่ เอกสารการเดินทาง/ที่พัก) ในหน้าจองครับ",
+            size: "xs",
+            color: MUTED,
+            wrap: true,
+            margin: "md",
+          },
         ],
       },
+      ...(opts.bookingUrl
+        ? {
+            footer: {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "button",
+                  style: "primary",
+                  color: BLUE,
+                  action: {
+                    type: "uri",
+                    label: "เลือกจุดรับ-ส่ง / ส่งเอกสาร",
+                    uri: opts.bookingUrl,
+                  },
+                },
+              ],
+            },
+          }
+        : {}),
     },
   };
 }

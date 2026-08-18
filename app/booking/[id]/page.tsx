@@ -5,7 +5,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
-import { formatBangkokDateTime } from "@/lib/settings";
+import DocumentUpload from "./DocumentUpload";
+import PlacePicker from "./PlacePicker";
+import { getPickupPoints } from "@/lib/pickup-points";
+import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 
 import { STATUS_LABEL, STATUS_CLASS, needsApproval } from "@/lib/booking-status";
 
@@ -17,10 +20,14 @@ export default async function BookingStatusPage({
   const { id } = await params;
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { car: true, customer: true, deposit: true },
+    include: { car: true, customer: true, deposit: true, documents: true },
   });
 
   if (!booking) notFound();
+
+  const settings = await getSettings();
+  const pickupPoints = await getPickupPoints();
+  const isOpen = !["CANCELLED", "REJECTED", "COMPLETED"].includes(booking.status);
 
   const isRequest = needsApproval(booking.car);
   const approved = !["REQUESTED", "REJECTED"].includes(booking.status);
@@ -147,6 +154,22 @@ export default async function BookingStatusPage({
                 {formatBangkokDateTime(booking.endDate)}
               </dd>
             </div>
+            {booking.pickupPlace && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500 shrink-0">จุดรับรถ</dt>
+                <dd className="font-medium text-slate-900 text-right">
+                  {booking.pickupPlace}
+                </dd>
+              </div>
+            )}
+            {booking.returnPlace && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-slate-500 shrink-0">จุดคืนรถ</dt>
+                <dd className="font-medium text-slate-900 text-right">
+                  {booking.returnPlace}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between pt-3 border-t border-slate-100">
               <dt className="text-slate-500">ยอดรวม</dt>
               <dd className="text-lg font-bold text-slate-900">
@@ -206,7 +229,7 @@ export default async function BookingStatusPage({
             <p className="text-sm text-violet-900/90 leading-relaxed">
               รถคันนี้เป็นรถจากพาร์ทเนอร์ เราจะติดต่อเจ้าของรถและแจ้งผลกลับโดยเร็วที่สุด
               <br />
-              <strong>ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน</strong>
+              <strong>ยังไม่ต้องโอนค่าจองจนกว่าจะได้รับการยืนยัน</strong>
             </p>
           </div>
         )}
@@ -227,19 +250,52 @@ export default async function BookingStatusPage({
           </div>
         )}
 
+        {isOpen && pickupPoints.length > 0 && (
+          <div className="mb-5">
+            <PlacePicker
+              bookingId={booking.id}
+              points={pickupPoints}
+              currentPickup={booking.pickupPlace}
+              currentReturn={booking.returnPlace}
+            />
+          </div>
+        )}
+
+        {isOpen && (
+          <div className="mb-5">
+            <DocumentUpload
+              bookingId={booking.id}
+              uploaded={booking.documents.map(
+                (d: {
+                  kind: string;
+                  fileUrl: string;
+                  status: string;
+                  rejectReason: string | null;
+                }) => ({
+                  kind: d.kind,
+                  fileUrl: d.fileUrl,
+                  status: d.status,
+                  rejectReason: d.rejectReason,
+                })
+              )}
+            />
+          </div>
+        )}
+
         {!booking.deposit && booking.status === "PENDING_DEPOSIT" && (
           <SlipUpload
             bookingId={booking.id}
-            suggestedAmount={Math.round(booking.totalPrice * 0.3)}
+            suggestedAmount={settings.bookingFee}
+            securityDeposit={settings.securityDeposit}
           />
         )}
 
         {booking.deposit && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">สลิปมัดจำ</h3>
+            <h3 className="font-semibold text-slate-900 mb-4">สลิปค่าจอง</h3>
             <dl className="flex flex-col gap-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-slate-500">ยอดมัดจำที่แจ้ง</dt>
+                <dt className="text-slate-500">ยอดค่าจองที่แจ้ง</dt>
                 <dd className="font-medium text-slate-900">
                   {booking.deposit.amount.toLocaleString()} ฿
                 </dd>

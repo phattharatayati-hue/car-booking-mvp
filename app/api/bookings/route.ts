@@ -13,6 +13,8 @@ export async function POST(request: Request) {
     fullName: body.fullName,
     phone: body.phone,
     email: body.email,
+    pickupPlace: body.pickupPlace,
+    returnPlace: body.returnPlace,
   });
 
   if (!result.ok) {

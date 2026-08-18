@@ -2,10 +2,20 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
 import { pushMessage, siteUrl } from "@/lib/line";
-import { formatBangkokDateTime } from "@/lib/settings";
+import { formatBangkokDateTime, getSettings } from "@/lib/settings";
+import {
+  DOCUMENT_KINDS,
+  DOCUMENT_LABEL,
+  DOC_STATUS_LABEL,
+  DOC_STATUS_CLASS,
+  type DocumentKind,
+  type DocumentStatus,
+} from "@/lib/documents";
 import { STATUS_LABEL, STATUS_CLASS } from "@/lib/booking-status";
 
 type BookingRow = {
@@ -15,6 +25,8 @@ type BookingRow = {
   startDate: Date;
   endDate: Date;
   note: string | null;
+  pickupPlace: string | null;
+  returnPlace: string | null;
   adminNote: string | null;
   car: {
     brand: string;
@@ -29,6 +41,13 @@ type BookingRow = {
     slipImageUrl: string;
     status: string;
   } | null;
+  documents: {
+    id: string;
+    kind: string;
+    fileUrl: string;
+    status: string;
+    rejectReason: string | null;
+  }[];
 };
 
 /** แจ้งลูกค้าทาง LINE ถ้าเขาผูกบัญชีไว้ — ส่งไม่สำเร็จก็ไม่ให้กระทบงานหลัก */
@@ -64,11 +83,90 @@ async function confirmDepositAction(formData: FormData) {
     [
       "✅ ยืนยันการจองเรียบร้อยแล้ว",
       "",
-      "เราตรวจสอบสลิปมัดจำของคุณเรียบร้อยแล้ว",
+      "เราตรวจสอบสลิปค่าจองของคุณเรียบร้อยแล้ว",
       `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
       "",
       "แล้วพบกันวันรับรถครับ 🚗",
       `${siteUrl()}/booking/${bookingId}`,
+    ].join("\n")
+  );
+
+  revalidatePath("/admin/bookings");
+}
+
+/** แอดมินกดผ่านเอกสารหนึ่งใบ */
+async function approveDocumentAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const id = String(formData.get("documentId") ?? "");
+
+  const doc = await prisma.bookingDocument.update({
+    where: { id },
+    data: {
+      status: "APPROVED",
+      rejectReason: null,
+      reviewedBy: session.user.email ?? null,
+      reviewedAt: new Date(),
+    },
+  });
+
+  // แจ้งลูกค้าเฉพาะตอนเอกสารผ่านครบทุกใบ ไม่ใช่ทีละใบ
+  const all = await prisma.bookingDocument.findMany({
+    where: { bookingId: doc.bookingId },
+    select: { kind: true, status: true },
+  });
+  const allApproved =
+    all.length === DOCUMENT_KINDS.length &&
+    all.every((d: { status: string }) => d.status === "APPROVED");
+
+  if (allApproved) {
+    await notifyCustomer(
+      doc.bookingId,
+      [
+        "✅ เอกสารผ่านการตรวจสอบครบแล้ว",
+        "",
+        `รหัสจอง: ${doc.bookingId.slice(0, 8).toUpperCase()}`,
+        "",
+        "วันรับรถไม่ต้องเตรียมเอกสารเพิ่มแล้วครับ",
+        `${siteUrl()}/booking/${doc.bookingId}`,
+      ].join("\n")
+    );
+  }
+
+  revalidatePath("/admin/bookings");
+}
+
+/** แอดมินกดไม่ผ่าน พร้อมบอกเหตุผลให้ลูกค้าส่งใหม่ได้ถูก */
+async function rejectDocumentAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const id = String(formData.get("documentId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  const doc = await prisma.bookingDocument.update({
+    where: { id },
+    data: {
+      status: "REJECTED",
+      rejectReason: reason || "รูปไม่ชัด กรุณาถ่ายใหม่",
+      reviewedBy: session.user.email ?? null,
+      reviewedAt: new Date(),
+    },
+  });
+
+  await notifyCustomer(
+    doc.bookingId,
+    [
+      "⚠️ เอกสารไม่ผ่านการตรวจสอบ",
+      "",
+      `เอกสาร: ${DOCUMENT_LABEL[doc.kind as DocumentKind]}`,
+      `เหตุผล: ${doc.rejectReason}`,
+      "",
+      "กรุณาถ่ายใหม่แล้วอัปโหลดอีกครั้งครับ",
+      `${siteUrl()}/booking/${doc.bookingId}`,
     ].join("\n")
   );
 
@@ -86,7 +184,7 @@ async function rejectDepositAction(formData: FormData) {
   await notifyCustomer(
     bookingId,
     [
-      "⚠️ สลิปมัดจำไม่ผ่านการตรวจสอบ",
+      "⚠️ สลิปค่าจองไม่ผ่านการตรวจสอบ",
       "",
       `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
       "",
@@ -98,7 +196,7 @@ async function rejectDepositAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
-/** เจ้าของรถแจ้งว่าว่าง — เปิดให้ลูกค้าโอนมัดจำ */
+/** เจ้าของรถแจ้งว่าว่าง — เปิดให้ลูกค้าโอนค่าจอง */
 async function approveRequestAction(formData: FormData) {
   "use server";
   const bookingId = formData.get("bookingId") as string;
@@ -120,7 +218,7 @@ async function approveRequestAction(formData: FormData) {
       `คืนรถ: ${formatBangkokDateTime(booking.endDate)}`,
       `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
       "",
-      `กรุณาโอนมัดจำ ${Math.round(booking.totalPrice * 0.3).toLocaleString()} บาท`,
+      `กรุณาโอนค่าจอง ${(await getSettings()).bookingFee.toLocaleString()} บาท`,
       "แล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ",
       "",
       `${siteUrl()}/booking/${bookingId}`,
@@ -192,6 +290,7 @@ export default async function AdminBookingsPage({
       car: { include: { partner: true } },
       customer: true,
       deposit: true,
+      documents: true,
     },
   });
 
@@ -258,6 +357,11 @@ export default async function AdminBookingsPage({
                   <p className="text-sm text-slate-500">
                     คืน {formatBangkokDateTime(b.endDate)}
                   </p>
+                  {(b.pickupPlace || b.returnPlace) && (
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      จุดรับ-ส่ง: {b.pickupPlace ?? "—"} → {b.returnPlace ?? "—"}
+                    </p>
+                  )}
                   {b.note && (
                     <p className="text-sm text-slate-500 mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
                       หมายเหตุ: {b.note}
@@ -330,7 +434,7 @@ export default async function AdminBookingsPage({
                         className="flex-1 min-w-[180px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm"
                       />
                       <button className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm shadow-emerald-600/25 transition-colors">
-                        รถว่าง — แจ้งลูกค้าโอนมัดจำ
+                        รถว่าง — แจ้งลูกค้าโอนค่าจอง
                       </button>
                     </form>
                     <form action={rejectRequestAction}>
@@ -349,6 +453,106 @@ export default async function AdminBookingsPage({
                 </p>
               )}
 
+              <div className="mt-5 pt-5 border-t border-slate-100">
+                <p className="text-sm font-medium text-slate-700 mb-2.5">
+                  เอกสารลูกค้า{" "}
+                  <span className="text-slate-400 font-normal">
+                    (ผ่านแล้ว{" "}
+                    {b.documents.filter((d) => d.status === "APPROVED").length}/
+                    {DOCUMENT_KINDS.length})
+                  </span>
+                </p>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {DOCUMENT_KINDS.map((kind: DocumentKind) => {
+                    const doc = b.documents.find((d) => d.kind === kind);
+
+                    if (!doc) {
+                      return (
+                        <div
+                          key={kind}
+                          className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3"
+                        >
+                          <p className="text-[11px] font-medium text-slate-500 mb-2">
+                            {DOCUMENT_LABEL[kind]}
+                          </p>
+                          <div className="h-24 grid place-items-center text-xs text-slate-400">
+                            ยังไม่ส่ง
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const status = doc.status as DocumentStatus;
+
+                    return (
+                      <div key={kind} className="rounded-xl border border-slate-200 p-3">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="text-[11px] font-medium text-slate-600 leading-tight">
+                            {DOCUMENT_LABEL[kind]}
+                          </p>
+                          <span
+                            className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full border ${DOC_STATUS_CLASS[status]}`}
+                          >
+                            {DOC_STATUS_LABEL[status]}
+                          </span>
+                        </div>
+
+                        <a
+                          href={doc.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="relative block h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:border-blue-400 transition-colors"
+                          title="เปิดดูขนาดเต็ม"
+                        >
+                          <Image
+                            src={doc.fileUrl}
+                            alt={DOCUMENT_LABEL[kind]}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        </a>
+
+                        {doc.rejectReason && (
+                          <p className="mt-2 text-[11px] text-red-700 leading-relaxed">
+                            {doc.rejectReason}
+                          </p>
+                        )}
+
+                        {status !== "APPROVED" && (
+                          <form action={approveDocumentAction} className="mt-2">
+                            <input type="hidden" name="documentId" value={doc.id} />
+                            <button
+                              type="submit"
+                              className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
+                            >
+                              ผ่าน
+                            </button>
+                          </form>
+                        )}
+
+                        {status !== "REJECTED" && (
+                          <form action={rejectDocumentAction} className="mt-2 flex flex-col gap-2">
+                            <input type="hidden" name="documentId" value={doc.id} />
+                            <input
+                              name="reason"
+                              placeholder="เหตุผล เช่น รูปเบลอ"
+                              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:border-red-400"
+                            />
+                            <button
+                              type="submit"
+                              className="w-full py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold transition-colors"
+                            >
+                              ไม่ผ่าน
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {b.deposit && (
                 <div className="mt-5 pt-5 border-t border-slate-100 flex flex-wrap items-center gap-5">
                   <a
@@ -360,7 +564,7 @@ export default async function AdminBookingsPage({
                   >
                     <Image
                       src={b.deposit.slipImageUrl}
-                      alt="สลิปมัดจำ"
+                      alt="สลิปค่าจอง"
                       fill
                       className="object-cover"
                       unoptimized
@@ -368,7 +572,7 @@ export default async function AdminBookingsPage({
                   </a>
 
                   <div className="text-sm">
-                    <p className="text-slate-500">ยอดมัดจำที่แจ้ง</p>
+                    <p className="text-slate-500">ยอดค่าจองที่แจ้ง</p>
                     <p className="text-lg font-bold text-slate-900">
                       {b.deposit.amount.toLocaleString()} ฿
                     </p>
@@ -397,7 +601,7 @@ export default async function AdminBookingsPage({
                       <form action={confirmDepositAction}>
                         <input type="hidden" name="bookingId" value={b.id} />
                         <button className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm shadow-emerald-600/25 transition-colors">
-                          ยืนยันมัดจำ
+                          ยืนยันค่าจอง
                         </button>
                       </form>
                       <form action={rejectDepositAction}>
@@ -413,7 +617,7 @@ export default async function AdminBookingsPage({
 
               {!b.deposit && b.status === "PENDING_DEPOSIT" && (
                 <div className="mt-5 pt-5 border-t border-slate-100 text-sm text-slate-500">
-                  ลูกค้ายังไม่ได้อัปโหลดสลิปมัดจำ
+                  ลูกค้ายังไม่ได้อัปโหลดสลิปค่าจอง
                 </div>
               )}
 

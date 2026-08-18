@@ -7,6 +7,8 @@ import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import BookingForm from "./BookingForm";
 import { getSettings, timeOptions } from "@/lib/settings";
+import ServiceNote from "@/components/ServiceNote";
+import { getPickupPoints } from "@/lib/pickup-points";
 import { needsApproval } from "@/lib/booking-status";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
@@ -24,6 +26,7 @@ export default async function BookCarPage({
   }
 
   const settings = await getSettings();
+  const pickupPoints = await getPickupPoints();
   const times = timeOptions(settings.openHour, settings.closeHour);
   const isRequest = needsApproval(car);
 
@@ -51,12 +54,14 @@ export default async function BookCarPage({
             <p className="text-slate-500 text-sm mt-1 mb-7">
               กรอกข้อมูลให้ครบถ้วน เราจะติดต่อกลับเพื่อยืนยัน
             </p>
+            <ServiceNote note={settings.serviceNote} className="mb-6" />
             <BookingForm
               carId={car.id}
               pricePerDay={car.pricePerDay}
               timeOptions={times}
               isRequest={isRequest}
               availability={availability}
+              pickupPoints={pickupPoints}
             />
           </div>
 
@@ -121,11 +126,11 @@ export default async function BookCarPage({
                     <>
                       รถคันนี้เป็นรถจากพาร์ทเนอร์ — เมื่อส่งคำขอแล้ว
                       เราจะเช็ควันว่างกับเจ้าของรถและแจ้งผลกลับ
-                      <strong> ยังไม่ต้องโอนมัดจำจนกว่าจะได้รับการยืนยัน</strong>
+                      <strong> ยังไม่ต้องโอนค่าจองจนกว่าจะได้รับการยืนยัน</strong>
                     </>
                   ) : (
                     <>
-                      หลังจองสำเร็จ ระบบจะแสดงยอดมัดจำ 30%
+                      หลังจองสำเร็จ ระบบจะแสดงยอดค่าจอง {settings.bookingFee.toLocaleString()} บาท
                       ให้โอนแล้วอัปโหลดสลิปเพื่อยืนยันการจอง
                     </>
                   )}

@@ -8,7 +8,7 @@ export const ACTIVE_BOOKING_STATUSES = [
 export const STATUS_LABEL: Record<string, string> = {
   REQUESTED: "รอเช็คกับเจ้าของรถ",
   REJECTED: "รถไม่ว่าง",
-  PENDING_DEPOSIT: "รอตรวจสลิปมัดจำ",
+  PENDING_DEPOSIT: "รอตรวจสลิปค่าจอง",
   CONFIRMED: "ยืนยันแล้ว",
   CANCELLED: "ยกเลิกแล้ว",
   COMPLETED: "เสร็จสิ้น",

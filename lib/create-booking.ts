@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings, toBangkokDate, isWithinHours } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { notifyAdmin, buildNewBookingMessage, siteUrl } from "@/lib/line";
+import { getPickupPoints, normalizePlace } from "@/lib/pickup-points";
 
 export type CreateBookingInput = {
   carId: string;
@@ -13,6 +14,8 @@ export type CreateBookingInput = {
   phone: string;
   email?: string | null;
   lineUserId?: string | null;
+  pickupPlace?: string | null;
+  returnPlace?: string | null;
 };
 
 export type CreateBookingResult =
@@ -117,6 +120,10 @@ export async function createBooking(
 
   const isRequest = needsApproval(car);
 
+  const points = await getPickupPoints();
+  const pickupPlace = normalizePlace(input.pickupPlace, points);
+  const returnPlace = normalizePlace(input.returnPlace, points);
+
   const booking = await prisma.booking.create({
     data: {
       carId,
@@ -124,6 +131,8 @@ export async function createBooking(
       startDate: start,
       endDate: end,
       totalPrice,
+      pickupPlace,
+      returnPlace,
       status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
     },
   });
@@ -142,6 +151,8 @@ export async function createBooking(
         isRequest,
         partnerName: car.partner?.name,
         partnerPhone: car.partner?.phone,
+        pickupPlace,
+        returnPlace,
       })
     );
   } catch (err) {
@@ -153,6 +164,6 @@ export async function createBooking(
     bookingId: booking.id,
     isRequest,
     totalPrice,
-    deposit: Math.round(totalPrice * 0.3),
+    deposit: settings.bookingFee,
   };
 }

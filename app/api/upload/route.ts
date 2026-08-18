@@ -5,7 +5,9 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const file = form.get("file") as File | null;
-    const kind = (form.get("kind") as string) === "car" ? "cars" : "slips";
+    const rawKind = form.get("kind") as string;
+    const kind =
+      rawKind === "car" ? "cars" : rawKind === "document" ? "documents" : "slips";
 
     if (!file) {
       return NextResponse.json({ error: "ไม่พบไฟล์ที่อัปโหลด" }, { status: 400 });

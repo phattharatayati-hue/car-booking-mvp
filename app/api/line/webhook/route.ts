@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyLineSignature, replyMessage } from "@/lib/line";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
+import { contactMessage } from "@/lib/contact";
 import {
   startBooking,
   handlePostback,
@@ -22,7 +23,7 @@ type LineEvent = {
 };
 
 const STATUS_TH: Record<string, string> = {
-  PENDING_DEPOSIT: "รอตรวจสลิปมัดจำ",
+  PENDING_DEPOSIT: "รอตรวจสลิปค่าจอง",
   CONFIRMED: "ยืนยันแล้ว",
   CANCELLED: "ยกเลิกแล้ว",
   COMPLETED: "เสร็จสิ้น",
@@ -107,7 +108,7 @@ async function handleEvent(event: LineEvent) {
     if (result.ok) {
       await replyMessage(
         replyToken,
-        `✅ ผูกบัญชีสำเร็จ\n\nสวัสดีคุณ ${result.name}\nจากนี้คุณจะได้รับแจ้งเตือนเมื่อมีการจองใหม่และเมื่อลูกค้าอัปโหลดสลิปมัดจำ`
+        `✅ ผูกบัญชีสำเร็จ\n\nสวัสดีคุณ ${result.name}\nจากนี้คุณจะได้รับแจ้งเตือนเมื่อมีการจองใหม่และเมื่อลูกค้าอัปโหลดสลิปค่าจอง`
       );
       return;
     }
@@ -180,19 +181,7 @@ async function handleEvent(event: LineEvent) {
   }
 
   if (text.includes("ติดต่อ")) {
-    await replyMessage(
-      replyToken,
-      [
-        "📞 ติดต่อเรา",
-        "",
-        "โทร: 053-000-000",
-        "เวลาทำการ: จันทร์-ศุกร์ 08:00-20:00 น.",
-        "เสาร์-อาทิตย์ 09:00-18:00 น.",
-        "",
-        "หรือพิมพ์คำถามทิ้งไว้ แอดมินจะติดต่อกลับครับ",
-        `${site}/contact`,
-      ].join("\n")
-    );
+    await replyMessage(replyToken, contactMessage(site));
     return;
   }
 
@@ -240,13 +229,13 @@ function formatBooking(booking: BookingForDisplay) {
   ];
 
   if (!booking.deposit) {
-    lines.push("", "⚠️ ยังไม่ได้ส่งสลิปมัดจำ", "ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ");
+    lines.push("", "⚠️ ยังไม่ได้ส่งสลิปค่าจอง", "ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ");
   } else if (booking.deposit.status === "PENDING") {
     lines.push("", "⏳ ได้รับสลิปแล้ว รอแอดมินตรวจสอบ");
   } else if (booking.deposit.status === "REJECTED") {
     lines.push("", "❌ สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมิน");
   } else {
-    lines.push("", "✅ ยืนยันมัดจำเรียบร้อยแล้ว");
+    lines.push("", "✅ ยืนยันค่าจองเรียบร้อยแล้ว");
   }
 
   return lines.join("\n");

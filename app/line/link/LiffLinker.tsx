@@ -133,7 +133,7 @@ export default function LiffLinker({
           <h1 className="text-xl font-bold text-slate-900 mb-2">รับแจ้งเตือนเรียบร้อย</h1>
           <p className="text-slate-600 text-sm leading-relaxed">
             {state.name && <>คุณ {state.name} </>}
-            จะได้รับแจ้งเตือนทาง LINE เมื่อแอดมินตรวจสอบสลิปมัดจำเสร็จ
+            จะได้รับแจ้งเตือนทาง LINE เมื่อแอดมินตรวจสอบสลิปค่าจองเสร็จ
           </p>
           <Link
             href={`/booking/${bookingId}`}

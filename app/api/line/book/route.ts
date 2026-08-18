@@ -31,7 +31,8 @@ async function verifyIdToken(idToken: string): Promise<string | null> {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { idToken, carId, startDate, endDate, startTime, endTime, phone } = body;
+    const { idToken, carId, startDate, endDate, startTime, endTime, phone, pickupPlace, returnPlace } =
+      body;
 
     if (!idToken) {
       return NextResponse.json({ error: "ไม่พบข้อมูลยืนยันตัวตน" }, { status: 401 });
@@ -65,6 +66,8 @@ export async function POST(request: Request) {
       fullName: name,
       phone: finalPhone,
       lineUserId,
+      pickupPlace,
+      returnPlace,
     });
 
     if (!result.ok) {

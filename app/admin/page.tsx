@@ -25,7 +25,7 @@ export default async function AdminDashboard() {
 
   const stats = [
     {
-      label: "รอตรวจสลิปมัดจำ",
+      label: "รอตรวจสลิปค่าจอง",
       value: pendingCount,
       accent: "bg-amber-50 text-amber-600",
       href: "/admin/bookings",

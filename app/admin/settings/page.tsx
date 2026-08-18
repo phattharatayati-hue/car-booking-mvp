@@ -16,6 +16,9 @@ async function saveSettingsAction(formData: FormData) {
   const hour = Number(formData.get("returnReminderHour"));
   const openHour = Number(formData.get("openHour"));
   const closeHour = Number(formData.get("closeHour"));
+  const serviceNote = String(formData.get("serviceNote") ?? "").trim();
+  const bookingFee = Number(formData.get("bookingFee"));
+  const securityDeposit = Number(formData.get("securityDeposit"));
 
   if (!Number.isInteger(days) || days < 0 || days > 14) {
     redirect("/admin/settings?error=days");
@@ -32,6 +35,17 @@ async function saveSettingsAction(formData: FormData) {
   ) {
     redirect("/admin/settings?error=hours");
   }
+  if (serviceNote.length > 500) {
+    redirect("/admin/settings?error=note");
+  }
+  if (
+    !Number.isInteger(bookingFee) ||
+    !Number.isInteger(securityDeposit) ||
+    bookingFee < 0 ||
+    securityDeposit < 0
+  ) {
+    redirect("/admin/settings?error=money");
+  }
 
   const data = {
     returnReminderOn: on,
@@ -39,6 +53,9 @@ async function saveSettingsAction(formData: FormData) {
     returnReminderHour: hour,
     openHour,
     closeHour,
+    bookingFee,
+    securityDeposit,
+    serviceNote,
   };
 
   await prisma.settings.upsert({
@@ -55,6 +72,8 @@ const ERRORS: Record<string, string> = {
   days: "จำนวนวันต้องอยู่ระหว่าง 0-14",
   hour: "เวลาต้องอยู่ระหว่าง 0-23",
   hours: "เวลาเปิดต้องน้อยกว่าเวลาปิด",
+  note: "เงื่อนไขการให้บริการยาวเกิน 500 ตัวอักษร",
+  money: "ค่าจองและเงินประกันต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
 };
 
 const inputClass =
@@ -77,7 +96,9 @@ export default async function SettingsPage({
     <div className="max-w-2xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">ตั้งค่าระบบ</h1>
-        <p className="text-slate-500 text-sm mt-1">แจ้งเตือนลูกค้าทาง LINE</p>
+        <p className="text-slate-500 text-sm mt-1">
+          เวลาให้บริการ เงื่อนไขการเช่า และการแจ้งเตือนทาง LINE
+        </p>
       </div>
 
       {ok && (
@@ -133,6 +154,59 @@ export default async function SettingsPage({
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">ค่าจองและเงินประกัน</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4">
+            ค่าจองคือยอดที่ลูกค้าโอนล่วงหน้าเพื่อกันวัน — ระบบจะใช้ยอดนี้ทั้งบนเว็บและใน LINE
+            ส่วนเงินประกันเก็บวันรับรถ ระบบแค่แจ้งให้ลูกค้าทราบ ไม่ได้เก็บผ่านเว็บ
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="bookingFee">ค่าจอง (บาท)</label>
+              <input
+                id="bookingFee"
+                name="bookingFee"
+                type="number"
+                min="0"
+                required
+                defaultValue={settings.bookingFee}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="securityDeposit">
+                เงินประกันรถ (บาท)
+              </label>
+              <input
+                id="securityDeposit"
+                name="securityDeposit"
+                type="number"
+                min="0"
+                required
+                defaultValue={settings.securityDeposit}
+                className={inputClass}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">เงื่อนไขการให้บริการ</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-3">
+            ข้อความนี้จะขึ้นในหน้ารถทั้งหมด หน้าจอง และตอนจองผ่าน LINE
+            — เว้นว่างถ้าไม่ต้องการแสดง
+          </p>
+          <textarea
+            id="serviceNote"
+            name="serviceNote"
+            rows={3}
+            maxLength={500}
+            defaultValue={settings.serviceNote}
+            placeholder="เช่น รับรถได้เฉพาะในเขตอำเภอเมืองเชียงใหม่"
+            className={`${inputClass} resize-y leading-relaxed`}
+          />
         </div>
 
         <div className="pt-5 border-t border-slate-100">

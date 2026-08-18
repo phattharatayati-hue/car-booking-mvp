@@ -5,7 +5,8 @@ import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import CarCard from "@/components/CarCard";
 import { getAvailability, firstFreeDate } from "@/lib/availability";
-import { bangkokDateStr } from "@/lib/settings";
+import { bangkokDateStr, getSettings } from "@/lib/settings";
+import ServiceNote from "@/components/ServiceNote";
 
 type CarCardData = {
   id: string;
@@ -36,6 +37,8 @@ export default async function CarsPage({
       : sort === "newest"
       ? { createdAt: "desc" as const }
       : { pricePerDay: "asc" as const };
+
+  const settings = await getSettings();
 
   const cars = await prisma.car.findMany({
     where: {
@@ -92,6 +95,7 @@ export default async function CarsPage({
           <p className="text-slate-500 mt-1.5">
             มีรถว่างให้จอง {cars.length} คัน
           </p>
+          <ServiceNote note={settings.serviceNote} className="mt-5 max-w-2xl" />
         </div>
       </div>
 

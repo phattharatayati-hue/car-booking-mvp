@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
+import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
 
 import type { Liff } from "@/lib/liff-types";
 
@@ -49,11 +50,13 @@ export default function LiffBooking({
   availability,
   timeOptions,
   liffId,
+  pickupPoints,
 }: {
   car: LiffCar;
   availability: Record<string, DayStatus>;
   timeOptions: string[];
   liffId: string;
+  pickupPoints: PickupOption[];
 }) {
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -64,6 +67,8 @@ export default function LiffBooking({
   const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
   const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
   const [phone, setPhone] = useState("");
+  const [pickupPlace, setPickupPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
+  const [returnPlace, setReturnPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
   const [needPhone, setNeedPhone] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -78,9 +83,17 @@ export default function LiffBooking({
         setInitError("ระบบยังไม่ได้ตั้งค่า LIFF");
         return;
       }
+      // กัน LINE ค้าง — ถ้าเกิน 12 วินาทีถือว่าไม่สำเร็จ ดีกว่าหมุนค้างไม่จบ
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("เชื่อมต่อ LINE ไม่สำเร็จ (หมดเวลารอ)")),
+          12_000
+        )
+      );
+
       try {
-        const liff = await loadSdk();
-        await liff.init({ liffId });
+        const liff = await Promise.race([loadSdk(), timeout]);
+        await Promise.race([liff.init({ liffId }), timeout]);
         if (!liff.isLoggedIn()) {
           liff.login({ redirectUri: window.location.href });
           return;
@@ -139,6 +152,8 @@ export default function LiffBooking({
           startTime,
           endTime,
           phone: phone || undefined,
+          pickupPlace,
+          returnPlace,
         }),
       });
 
@@ -166,7 +181,25 @@ export default function LiffBooking({
   if (initError) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-        <p className="text-slate-700">{initError}</p>
+        <p className="text-slate-700 mb-1">{initError}</p>
+        <p className="text-sm text-slate-500 mb-6">
+          ลองใหม่อีกครั้ง หรือจองผ่านเว็บก็ได้เหมือนกันครับ
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 transition-colors"
+          >
+            ลองใหม่
+          </button>
+          <a
+            href={`/cars/${car.id}/book`}
+            className="rounded-xl border border-slate-200 text-slate-700 font-semibold py-3 hover:bg-slate-50 transition-colors"
+          >
+            จองผ่านเว็บแทน
+          </a>
+        </div>
       </div>
     );
   }
@@ -205,11 +238,11 @@ export default function LiffBooking({
             รถคันนี้เป็นรถจากพาร์ทเนอร์ เราจะเช็ควันว่างกับเจ้าของรถ
             แล้วแจ้งผลกลับทางแชท LINE
             <br />
-            <strong>ยังไม่ต้องโอนมัดจำ</strong>
+            <strong>ยังไม่ต้องโอนค่าจอง</strong>
           </p>
         ) : (
           <div className="bg-blue-50 rounded-xl p-4 text-left">
-            <p className="text-xs text-blue-900 mb-1">โอนมัดจำ 30%</p>
+            <p className="text-xs text-blue-900 mb-1">โอนค่าจองเพื่อกันวัน</p>
             <p className="text-2xl font-bold text-blue-900">
               {result.deposit.toLocaleString()} ฿
             </p>
@@ -309,6 +342,46 @@ export default function LiffBooking({
           </select>
         </div>
       </div>
+
+      {pickupPoints.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="pp">
+              จุดรับรถ
+            </label>
+            <select
+              id="pp"
+              value={pickupPlace}
+              onChange={(e) => setPickupPlace(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            >
+              {pickupPoints.map((p) => (
+                <option key={p.id} value={p.name}>{pointLabel(p)}</option>
+              ))}
+              <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="rp">
+              จุดคืนรถ
+            </label>
+            <select
+              id="rp"
+              value={returnPlace}
+              onChange={(e) => setReturnPlace(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            >
+              {pickupPoints.map((p) => (
+                <option key={p.id} value={p.name}>{pointLabel(p)}</option>
+              ))}
+              <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
+            </select>
+          </div>
+          <p className="col-span-2 text-xs text-slate-500">
+            ถ้าต้องการจุดอื่น เลือก “{OTHER_PLACE}” แล้วแอดมินจะติดต่อกลับไปนัดครับ
+          </p>
+        </div>
+      )}
 
       {needPhone && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4">

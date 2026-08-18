@@ -210,6 +210,8 @@ export function buildNewBookingMessage(data: {
   isRequest?: boolean;
   partnerName?: string;
   partnerPhone?: string;
+  pickupPlace?: string | null;
+  returnPlace?: string | null;
 }) {
   const lines = [
     data.isRequest ? "📩 มีคำขอจองรถพาร์ทเนอร์" : "🚗 มีการจองใหม่",
@@ -221,8 +223,11 @@ export function buildNewBookingMessage(data: {
     `คืนรถ: ${fmtDate(data.endDate)}`,
     `ยอดรวม: ${data.totalPrice.toLocaleString()} บาท`,
     `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
-    "",
   ];
+
+  if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
+  if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
+  lines.push("");
 
   if (data.isRequest) {
     if (data.partnerName) {
@@ -233,7 +238,7 @@ export function buildNewBookingMessage(data: {
     lines.push("⚠️ กรุณาติดต่อเจ้าของรถเพื่อเช็ครถว่าง");
     lines.push("แล้วกดอนุมัติหรือปฏิเสธในหลังบ้าน");
   } else {
-    lines.push("สถานะ: รอลูกค้าโอนมัดจำ");
+    lines.push("สถานะ: รอลูกค้าโอนค่าจอง");
   }
 
   lines.push(`${data.siteUrl}/admin/bookings`);
@@ -248,7 +253,7 @@ export function buildSlipUploadedMessage(data: {
   siteUrl: string;
 }) {
   return [
-    "💰 ลูกค้าอัปโหลดสลิปมัดจำแล้ว",
+    "💰 ลูกค้าอัปโหลดสลิปค่าจองแล้ว",
     "",
     `รถ: ${data.carLabel}`,
     `ลูกค้า: ${data.customerName}`,

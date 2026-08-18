@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PHONES, OFFICE_HOURS, LOCATION, telHref } from "@/lib/contact";
 
 export default function SiteFooter() {
   return (
@@ -31,6 +32,7 @@ export default function SiteFooter() {
             <ul className="flex flex-col gap-2 text-sm text-slate-600">
               <li><Link href="/cars" className="hover:text-blue-700">รถทั้งหมด</Link></li>
               <li><Link href="/how-to-book" className="hover:text-blue-700">วิธีการจอง</Link></li>
+              <li><Link href="/my" className="hover:text-blue-700">ประวัติการจอง</Link></li>
               <li><Link href="/line/connect" className="hover:text-blue-700">เชื่อมต่อ LINE</Link></li>
               <li><Link href="/contact" className="hover:text-blue-700">ติดต่อเรา</Link></li>
               <li><Link href="/login" className="hover:text-blue-700">สำหรับแอดมิน</Link></li>
@@ -40,9 +42,18 @@ export default function SiteFooter() {
           <div>
             <p className="font-semibold text-sm mb-3">ติดต่อ</p>
             <ul className="flex flex-col gap-2 text-sm text-slate-600">
-              <li>โทร 053-000-000</li>
+              {PHONES.map((phone) => (
+                <li key={phone}>
+                  <a href={telHref(phone)} className="hover:text-blue-700">
+                    โทร {phone}
+                  </a>
+                </li>
+              ))}
               <li>LINE: @cmcarrent</li>
-              <li>อ.เมือง จ.เชียงใหม่</li>
+              {OFFICE_HOURS.map((h) => (
+                <li key={h} className="text-slate-500">{h}</li>
+              ))}
+              <li>{LOCATION}</li>
             </ul>
           </div>
         </div>

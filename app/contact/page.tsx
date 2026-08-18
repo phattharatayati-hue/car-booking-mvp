@@ -1,11 +1,13 @@
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
+import { PHONES, OFFICE_HOURS, LOCATION, telHref } from "@/lib/contact";
 
 const CHANNELS = [
   {
     label: "โทรศัพท์",
-    value: "053-000-000",
-    hint: "ทุกวัน 08:00 - 20:00 น.",
+    value: PHONES.join("  ·  "),
+    href: telHref(PHONES[0]),
+    hint: OFFICE_HOURS.join(" · "),
     icon: (
       <path
         d="M3 5.5A2.5 2.5 0 015.5 3h1.6a1 1 0 01.96.73l.9 3.1a1 1 0 01-.28 1L7.4 9.1a12 12 0 007.5 7.5l1.27-1.28a1 1 0 011-.27l3.1.9a1 1 0 01.73.96v1.6a2.5 2.5 0 01-2.5 2.5A16.5 16.5 0 013 5.5z"
@@ -32,7 +34,7 @@ const CHANNELS = [
   },
   {
     label: "ที่ตั้ง",
-    value: "อ.เมือง จ.เชียงใหม่",
+    value: LOCATION,
     hint: "รับรถที่ร้านหรือนัดรับที่สนามบินได้",
     icon: (
       <>
@@ -76,7 +78,13 @@ export default function ContactPage() {
                 </svg>
               </span>
               <p className="text-sm text-slate-500 mb-0.5">{c.label}</p>
-              <p className="font-semibold text-slate-900">{c.value}</p>
+              {c.href ? (
+                <a href={c.href} className="font-semibold text-blue-700 hover:underline">
+                  {c.value}
+                </a>
+              ) : (
+                <p className="font-semibold text-slate-900">{c.value}</p>
+              )}
               <p className="text-xs text-slate-500 mt-1.5">{c.hint}</p>
             </div>
           ))}
@@ -96,7 +104,7 @@ export default function ContactPage() {
           </dl>
           <p className="text-sm text-slate-500 mt-5">
             การจองผ่านเว็บไซต์ทำได้ตลอด 24 ชั่วโมง
-            แอดมินจะตรวจสอบสลิปมัดจำในเวลาทำการ
+            แอดมินจะตรวจสอบสลิปค่าจองในเวลาทำการ
           </p>
         </div>
       </div>

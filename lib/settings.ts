@@ -9,14 +9,21 @@ export type AppSettings = {
   returnReminderHour: number;
   openHour: number;
   closeHour: number;
+  bookingFee: number;
+  securityDeposit: number;
+  serviceNote: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   returnReminderOn: true,
   returnReminderDays: 1,
   returnReminderHour: 9,
-  openHour: 8,
+  openHour: 6,
   closeHour: 20,
+  bookingFee: 500,
+  securityDeposit: 3000,
+  serviceNote:
+    "การเช่ารถขับเองในจังหวัดเชียงใหม่เท่านั้น หากออกต่างจังหวัดจะมีค่าใช้จ่ายเพิ่มเติมครับ",
 };
 
 /** อ่านค่าตั้งค่า — ถ้ายังไม่มีแถวจะสร้างให้อัตโนมัติ */
@@ -33,6 +40,9 @@ export async function getSettings(): Promise<AppSettings> {
       returnReminderHour: row.returnReminderHour,
       openHour: row.openHour,
       closeHour: row.closeHour,
+      bookingFee: row.bookingFee,
+      securityDeposit: row.securityDeposit,
+      serviceNote: row.serviceNote,
     };
   } catch (err) {
     console.error("getSettings failed:", err);

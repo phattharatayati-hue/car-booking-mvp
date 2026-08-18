@@ -7,6 +7,8 @@ import Image from "next/image";
 import LiffBooking from "./LiffBooking";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr, getSettings, timeOptions } from "@/lib/settings";
+import ServiceNote from "@/components/ServiceNote";
+import { getPickupPoints } from "@/lib/pickup-points";
 import { needsApproval } from "@/lib/booking-status";
 
 type CarRow = {
@@ -26,6 +28,7 @@ export default async function LineBookPage({
 }) {
   const { car: carId } = await searchParams;
   const settings = await getSettings();
+  const pickupPoints = await getPickupPoints();
   const times = timeOptions(settings.openHour, settings.closeHour);
   const liffId = process.env.NEXT_PUBLIC_LIFF_BOOKING_ID ?? process.env.NEXT_PUBLIC_LIFF_ID ?? "";
 
@@ -40,6 +43,7 @@ export default async function LineBookPage({
       <div className="min-h-screen bg-slate-50 px-4 py-6">
         <div className="max-w-md mx-auto">
           <h1 className="text-xl font-bold text-slate-900 mb-4">เลือกรถที่ต้องการจอง</h1>
+          <ServiceNote note={settings.serviceNote} className="mb-4" />
           <div className="flex flex-col gap-3">
             {cars.map((c: CarRow) => (
               <Link
@@ -88,6 +92,7 @@ export default async function LineBookPage({
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-5">
       <div className="max-w-md mx-auto">
+        <ServiceNote note={settings.serviceNote} className="mb-4" />
         <LiffBooking
           car={{
             id: car.id,
@@ -100,6 +105,7 @@ export default async function LineBookPage({
           availability={map.get(car.id) ?? {}}
           timeOptions={times}
           liffId={liffId}
+          pickupPoints={pickupPoints}
         />
       </div>
     </div>
