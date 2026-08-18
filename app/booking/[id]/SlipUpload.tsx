@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/image-resize";
+import { BANK_ACCOUNT } from "@/lib/contact";
 
 export default function SlipUpload({
   bookingId,
@@ -76,7 +77,7 @@ export default function SlipUpload({
           {suggestedAmount.toLocaleString()} ฿
         </p>
         <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-          โอนเข้าบัญชี ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent
+          โอนเข้าบัญชี {BANK_ACCOUNT}
         </p>
         {securityDeposit > 0 && (
           <p className="text-xs text-blue-800/80 mt-2 leading-relaxed border-t border-blue-200/70 pt-2">

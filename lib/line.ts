@@ -245,6 +245,59 @@ export function buildNewBookingMessage(data: {
   return lines.join("\n");
 }
 
+/**
+ * ข้อความแจ้งลูกค้าหลังจองสำเร็จ — บอกยอดค่าจอง เลขบัญชี และลิงก์ส่งสลิป/เอกสาร
+ * ส่งทั้งการจองจากเว็บและจาก LIFF ที่ปิดหน้าต่างแล้วข้อมูลหาย
+ */
+export function buildCustomerBookingMessage(data: {
+  bookingId: string;
+  carLabel: string;
+  startDate: Date;
+  endDate: Date;
+  totalPrice: number;
+  bookingFee: number;
+  bankAccount: string;
+  siteUrl: string;
+  isRequest: boolean;
+  pickupPlace?: string | null;
+  returnPlace?: string | null;
+}) {
+  const lines = [
+    data.isRequest ? "📩 ส่งคำขอจองเรียบร้อยแล้ว" : "✅ จองสำเร็จ",
+    "",
+    `รถ: ${data.carLabel}`,
+    `รับรถ: ${fmtDate(data.startDate)}`,
+    `คืนรถ: ${fmtDate(data.endDate)}`,
+    `ยอดรวม: ${data.totalPrice.toLocaleString()} บาท`,
+    `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
+  ];
+
+  if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
+  if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
+
+  lines.push("");
+
+  if (data.isRequest) {
+    lines.push(
+      "รถคันนี้เป็นรถจากพาร์ทเนอร์",
+      "เราจะเช็ควันว่างกับเจ้าของรถแล้วแจ้งผลกลับทางแชทนี้ครับ",
+      "",
+      "⚠️ ยังไม่ต้องโอนค่าจองจนกว่าจะได้รับการยืนยัน"
+    );
+  } else {
+    lines.push(
+      `ขั้นต่อไป — โอนค่าจอง ${data.bookingFee.toLocaleString()} บาท เพื่อกันวันให้คุณ`,
+      data.bankAccount,
+      "",
+      "โอนแล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลย",
+      "หรือแนบในหน้าจองพร้อมส่งเอกสาร (บัตรประชาชน ใบขับขี่ เอกสารการเดินทาง/ที่พัก)"
+    );
+  }
+
+  lines.push("", `${data.siteUrl}/booking/${data.bookingId}`);
+  return lines.join("\n");
+}
+
 export function buildSlipUploadedMessage(data: {
   bookingId: string;
   carLabel: string;

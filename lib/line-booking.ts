@@ -24,7 +24,9 @@ import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
 
 const ACTIVE = ACTIVE_BOOKING_STATUSES;
-const BANK_INFO = "ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent";
+import { BANK_ACCOUNT } from "@/lib/contact";
+
+const BANK_INFO = BANK_ACCOUNT;
 
 /** ค่า min ของ datetimepicker — รูปแบบ YYYY-MM-ddTHH:mm ตามเวลาไทย */
 function pickerMin(from: Date): string {

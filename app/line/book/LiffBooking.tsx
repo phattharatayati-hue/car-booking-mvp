@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
+import { BANK_ACCOUNT } from "@/lib/contact";
 
 import type { Liff } from "@/lib/liff-types";
 
@@ -258,19 +259,32 @@ export default function LiffBooking({
               {result.deposit.toLocaleString()} ฿
             </p>
             <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-              ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent
+              {BANK_ACCOUNT}
               <br />
               โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย
             </p>
           </div>
         )}
 
-        <button
-          onClick={closeLiff}
-          className="mt-6 w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 transition-colors"
-        >
-          กลับไปที่แชท
-        </button>
+        <p className="mt-4 text-xs text-slate-500 leading-relaxed">
+          รายละเอียดทั้งหมดส่งไปในแชท LINE ให้แล้ว
+          {result.isRequest ? "" : " เปิดหน้าจองเพื่อแนบสลิปและส่งเอกสารได้เลย"}
+        </p>
+
+        <div className="mt-5 flex flex-col gap-2">
+          <a
+            href={`/booking/${result.bookingId}`}
+            className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 transition-colors"
+          >
+            {result.isRequest ? "ดูสถานะการจอง" : "แนบสลิป / ส่งเอกสาร"}
+          </a>
+          <button
+            onClick={closeLiff}
+            className="w-full rounded-xl border border-slate-200 text-slate-700 font-semibold py-3.5 hover:bg-slate-50 transition-colors"
+          >
+            กลับไปที่แชท
+          </button>
+        </div>
       </div>
     );
   }

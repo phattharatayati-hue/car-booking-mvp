@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings, toBangkokDate, isWithinHours } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
-import { notifyAdmin, buildNewBookingMessage, siteUrl } from "@/lib/line";
+import {
+  notifyAdmin,
+  buildNewBookingMessage,
+  buildCustomerBookingMessage,
+  pushMessage,
+  siteUrl,
+} from "@/lib/line";
+import { BANK_ACCOUNT } from "@/lib/contact";
 import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 
@@ -158,6 +165,31 @@ export async function createBooking(
     );
   } catch (err) {
     console.error("notifyAdmin failed:", err);
+  }
+
+  // แจ้งลูกค้าที่ผูก LINE ไว้ — สำคัญกับการจองผ่าน LIFF เพราะปิดหน้าต่างแล้ว
+  // ยอดค่าจองกับเลขบัญชีหายไปเลย ไม่มีอะไรค้างในแชท
+  if (customer.lineUserId) {
+    try {
+      await pushMessage(
+        customer.lineUserId,
+        buildCustomerBookingMessage({
+          bookingId: booking.id,
+          carLabel: `${car.brand} ${car.name}`,
+          startDate: start,
+          endDate: end,
+          totalPrice,
+          bookingFee: settings.bookingFee,
+          bankAccount: BANK_ACCOUNT,
+          siteUrl: siteUrl(),
+          isRequest,
+          pickupPlace,
+          returnPlace,
+        })
+      );
+    } catch (err) {
+      console.error("notify customer failed:", err);
+    }
   }
 
   return {
