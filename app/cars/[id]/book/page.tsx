@@ -8,7 +8,7 @@ import PublicShell from "@/components/PublicShell";
 import BookingForm from "./BookingForm";
 import { getSettings, timeOptions } from "@/lib/settings";
 import ServiceNote from "@/components/ServiceNote";
-import { getPickupPoints } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 import { needsApproval } from "@/lib/booking-status";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";

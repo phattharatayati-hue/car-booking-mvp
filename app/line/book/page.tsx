@@ -8,7 +8,7 @@ import LiffBooking from "./LiffBooking";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr, getSettings, timeOptions } from "@/lib/settings";
 import ServiceNote from "@/components/ServiceNote";
-import { getPickupPoints } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 import { needsApproval } from "@/lib/booking-status";
 
 type CarRow = {

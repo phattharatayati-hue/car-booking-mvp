@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import { getSettings } from "@/lib/settings";
-import { getPickupPoints } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 
 function buildSteps(bookingFee: number) {
   return [

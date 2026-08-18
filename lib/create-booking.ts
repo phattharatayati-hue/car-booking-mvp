@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getSettings, toBangkokDate, isWithinHours } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { notifyAdmin, buildNewBookingMessage, siteUrl } from "@/lib/line";
-import { getPickupPoints, normalizePlace } from "@/lib/pickup-points";
+import { normalizePlace } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 
 export type CreateBookingInput = {
   carId: string;

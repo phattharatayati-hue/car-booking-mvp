@@ -1,24 +1,15 @@
-import { prisma } from "@/lib/prisma";
+/**
+ * ค่าคงที่และตัวช่วยเรื่องจุดรับ-ส่งรถ
+ *
+ * ไฟล์นี้ต้องไม่ import prisma — client component ใช้ไฟล์นี้ด้วย
+ * ถ้าดึง prisma เข้ามา Turbopack จะพยายาม bundle pg ลงฝั่ง client แล้วพัง
+ * ฟังก์ชันที่คุยกับฐานข้อมูลอยู่ที่ lib/pickup-points-server.ts
+ */
 
 export type PickupOption = { id: string; name: string; fee: number };
 
 /** ตัวเลือกที่ให้ลูกค้าเลือกเมื่อจุดที่ต้องการไม่มีในรายการ */
 export const OTHER_PLACE = "อื่นๆ — แจ้งแอดมินภายหลัง";
-
-/** จุดรับ-ส่งที่เปิดใช้งาน เรียงตามลำดับที่แอดมินตั้งไว้ */
-export async function getPickupPoints(): Promise<PickupOption[]> {
-  try {
-    const rows = await prisma.pickupPoint.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, fee: true },
-    });
-    return rows;
-  } catch (err) {
-    console.error("getPickupPoints failed:", err);
-    return [];
-  }
-}
 
 /** ป้ายกำกับที่แสดงให้ลูกค้าเห็น เช่น "สนามบิน (ฟรี)" */
 export function pointLabel(p: PickupOption): string {

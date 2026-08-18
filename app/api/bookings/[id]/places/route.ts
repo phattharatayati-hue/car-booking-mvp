@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getPickupPoints, normalizePlace } from "@/lib/pickup-points";
+import { normalizePlace } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 
 export const dynamic = "force-dynamic";
 

@@ -7,7 +7,7 @@ import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
 import DocumentUpload from "./DocumentUpload";
 import PlacePicker from "./PlacePicker";
-import { getPickupPoints } from "@/lib/pickup-points";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 
 import { STATUS_LABEL, STATUS_CLASS, needsApproval } from "@/lib/booking-status";
