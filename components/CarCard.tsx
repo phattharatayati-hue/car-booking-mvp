@@ -40,8 +40,9 @@ export default function CarCard({ car, availability }: CarCardProps) {
             unoptimized
           />
         ) : (
-          <div className="w-full h-full grid place-items-center text-slate-300">
-            <svg viewBox="0 0 24 24" fill="none" className="w-12 h-12">
+          // ยังไม่มีรูป — โชว์ชื่อรุ่นไว้แทน กล่องเทาเปล่าๆ ทำให้ดูเหมือนเว็บพัง
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-slate-50 to-slate-100 px-4 text-center">
+            <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-slate-300">
               <path
                 d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11m-14 0h14m-14 0a1 1 0 00-1 1v4h2m13-5a1 1 0 011 1v4h-2m0 0H7"
                 stroke="currentColor"
@@ -50,6 +51,10 @@ export default function CarCard({ car, availability }: CarCardProps) {
                 strokeLinejoin="round"
               />
             </svg>
+            <span className="text-sm font-semibold text-slate-500">
+              {car.brand} {car.name}
+            </span>
+            <span className="text-[11px] text-slate-400">ยังไม่มีรูป</span>
           </div>
         )}
 

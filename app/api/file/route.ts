@@ -10,8 +10,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "missing p" }, { status: 400 });
   }
 
-  // สลิปมัดจำมีข้อมูลธนาคารของลูกค้า — ให้เฉพาะแอดมินที่ login แล้วดูได้
-  if (pathname.startsWith("slips/")) {
+  // รูปรถเป็นของสาธารณะ — นอกนั้น (สลิป, บัตรประชาชน, ใบขับขี่) ต้องเป็นแอดมินที่ login แล้ว
+  // ใช้แบบ allowlist ไว้ก่อน ถ้าเพิ่มโฟลเดอร์ใหม่ในอนาคตจะถูกปิดโดยปริยาย ไม่หลุดเงียบๆ
+  const isPublic = pathname.startsWith("cars/");
+
+  if (!isPublic) {
     const session = await auth();
     if (!session) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -28,7 +31,9 @@ export async function GET(request: Request) {
     return new NextResponse(result.stream, {
       headers: {
         "Content-Type": result.blob.contentType ?? "application/octet-stream",
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": isPublic
+          ? "public, max-age=31536000, immutable"
+          : "private, no-store",
       },
     });
   } catch (err) {
