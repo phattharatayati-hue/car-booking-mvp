@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { shrinkImage } from "@/lib/image-resize";
 import {
   DOCUMENT_KINDS,
   DOCUMENT_LABEL,
@@ -45,12 +46,14 @@ export default function DocumentUpload({
 
     try {
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", await shrinkImage(file, { maxEdge: 2000, quality: 0.9 }));
       form.append("kind", "document");
       const upRes = await fetch("/api/upload", { method: "POST", body: form });
       const upData = await upRes.json().catch(() => null);
       if (!upRes.ok || !upData?.url) {
-        throw new Error(upData?.error ?? `อัปโหลดไม่สำเร็จ (${upRes.status})`);
+        throw new Error(upData?.error ?? (upRes.status === 413
+            ? "ไฟล์ใหญ่เกินไป กรุณาย่อรูปหรือถ่ายใหม่ด้วยความละเอียดต่ำลง"
+            : `อัปโหลดไม่สำเร็จ (${upRes.status})`));
       }
 
       const res = await fetch(`/api/bookings/${bookingId}/documents`, {

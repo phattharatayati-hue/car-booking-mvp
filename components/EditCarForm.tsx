@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { shrinkImage } from "@/lib/image-resize";
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -52,12 +53,14 @@ export default function EditCarForm({
 
       if (photo) {
         const up = new FormData();
-        up.append("file", photo);
+        up.append("file", await shrinkImage(photo, { maxEdge: 1600 }));
         up.append("kind", "car");
         const upRes = await fetch("/api/upload", { method: "POST", body: up });
         const upData = await upRes.json().catch(() => null);
         if (!upRes.ok || !upData?.url) {
-          throw new Error(upData?.error ?? `อัปโหลดรูปไม่สำเร็จ (${upRes.status})`);
+          throw new Error(upData?.error ?? (upRes.status === 413
+            ? "ไฟล์ใหญ่เกินไป กรุณาย่อรูปหรือถ่ายใหม่ด้วยความละเอียดต่ำลง"
+            : `อัปโหลดรูปไม่สำเร็จ (${upRes.status})`));
         }
         photoUrl = upData.url;
       }

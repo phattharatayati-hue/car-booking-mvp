@@ -21,9 +21,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxSizeBytes = 8 * 1024 * 1024; // 8MB
+    // Vercel ปฏิเสธ request body เกินราว 4.5MB ด้วย 413 ก่อนถึงโค้ดนี้
+    // เราจึงกันไว้ต่ำกว่านั้น เพื่อให้ได้ข้อความบอกเหตุผลจริงๆ แทน 413 เปล่าๆ
+    const maxSizeBytes = 4 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      return NextResponse.json({ error: "ไฟล์ใหญ่เกินไป (สูงสุด 8MB)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "ไฟล์ใหญ่เกินไป (สูงสุด 4MB) กรุณาย่อรูปก่อนอัปโหลด" },
+        { status: 400 }
+      );
     }
 
     // เก็บแบบ private — ต้องเรียกผ่าน /api/file เท่านั้น

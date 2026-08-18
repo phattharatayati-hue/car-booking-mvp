@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { shrinkImage } from "@/lib/image-resize";
 
 export default function SlipUpload({
   bookingId,
@@ -29,12 +30,14 @@ export default function SlipUpload({
 
     try {
       const uploadForm = new FormData();
-      uploadForm.append("file", file);
+      uploadForm.append("file", await shrinkImage(file, { maxEdge: 2000, quality: 0.9 }));
       uploadForm.append("kind", "slip");
       const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
       const uploadData = await uploadRes.json().catch(() => null);
       if (!uploadRes.ok || !uploadData?.url) {
-        throw new Error(uploadData?.error ?? `อัปโหลดไม่สำเร็จ (${uploadRes.status})`);
+        throw new Error(uploadData?.error ?? (uploadRes.status === 413
+            ? "ไฟล์ใหญ่เกินไป กรุณาย่อรูปหรือถ่ายใหม่ด้วยความละเอียดต่ำลง"
+            : `อัปโหลดไม่สำเร็จ (${uploadRes.status})`));
       }
 
       const depositRes = await fetch(`/api/bookings/${bookingId}/deposit`, {
