@@ -8,6 +8,7 @@ import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points"
 import type { Liff } from "@/lib/liff-types";
 
 const SDK_URL = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+const LOGIN_ATTEMPT_KEY = "liff_booking_login_attempt";
 
 function loadSdk(): Promise<Liff> {
   return new Promise((resolve, reject) => {
@@ -94,10 +95,20 @@ export default function LiffBooking({
       try {
         const liff = await Promise.race([loadSdk(), timeout]);
         await Promise.race([liff.init({ liffId }), timeout]);
+
         if (!liff.isLoggedIn()) {
+          // กันวนลูป — ถ้าเพิ่งเด้งไปล็อกอินแล้วยังกลับมาไม่ล็อกอิน อย่าเด้งซ้ำ
+          if (sessionStorage.getItem(LOGIN_ATTEMPT_KEY)) {
+            sessionStorage.removeItem(LOGIN_ATTEMPT_KEY);
+            setInitError("เข้าสู่ระบบ LINE ไม่สำเร็จ");
+            return;
+          }
+          sessionStorage.setItem(LOGIN_ATTEMPT_KEY, "1");
           liff.login({ redirectUri: window.location.href });
           return;
         }
+
+        sessionStorage.removeItem(LOGIN_ATTEMPT_KEY);
         const token = liff.getIDToken();
         if (cancelled) return;
         if (!token) {

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import LiffBooking from "./LiffBooking";
@@ -21,12 +21,39 @@ type CarRow = {
   partnerId: string | null;
 };
 
+/**
+ * LINE ส่งพารามิเตอร์ที่แนบมากับลิงก์ LIFF มาในรูป liff.state
+ * เช่น /line/book?liff.state=%3Fcar%3Dabc123
+ *
+ * ปกติ LIFF SDK จะแกะให้เอง แต่หน้ารายการรถไม่ได้เรียก liff.init
+ * (ยังไม่ต้องรู้จักตัวตนลูกค้า) จึงไม่มีใครแกะ — ผลคือกดเลือกรถจากแชทแล้ว
+ * ยังเจอหน้าเลือกรถอีก และหลังล็อกอินก็วนกลับมาที่เดิมไม่จบ
+ * ตรงนี้เลยแกะเองฝั่ง server แล้ว redirect ไปให้ถูกหน้าเลย
+ */
+function carIdFromLiffState(state: string | undefined): string | null {
+  if (!state) return null;
+  try {
+    const decoded = state.startsWith("?") ? state : decodeURIComponent(state);
+    const query = decoded.startsWith("?") ? decoded.slice(1) : decoded;
+    return new URLSearchParams(query).get("car");
+  } catch {
+    return null;
+  }
+}
+
 export default async function LineBookPage({
   searchParams,
 }: {
-  searchParams: Promise<{ car?: string }>;
+  searchParams: Promise<{ car?: string; "liff.state"?: string }>;
 }) {
-  const { car: carId } = await searchParams;
+  const params = await searchParams;
+  const carId = params.car;
+
+  if (!carId) {
+    const fromState = carIdFromLiffState(params["liff.state"]);
+    if (fromState) redirect(`/line/book?car=${encodeURIComponent(fromState)}`);
+  }
+
   const settings = await getSettings();
   const pickupPoints = await getPickupPoints();
   const times = timeOptions(settings.openHour, settings.closeHour);

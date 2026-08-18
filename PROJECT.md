@@ -1,355 +1,368 @@
-# ระบบจองรถเช่า (Car Booking MVP)
+# ระบบจองรถเช่า CM Car Rent (Car Booking MVP)
 
-เอกสารสรุปโปรเจกต์ — เวอร์ชันทดลอง (MVP) ที่ deploy บน Vercel
+เอกสารสรุปโปรเจกต์ — เว็บจองรถเช่าเชียงใหม่ พร้อมหลังบ้านและ LINE OA deploy บน Vercel
 
-> **สถานะปัจจุบัน:** ใช้งานได้จริงแล้ว — ฐานข้อมูลเชื่อมต่อสำเร็จ, ระบบ login ทำงาน,
-> จองรถ/อัปโหลดสลิป/ยืนยันมัดจำครบวงจร
-> **ยังไม่ทำ (เฟส 2):** LINE OA, Bank API, OCR อ่านสลิปอัตโนมัติ
-
----
-
-## 1. ภาพรวมระบบ
-
-ระบบจองรถเช่าออนไลน์ แบ่งเป็น 2 ส่วน:
-
-**หน้าบ้าน (ลูกค้า)**
-เลือกรถ → ระบุวันรับ-คืนรถ → กรอกข้อมูลติดต่อ → จองสำเร็จ → โอนมัดจำ 30% → อัปโหลดสลิป → รอแอดมินยืนยัน
-
-**หลังบ้าน (แอดมิน)**
-ต้อง login ก่อน → ดูแดชบอร์ด → จัดการรถ (เพิ่ม/เปิด-ปิดการใช้งาน) → ตรวจสลิปมัดจำ → ยืนยันหรือปฏิเสธการจอง
+> **สถานะ:** ใช้งานได้จริงทั้ง 3 ช่องทาง — เว็บ, LIFF ในแอป LINE, และแชท LINE
+> จองรถ → ชำระค่าจอง → ส่งเอกสาร → แอดมินตรวจ → ยืนยัน ครบวงจร
+> **ยังไม่ทำ:** Bank API เช็คยอดอัตโนมัติ, OCR อ่านสลิป, ระบบรีวิว
 
 ---
 
-## 2. เทคโนโลยีที่ใช้
+## 1. ภาพรวม
 
-| ส่วน | เทคโนโลยี | หมายเหตุ |
-|---|---|---|
-| Framework | **Next.js 16.3.1** (App Router) | เวอร์ชันใหม่มาก มี breaking changes |
-| ภาษา | TypeScript | |
-| UI | Tailwind CSS v4 | โทนสว่าง สีหลักน้ำเงิน |
-| ฟอนต์ | Noto Sans Thai + Geist | |
-| ฐานข้อมูล | **Neon Postgres** (Free tier) | region: Washington D.C. (iad1) |
-| ORM | **Prisma 7.9.1** | มี breaking changes เยอะ ดูหัวข้อ 7 |
-| Login | **Auth.js (NextAuth v5 beta)** | Credentials + JWT + bcryptjs |
-| เก็บไฟล์ | **Vercel Blob** (Private access) | รูปรถ + สลิปมัดจำ |
-| Deploy | Vercel (Hobby plan) | auto-deploy เมื่อ push ขึ้น `main` |
-| Repo | GitHub — `phattharatayati-hue/car-booking-mvp` | **ต้องเป็น Public** ดูหัวข้อ 7 |
+**ฝั่งลูกค้า**
+
+| หน้า | ทำอะไร |
+|---|---|
+| `/` | หน้าแรก รถแนะนำ แถบโปรโมท LINE |
+| `/cars` | รถทั้งหมด กรองยี่ห้อ เรียงราคา แสดงว่าง/ไม่ว่างวันนี้ |
+| `/cars/[id]/book` | จองรถ — ปฏิทินวันว่าง เลือกเวลา จุดรับ-ส่ง กรอกข้อมูล |
+| `/booking/[id]` | สถานะการจอง อัปโหลดสลิปค่าจอง ส่งเอกสาร เลือกจุดรับ-ส่ง |
+| `/my` | ประวัติการจอง (ยืนยันตัวด้วยเบอร์ + OTP ทาง LINE) |
+| `/how-to-book` | 5 ขั้นตอนการจอง + คำถามที่พบบ่อย 7 ข้อ |
+| `/line/connect` | เชื่อมต่อ LINE เพื่อรับแจ้งเตือน |
+| `/contact` | เบอร์โทร เวลาทำการ |
+
+**ฝั่งแอดมิน** (ต้อง login)
+
+| หน้า | ทำอะไร |
+|---|---|
+| `/admin` | แดชบอร์ด ยอดจอง รายได้ งานค้าง |
+| `/admin/bookings` | รายการจอง อนุมัติคำขอ ตรวจสลิป ตรวจเอกสารรายใบ |
+| `/admin/calendar` | ปฏิทินการจองทุกคัน |
+| `/admin/cars` | จัดการรถ ราคา รูป สถานะ |
+| `/admin/partners` | คลังรถพาร์ทเนอร์ (นายหน้า) |
+| `/admin/pickup-points` | จุดรับ-ส่งรถ ตั้งค่าบริการรายจุด |
+| `/admin/settings` | เวลาทำการ ค่าจอง เงินประกัน เงื่อนไขบริการ แจ้งเตือนคืนรถ |
+| `/admin/users` | จัดการแอดมิน ผูก LINE |
+| `/admin/account` | บัญชีตัวเอง |
+
+**ฝั่ง LINE OA** — รวมทุกอย่างในแชท
+
+- Rich menu 6 ปุ่ม: จองรถ / รถทั้งหมด / เช็คสถานะ / วิธีจอง / ติดต่อ / เชื่อมบัญชี
+- จองได้ในแชทเลย (ปุ่ม postback + Flex carousel) หรือเปิด LIFF เพื่อใช้ปฏิทินเต็มจอ
+- ส่งรูปสลิปเข้าแชทได้ ระบบผูกเข้าการจองให้เอง
+- แจ้งแอดมินทุกครั้งที่มีจองใหม่ / สลิปเข้า / เอกสารครบ
+- แจ้งลูกค้าเมื่อยืนยันจอง / เอกสารไม่ผ่าน / เตือนก่อนคืนรถ
 
 ---
 
-## 3. โครงสร้างไฟล์
+## 2. เทคโนโลยี
+
+| ส่วน | ใช้อะไร |
+|---|---|
+| Framework | Next.js 16 App Router (Turbopack) |
+| ภาษา | TypeScript |
+| UI | Tailwind CSS v4, ฟอนต์ Noto Sans Thai |
+| ORM | Prisma 7 + `@prisma/adapter-pg` |
+| ฐานข้อมูล | Neon Postgres (ผ่าน Vercel Storage) |
+| Auth แอดมิน | NextAuth v5 beta (Credentials + JWT + bcryptjs) |
+| ไฟล์ | Vercel Blob (**Private** store) |
+| Cron | Vercel Cron (เตือนคืนรถ) |
+| แชท | LINE Messaging API + LINE Login + LIFF |
+| Hosting | Vercel (แผน Hobby) |
+
+---
+
+## 3. โครงสร้างฐานข้อมูล
 
 ```
-car-booking-mvp/
-├── app/
-│   ├── layout.tsx              # Root layout + ฟอนต์ + metadata
-│   ├── globals.css             # ธีมสว่าง + animation
-│   ├── page.tsx                # หน้าแรก (hero + รถแนะนำ)
-│   ├── cars/
-│   │   ├── page.tsx            # รถทั้งหมด + กรองยี่ห้อ/เรียงราคา
-│   │   └── [id]/book/
-│   │       ├── page.tsx        # หน้าจองรถ (2 คอลัมน์)
-│   │       └── BookingForm.tsx # ฟอร์มจอง (client)
-│   ├── booking/[id]/
-│   │   ├── page.tsx            # สถานะการจอง + stepper
-│   │   └── SlipUpload.tsx      # อัปโหลดสลิป (client)
-│   ├── how-to-book/page.tsx    # วิธีการจอง + FAQ
-│   ├── contact/page.tsx        # ติดต่อเรา
-│   ├── login/page.tsx          # เข้าสู่ระบบแอดมิน
-│   ├── admin/
-│   │   ├── layout.tsx          # Sidebar หลังบ้าน
-│   │   ├── page.tsx            # แดชบอร์ด + รายได้ + จองล่าสุด
-│   │   ├── cars/page.tsx       # จัดการรถ
-│   │   └── bookings/page.tsx   # ตรวจสลิป/ยืนยันการจอง
-│   └── api/
-│       ├── auth/[...nextauth]/route.ts
-│       ├── cars/route.ts             # GET (public) / POST (ต้อง login)
-│       ├── cars/[id]/route.ts        # PATCH / DELETE (ต้อง login)
-│       ├── bookings/route.ts         # POST สร้างการจอง
-│       ├── bookings/[id]/deposit/route.ts  # POST บันทึกสลิป
-│       ├── upload/route.ts           # POST อัปโหลดไฟล์เข้า Blob
-│       └── file/route.ts             # GET ดึงรูปจาก Blob (private)
-├── components/
-│   ├── SiteHeader.tsx          # เมนูหลัก + mobile menu (client)
-│   ├── SiteFooter.tsx
-│   ├── PublicShell.tsx         # ครอบ header + footer
-│   ├── CarCard.tsx             # การ์ดรถ
-│   ├── AdminNav.tsx            # เมนูหลังบ้าน + active state (client)
-│   └── AddCarForm.tsx          # ฟอร์มเพิ่มรถ + อัปโหลดรูป (client)
-├── lib/
-│   ├── prisma.ts               # Prisma client + driver adapter
-│   └── auth.ts                 # ตั้งค่า NextAuth
-├── prisma/
-│   ├── schema.prisma           # โครงสร้างฐานข้อมูล
-│   ├── seed.ts                 # สร้างแอดมินคนแรก
-│   └── seed-demo.ts            # ใส่ข้อมูลจำลอง (รถ/ลูกค้า/การจอง)
-├── prisma.config.ts            # ตั้งค่า Prisma 7 (แทน datasource url)
-├── proxy.ts                    # Middleware (Next 16 เปลี่ยนชื่อจาก middleware.ts)
-└── .env                        # ตัวแปรลับ (ห้าม commit)
-```
-
----
-
-## 4. โครงสร้างฐานข้อมูล
-
-```
-AdminUser   id, email(unique), passwordHash, name, role, createdAt
-Car         id, name, brand, licensePlate(unique), pricePerDay,
-            photoUrl?, source, status, createdAt, updatedAt
-Customer    id, fullName, phone, email?, idCardNumber?,
-            isBlacklisted, createdAt
-Booking     id, carId→Car, customerId→Customer, startDate, endDate,
-            totalPrice, status, note?, createdAt, updatedAt
-Deposit     id, bookingId→Booking(unique), amount, slipImageUrl,
-            status, confirmedBy?, confirmedAt?, createdAt
+AdminUser        id, email(unique), passwordHash, name, role,
+                 lineUserId?, lineLinkCode?(unique), lineLinkExpiresAt?
+Car              id, name, brand, licensePlate(unique), pricePerDay,
+                 costPerDay?, photoUrl?, source, status, partnerId?
+Partner          id, name, phone, lineId?, note?, isActive
+Customer         id, fullName, phone, email?, idCardNumber?,
+                 isBlacklisted, lineUserId?
+Booking          id, carId→Car, customerId→Customer, startDate, endDate,
+                 totalPrice, status, pickupPlace?, returnPlace?,
+                 note?, adminNote?, returnReminderSentAt?
+Deposit          id, bookingId→Booking(unique), amount, slipImageUrl,
+                 status, confirmedBy?, confirmedAt?
+BookingDocument  id, bookingId→Booking, kind, fileUrl, status,
+                 rejectReason?, reviewedBy?, reviewedAt?
+                 @@unique([bookingId, kind])
+PickupPoint      id, name, fee, isActive, sortOrder
+Settings         id="default", openHour, closeHour, bookingFee,
+                 securityDeposit, serviceNote,
+                 returnReminderOn, returnReminderDays, returnReminderHour
+CustomerOtp      phone(id), codeHash, expiresAt, attempts
+LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ```
 
 **Enum**
 
-- `CarSource` — `OWN` (รถของเรา) / `PARTNER` (รถพาร์ทเนอร์)
+- `CarSource` — `OWN` / `PARTNER`
 - `CarStatus` — `AVAILABLE` / `UNAVAILABLE`
-- `BookingStatus` — `PENDING_DEPOSIT` / `CONFIRMED` / `CANCELLED` / `COMPLETED`
+- `BookingStatus` — `REQUESTED` / `REJECTED` / `PENDING_DEPOSIT` / `CONFIRMED` / `CANCELLED` / `COMPLETED`
 - `DepositStatus` — `PENDING` / `CONFIRMED` / `REJECTED`
-
-**ความสัมพันธ์:** Car 1—* Booking, Customer 1—* Booking, Booking 1—1 Deposit
+- `DocumentKind` — `ID_CARD` / `DRIVER_LICENSE` / `TRAVEL_PROOF`
+- `DocumentStatus` — `PENDING` / `APPROVED` / `REJECTED`
 
 ---
 
-## 5. การติดตั้งและรันบนเครื่อง
+## 4. กฎธุรกิจสำคัญ
+
+**ค่าจอง vs เงินประกัน** — คนละอย่าง อย่าสับสน
+
+- **ค่าจอง** (ค่าเริ่มต้น 500 บาท) — โอนล่วงหน้าเพื่อกันวัน เก็บผ่านเว็บ ลูกค้าอัปสลิป
+- **เงินประกันรถ** (ค่าเริ่มต้น 3,000 บาท) — จ่ายวันรับรถ **ไม่ได้เก็บผ่านเว็บ** ระบบแค่แจ้งให้ทราบ คืนหลังส่งรถ
+
+ทั้งสองค่าตั้งได้ที่ `/admin/settings` — ทุกที่ในระบบดึงจากค่านี้ ไม่มีเลขฝังในโค้ด
+
+**รถพาร์ทเนอร์ (นายหน้า)** — รถที่มี `partnerId` หรือ `source = PARTNER`
+
+1. ลูกค้าเห็นปุ่ม "ขอจอง" ไม่ใช่ "จองรถ"
+2. การจองเข้าสถานะ `REQUESTED` — **ยังไม่ต้องโอนค่าจอง**
+3. แอดมินติดต่อเจ้าของรถ แล้วกดอนุมัติ (`PENDING_DEPOSIT`) หรือปฏิเสธ (`REJECTED`)
+4. อนุมัติแล้วลูกค้าจึงโอนค่าจอง
+5. ระบบเก็บ `costPerDay` เพื่อคำนวณกำไรให้แอดมินเห็น
+
+**กันจองทับ** — `lib/create-booking.ts` เป็นจุดเดียวที่สร้างการจอง ใช้ร่วมกันทั้งเว็บ LIFF และแชท
+เช็คช่วงเวลาทับกับสถานะที่ยังใช้งานอยู่ (`REQUESTED`, `PENDING_DEPOSIT`, `CONFIRMED`) เสมอ
+
+**Blacklist** — เช็คจาก Customer เดิมที่หาด้วยเบอร์โทร **ก่อน** สร้างเรคคอร์ดใหม่
+
+**เอกสาร 3 อย่าง** — บัตรประชาชน/Passport, ใบขับขี่, เอกสารจองเดินทางหรือที่พัก
+แอดมินกดผ่าน/ไม่ผ่านแยกรายใบพร้อมเหตุผล ลูกค้าส่งใหม่ได้ สถานะกลับเป็นรอตรวจอัตโนมัติ
+
+**เวลา** — ใช้ Asia/Bangkok ตลอด ผ่าน `Intl.DateTimeFormat` ใน `lib/settings.ts` ไม่พึ่ง timezone ของเซิร์ฟเวอร์
+
+---
+
+## 5. ไฟล์ที่ควรรู้จัก
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `lib/create-booking.ts` | **จุดเดียวที่สร้างการจอง** กฎตรวจสอบทั้งหมดอยู่ที่นี่ |
+| `lib/settings.ts` | อ่านค่าตั้งค่า + ตัวช่วยเรื่องเวลาไทยทั้งหมด |
+| `lib/availability.ts` | คำนวณวันว่าง/ไม่ว่าง สำหรับปฏิทิน |
+| `lib/booking-status.ts` | ป้ายสถานะ สี และ `needsApproval()` |
+| `lib/line.ts` | ส่งข้อความ LINE, ตรวจ signature, รายชื่อแอดมิน |
+| `lib/line-booking.ts` | flow การจองในแชท (postback ทีละขั้น) |
+| `lib/line-flex.ts` | Flex Message ทุกแบบ |
+| `lib/documents.ts` | ชนิดเอกสาร ป้ายสถานะ (ไม่มี prisma) |
+| `lib/pickup-points.ts` | ค่าคงที่/helper จุดรับ-ส่ง (**ห้ามใส่ prisma**) |
+| `lib/pickup-points-server.ts` | ดึงจุดรับ-ส่งจากฐานข้อมูล |
+| `lib/image-resize.ts` | ย่อรูปในเบราว์เซอร์ก่อนอัปโหลด |
+| `lib/contact.ts` | เบอร์โทร เวลาทำการ (แก้ที่เดียวเปลี่ยนทุกที่) |
+| `lib/customer-session.ts` | เซสชันลูกค้าสำหรับหน้า `/my` |
+
+---
+
+## 6. ติดตั้งและรันบนเครื่อง
 
 ### ครั้งแรก
 
 ```bash
-# 1. ดึงโค้ดล่าสุด (หรือใช้ GitHub Desktop: Fetch origin → Pull origin)
-git pull origin main
-
-# 2. ติดตั้ง dependencies
 npm install
 
-# 3. ดึงตัวแปร environment จาก Vercel
-vercel login
-vercel link                                    # เลือก project: car-booking-mvp
 vercel env pull .env.local --environment=production
-
-# 4. คัดลอกเป็น .env (Prisma CLI อ่านเฉพาะ .env)
 copy .env.local .env
 
-# 5. เติมค่าที่ Vercel ไม่ยอมส่งออกมา (แสดงเป็น [SENSITIVE])
-#    → เอาค่า DATABASE_URL จริงจาก Neon dashboard มาใส่ ดูหัวข้อ 6
+# เติมค่าที่ Vercel ส่งออกมาเป็น [SENSITIVE] ด้วยมือ (ดูหัวข้อ 7)
 
-# 6. สร้างตารางในฐานข้อมูล + สร้างแอดมินคนแรก
 npm run db:push
-npm run db:seed
+npx tsx prisma/seed-cars.ts
+npx tsx prisma/seed-pickup-points.ts
 ```
 
 ### รันทุกครั้ง
 
 ```bash
-npm run dev      # เปิด http://localhost:3000
+npm run dev
 ```
 
-กด `Ctrl + C` เพื่อหยุด
+### สคริปต์
 
-### คำสั่งอื่น
-
-```bash
-npm run build            # build production
-npm run lint             # ตรวจ code style
-npx tsc --noEmit         # ตรวจ TypeScript
-npx prisma generate      # สร้าง Prisma Client ใหม่ (หลังแก้ schema)
-npm run db:push          # อัปเดตโครงสร้างตารางตาม schema
-npm run db:seed          # สร้าง/อัปเดตแอดมิน
-npx tsx prisma/seed-demo.ts   # ใส่ข้อมูลจำลอง (รันซ้ำได้ปลอดภัย)
-```
+| คำสั่ง | ทำอะไร |
+|---|---|
+| `npm run db:push` | อัปเดตโครงสร้างตารางตาม `schema.prisma` |
+| `npx prisma generate` | สร้าง Prisma Client (Vercel รันเองผ่าน postinstall) |
+| `npx tsx prisma/seed-cars.ts` | ใส่/อัปเดตรถจริง 7 คันพร้อมราคา |
+| `npx tsx prisma/seed-pickup-points.ts` | ใส่จุดรับ-ส่ง 3 จุดเริ่มต้น |
+| `npx tsx prisma/cleanup-demo-cars.ts` | เก็บกวาดรถเดโม (ใส่ `--apply` เพื่อลงมือจริง) |
+| `npx tsx scripts/setup-richmenu.ts` | ติดตั้ง rich menu ขึ้น LINE OA |
+| `npm run build` | **ต้องรันก่อน push ทุกครั้ง** |
+| `npx tsc --noEmit` | ตรวจ type |
 
 ---
 
-## 6. ตัวแปร Environment
+## 7. ตัวแปร Environment
 
-| ตัวแปร | ใช้ทำอะไร | หาได้จากไหน |
-|---|---|---|
-| `DATABASE_URL` | เชื่อมต่อ Neon (แบบ pooled) | Vercel → Storage → Neon → Quickstart → **Show secret** |
-| `DATABASE_URL_UNPOOLED` | เชื่อมต่อแบบไม่ผ่าน pgbouncer | ที่เดียวกัน |
-| `AUTH_SECRET` | เข้ารหัส session ของ NextAuth | สร้างเองด้วย `openssl rand -base64 32` (local ใช้ค่าอะไรก็ได้) |
-| `BLOB_READ_WRITE_TOKEN` | อัปโหลดไฟล์เข้า Vercel Blob | Vercel → Storage → Blob store |
-| `SEED_ADMIN_EMAIL` | อีเมลแอดมินตอน seed | ไม่ตั้งก็ได้ (default `admin@example.com`) |
-| `SEED_ADMIN_PASSWORD` | รหัสผ่านแอดมินตอน seed | ไม่ตั้งก็ได้ (default `changeme123`) |
+| ตัวแปร | ใช้ทำอะไร |
+|---|---|
+| `DATABASE_URL` | Neon Postgres (Sensitive — ต้องเอาจาก Neon dashboard) |
+| `AUTH_SECRET` | NextAuth + เซ็น OTP/เซสชันลูกค้า |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob |
+| `NEXT_PUBLIC_SITE_URL` | โดเมนเว็บ ใช้ในลิงก์ที่ส่งทาง LINE |
+| `LINE_CHANNEL_ACCESS_TOKEN` | Messaging API |
+| `LINE_CHANNEL_SECRET` | ตรวจ signature ของ webhook |
+| `LINE_ADMIN_USER_ID` | LINE ID แอดมินสำรอง (นอกจากที่ผูกในหลังบ้าน) |
+| `LINE_LOGIN_CHANNEL_ID` | ตรวจ idToken ฝั่ง server |
+| `NEXT_PUBLIC_LIFF_ID` | LIFF หน้าเชื่อมบัญชี |
+| `NEXT_PUBLIC_LIFF_BOOKING_ID` | LIFF หน้าจองรถ |
+| `NEXT_PUBLIC_LINE_OA_ID` | LINE OA id เช่น `@606ugqjs` |
+| `CRON_SECRET` | ป้องกัน endpoint เตือนคืนรถ |
 
-> ⚠️ **สำคัญ:** ตัวแปรที่ติดป้าย **"Sensitive"** ใน Vercel จะ**ดูค่าไม่ได้เลย** ทั้งหน้าเว็บและ `vercel env pull`
-> (จะได้ค่าเป็น `[SENSITIVE]` แทน) ต้องไปเอาค่าจริงจากต้นทาง เช่น Neon dashboard
-
-> ⚠️ ห้าม commit ไฟล์ `.env` ขึ้น GitHub — `.gitignore` กันไว้แล้ว
-
-**บัญชีแอดมินเริ่มต้น:** `admin@example.com` / `changeme123` → **ควรเปลี่ยนรหัสผ่านทันที**
-
----
-
-## 7. ปัญหาที่เจอและวิธีแก้ (สำคัญมาก)
-
-รวมบทเรียนทั้งหมดจากการ setup — ถ้าเจอ error เหล่านี้อีกให้ดูตรงนี้
-
-### 7.1 Prisma 7 — `url` / `directUrl` ใช้ใน schema ไม่ได้แล้ว
-
-```
-error: The datasource property 'url' is no longer supported in schema files
-```
-
-**แก้:** ลบ `url` และ `directUrl` ออกจาก `schema.prisma` ให้เหลือแค่ `provider`
-แล้วย้ายไปตั้งใน `prisma.config.ts` แทน
-
-### 7.2 Prisma 7 — ต้องใช้ driver adapter
-
-```
-PrismaClientInitializationError: PrismaClient was instantiated without any options.
-A driver adapter is required to connect to your database.
-```
-
-**แก้:** ติดตั้ง `@prisma/adapter-pg` + `pg` แล้วสร้าง client แบบนี้
-
-```ts
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
-```
-
-### 7.3 `prisma.config.ts` ไม่โหลด .env เอง
-
-```
-PrismaConfigEnvError: Cannot resolve environment variable: DATABASE_URL
-```
-
-**แก้:** ใส่ `import "dotenv/config";` เป็น**บรรทัดแรก**ของ `prisma.config.ts`
-(Prisma ตั้งใจปิด auto-load dotenv ไว้)
-
-### 7.4 Prisma CLI อ่าน `.env` ไม่ใช่ `.env.local`
-
-**แก้:** `copy .env.local .env` (Next.js อ่าน `.env.local` แต่ Prisma CLI อ่าน `.env`)
-
-### 7.5 `vercel env pull` ไม่ได้ตัวแปรมา
-
-**สาเหตุ:** ตัวแปรตั้งไว้เฉพาะ "Production and Preview" แต่คำสั่ง default ดึงจาก "Development"
-
-**แก้:** `vercel env pull .env.local --environment=production`
-
-### 7.6 Next.js 16 — `middleware.ts` เปลี่ยนชื่อเป็น `proxy.ts`
-
-**แก้:** เปลี่ยนชื่อไฟล์เป็น `proxy.ts` และ export ชื่อ `proxy` แทน `middleware`
-
-### 7.7 Build fail — ตารางยังไม่มีในฐานข้อมูล
-
-```
-PrismaClientKnownRequestError P2021: The table does not exist
-```
-
-**สาเหตุ:** Next.js พยายาม prerender หน้าที่ query ฐานข้อมูลตอน build
-
-**แก้:** ใส่ `export const dynamic = "force-dynamic";` เป็นบรรทัดแรกของทุกหน้าที่ query DB
-(และต้องรัน `npm run db:push` ให้สำเร็จก่อน)
-
-### 7.8 Vercel "Deployment Blocked"
-
-**สาเหตุ:** Hobby plan ไม่ให้ deploy commit จากคนที่ไม่มีสิทธิ์ ถ้า repo เป็น Private
-
-**แก้:** เปลี่ยน repo เป็น **Public** (Settings → Danger Zone → Change visibility)
-หรืออัปเกรดเป็น Pro
-
-### 7.9 อัปโหลดสลิปแล้วขึ้น "Unexpected end of JSON input"
-
-```
-Error: Vercel Blob: Cannot use public access...
-```
-
-**สาเหตุ:** Blob store สร้างเป็นแบบ **Private** แต่โค้ดสั่งอัปโหลดเป็น `access: "public"`
-พอ error แล้ว route ไม่มี try/catch เลยส่ง response เปล่ากลับมา
-
-**แก้:** เปลี่ยนเป็น `access: "private"` และดึงรูปผ่าน `/api/file?p=<pathname>`
-พร้อมใส่ try/catch ให้ทุก API route ส่ง error เป็น JSON เสมอ
+`NEXT_PUBLIC_*` ถูกฝังตอน build — **แก้แล้วต้อง redeploy** และอย่าตั้งเป็น Sensitive
 
 ---
 
-## 8. การจัดการรูปภาพและความปลอดภัย
+## 8. ตั้งค่า LINE
 
-Blob store เป็นแบบ **Private** ทั้งหมด — เข้าถึงผ่าน `/api/file?p=<pathname>` เท่านั้น
+**Provider เดียวกันสำคัญมาก** — Messaging API channel และ LINE Login channel
+ต้องอยู่ใต้ provider เดียวกัน (`car-booking-test`) ไม่งั้น LINE userId จะไม่ตรงกัน ผูกบัญชีไม่ได้
+
+| ของ | ค่า |
+|---|---|
+| LINE OA | `@606ugqjs` (test-car-booking) |
+| LINE Login channel | CM Car Rent Login — ID `2011133017` |
+| LIFF Connect | `2011133017-nj2ok701` → `/line/connect` (Tall) |
+| LIFF Booking | `2011133017-Yl8trlid` → `/line/book` (Full) |
+
+**ต้องตั้งใน LINE OA Manager**
+
+- Webhooks: **เปิด**
+- Auto-response messages: **ปิด** (ไม่งั้นจะแย่งตอบก่อน bot)
+- Greeting message: ปิดหรือแก้ตามต้องการ
+
+**ต้องตั้งใน LINE Developers Console**
+
+- LIFF scopes: `openid` **และ** `profile` (ขาด `openid` แล้ว `getIDToken()` คืน null)
+- Linked LINE Official Account: ผูกกับ `@606ugqjs`
+- Channel status: **Published** (ถ้าเป็น Developing คนอื่นจะโดน 400)
+
+---
+
+## 9. รูปภาพและความปลอดภัย
+
+Blob store เป็น **Private** ทั้งหมด เข้าถึงผ่าน `/api/file?p=<pathname>` เท่านั้น
 
 | โฟลเดอร์ | เนื้อหา | ใครดูได้ |
 |---|---|---|
 | `cars/` | รูปรถ | ทุกคน |
-| `slips/` | **สลิปมัดจำ** (มีข้อมูลธนาคารลูกค้า) | **เฉพาะแอดมินที่ login แล้ว** |
+| `slips/` | สลิปค่าจอง (มีข้อมูลธนาคาร) | เฉพาะแอดมินที่ login |
+| `documents/` | บัตรประชาชน ใบขับขี่ เอกสารเดินทาง | เฉพาะแอดมินที่ login |
 
-`/api/file` จะเช็ค session ก่อนเสมอถ้า path ขึ้นต้นด้วย `slips/` — ถ้าไม่ได้ login จะได้ 401
+`/api/file` ใช้ **allowlist** — เปิดสาธารณะแค่ `cars/` นอกนั้นต้องมี session
+โฟลเดอร์ใหม่ที่เพิ่มในอนาคตจะถูกปิดโดยปริยาย ไม่หลุดเงียบๆ
 
-**ข้อจำกัด:** การอัปโหลดจะ**ไม่ทำงานบนเครื่อง local** ถ้า `BLOB_READ_WRITE_TOKEN` ยังเป็น `[SENSITIVE]`
-ต้องทดสอบบน Vercel หรือเอา token จริงจาก Vercel dashboard มาใส่
+**ความปลอดภัยอื่น**
 
----
-
-## 9. ขั้นตอนการ deploy
-
-1. แก้โค้ดบนเครื่อง
-2. ทดสอบด้วย `npm run dev`
-3. เปิด **GitHub Desktop** → ใส่ข้อความ commit → **Commit to main** → **Push origin**
-4. Vercel จะ deploy อัตโนมัติภายใน 1-2 นาที
-5. ดูสถานะได้ที่ Vercel dashboard → Deployments
-
-**ถ้า deploy ไม่ผ่าน:** ดู log ที่ Vercel → Deployments → คลิก deployment ที่ error → Build Logs
-**ถ้าเว็บ error ตอนใช้งาน:** ดูที่ Vercel → **Logs** (runtime logs) — บอกสาเหตุจริงเสมอ
+- OTP หน้า `/my` เก็บเฉพาะ HMAC ของรหัส อายุ 5 นาที ใช้ครั้งเดียว ผิดได้ 5 ครั้ง ขอใหม่ได้ทุก 60 วิ
+- `/api/my/request-otp` ตอบเหมือนกันเสมอไม่ว่าเบอร์มีในระบบหรือไม่ กันไล่เดาว่าใครเป็นลูกค้า
+- เซสชันลูกค้าเป็น cookie httpOnly เซ็น HMAC เทียบแบบ timing-safe
+- LINE webhook ตรวจ signature HMAC-SHA256 ทุก request
+- `idToken` จาก LIFF ตรวจกับ `api.line.me/oauth2/v2.1/verify` ฝั่ง server เสมอ **ไม่เชื่อ userId ที่ client ส่งมา**
+- API เอกสารรับเฉพาะ path ที่ออกจาก `/api/upload` ของเราเอง
 
 ---
 
-## 10. URL สำคัญ
+## 10. ปัญหาที่เจอและวิธีแก้
 
-| อะไร | ที่ไหน |
+### Prisma 7 — `url` ใน schema ใช้ไม่ได้แล้ว
+`datasource` มีแค่ `provider` ต้องส่ง connection string ผ่าน driver adapter (`PrismaPg`) ใน `lib/prisma.ts`
+
+### `prisma.config.ts` ไม่โหลด .env เอง
+ใส่ `import "dotenv/config";` เป็นบรรทัดแรก
+
+### Prisma CLI อ่าน `.env` ไม่ใช่ `.env.local`
+`copy .env.local .env` ทุกครั้งที่ดึง env ใหม่
+
+### `vercel env pull` ได้ค่าไม่ครบ
+ต้องใส่ `--environment=production` และตัวแปรที่ตั้งเป็น **Sensitive** จะได้ `[SENSITIVE]` เสมอ
+อ่านค่าจริงไม่ได้ทั้งจาก CLI และ dashboard — ต้องไปเอาจากต้นทาง (Neon → Quickstart → Show secret)
+
+### Next.js 16 — `middleware.ts` เปลี่ยนชื่อเป็น `proxy.ts`
+
+### อัปโหลดสลิปขึ้น "Unexpected end of JSON input"
+Blob store เป็น Private แต่โค้ดสั่ง `access: "public"` → แก้เป็น `"private"` + ดึงผ่าน `/api/file`
+และใส่ try/catch ให้ทุก route ตอบ JSON เสมอ
+
+### LINE bot ตอบข้อความ default
+Webhooks toggle ปิดอยู่ใน LINE OA Manager
+
+### Rich menu บันทึกไม่ได้ "Enter a display period"
+Display period เป็นช่องบังคับ ต้องใส่ช่วงวันที่
+
+### `react-hooks/purity` error
+เรียก `Date.now()` ตอน render → ย้ายไป module scope หรือ `useEffect`
+
+### Build fail: `Module not found: Can't resolve 'dns'`
+มี client component import โมดูลที่ `import prisma` เข้ามา → Turbopack ลาก `pg` ไป bundle ฝั่ง browser
+**แยกไฟล์**: helper ที่ client ใช้ต้องไม่มี prisma (ดู `lib/pickup-points.ts` vs `-server.ts`)
+
+### อัปโหลดรูปขึ้น 413
+Vercel จำกัด request body ของ serverless function ไว้ราว **4.5MB** และปฏิเสธก่อนถึงโค้ดเรา
+แก้ด้วยการย่อรูปในเบราว์เซอร์ก่อนส่ง (`lib/image-resize.ts`)
+
+### `TS2304: Cannot find name 'settings'`
+ลืมว่าฟังก์ชันนั้นไม่มี `settings` ในขอบเขต → ใช้ `(await getSettings())` ที่จุดใช้งาน
+**ESLint จับ error ประเภทนี้ไม่ได้** ต้องรัน `npx tsc --noEmit`
+
+---
+
+## 11. ขั้นตอน deploy
+
+```bash
+npm run db:push        # ถ้า schema.prisma เปลี่ยน
+npx tsc --noEmit
+npm run build          # จับ error ที่ tsc จับไม่ได้
+```
+
+แล้ว commit + push → Vercel deploy อัตโนมัติใน 1-2 นาที
+
+`prisma generate` ไม่ต้องรันเอง — อยู่ใน `postinstall` แล้ว Vercel รันให้ทุก build
+แต่ **`db:push` ไม่อยู่ในขั้นตอน build** ถ้าลืมรัน เว็บจะ error ตอนใช้งานจริง
+
+**ดู error:** build fail → Deployments → Build Logs · เว็บ error ตอนใช้ → Logs (runtime)
+
+---
+
+## 12. ข้อจำกัดของแผน Hobby
+
+| เรื่อง | ข้อจำกัด |
 |---|---|
-| เว็บไซต์ | https://car-booking-mvp.vercel.app |
-| หลังบ้าน | https://car-booking-mvp.vercel.app/login |
-| GitHub repo | https://github.com/phattharatayati-hue/car-booking-mvp |
-| Vercel project | https://vercel.com/phatthara/car-booking-mvp |
-| Vercel Logs | https://vercel.com/phatthara/car-booking-mvp/logs |
-| Neon (ฐานข้อมูล) | Vercel → Storage → neon-citrine-nest → Open in Neon |
+| Cron | วันละครั้ง คลาดเคลื่อน ±59 นาที — ถ้าต้องการถี่กว่านี้ใช้ cron-job.org ยิงเข้า endpoint |
+| Request body | ~4.5MB (เหตุของ 413) |
+| Logs | ย้อนได้แค่ 1 ชั่วโมง |
+| ToS | **ห้ามใช้เชิงพาณิชย์** — ถ้าเปิดรับเงินจริงต้องอัปเป็น Pro |
+
+**ข้อจำกัดของ LINE**
+
+- datetimepicker ปิดวันที่รายวันไม่ได้ → ใช้ LIFF เมื่อต้องการปฏิทินที่ปิดวันไม่ว่างได้
+- reply message ฟรีไม่จำกัด แต่ push message มีโควตา
 
 ---
 
-## 11. สิ่งที่ทำเสร็จแล้ว
+## 13. สิ่งที่ยังไม่ได้ทำ / ค่าที่ยังเป็นของสมมติ
 
-- [x] โครงสร้างฐานข้อมูลครบ (รถ / ลูกค้า / การจอง / มัดจำ / แอดมิน)
-- [x] ระบบ login แอดมิน (Auth.js + bcrypt + JWT)
-- [x] ป้องกันหน้า `/admin/*` ด้วย proxy (middleware)
-- [x] หน้าลูกค้า: หน้าแรก, รถทั้งหมด + ตัวกรอง, วิธีการจอง, ติดต่อเรา
-- [x] จองรถ: เลือกวัน คำนวณราคาอัตโนมัติ กันเลือกวันย้อนหลัง
-- [x] อัปโหลดสลิปมัดจำ (เก็บแบบ private)
-- [x] หน้าสถานะการจองพร้อม stepper
-- [x] หลังบ้าน: แดชบอร์ด + รายได้ + การจองล่าสุด
-- [x] หลังบ้าน: จัดการรถ + อัปโหลดรูปรถ + เปิด/ปิดการใช้งาน
-- [x] หลังบ้าน: ตรวจสลิป ยืนยัน/ปฏิเสธ/ยกเลิกการจอง + ตัวกรองสถานะ
-- [x] UI โทนสว่าง responsive + ฟอนต์ไทย + เมนูนำทาง
-- [x] สคริปต์ข้อมูลจำลองสำหรับทดสอบ
+**ต้องแก้ก่อนใช้จริง**
 
-## 12. สิ่งที่ยังไม่ได้ทำ
+- [ ] เลขบัญชีธนาคารในหน้าอัปโหลดสลิป — ยังเป็น `123-4-56789-0`
+- [ ] รหัสผ่านแอดมิน — ยังเป็น `changeme123`
+- [ ] ทะเบียนรถ — ยังเป็นรหัสชั่วคราว (`ATIV-01`, `CITYT-01` …)
+- [ ] รูปรถทั้ง 7 คัน — อัปที่ `/admin/cars`
+- [ ] LINE ID ในหน้าเว็บ — ยังเป็น `@cmcarrent` ของจริงคือ `@606ugqjs`
+- [ ] อัปเกรด Vercel เป็น Pro ก่อนรับเงินจริง
 
-**ควรทำก่อนใช้งานจริง**
+**ฟีเจอร์ที่ยังไม่มี**
 
-- [ ] เปลี่ยนรหัสผ่านแอดมินจาก `changeme123`
-- [ ] ใส่เลขบัญชีธนาคารจริง (ตอนนี้เป็นตัวอย่างใน `SlipUpload.tsx`)
-- [ ] แก้ข้อมูลติดต่อจริงใน `SiteFooter.tsx` และ `app/contact/page.tsx`
-- [ ] กันจองรถซ้ำช่วงวันที่ทับกัน (ตอนนี้เช็คแค่สถานะรถ)
-- [ ] หน้าแก้ไข/ลบรถในหลังบ้าน (API มีแล้ว แต่ยังไม่มี UI)
-- [ ] ระบบเปลี่ยนรหัสผ่าน / เพิ่มแอดมินคนอื่น
-
-**เฟส 2 (ตามที่คุยไว้)**
-
-- [ ] เชื่อมต่อ LINE OA — แจ้งเตือนแอดมินเมื่อมีการจองใหม่, แจ้งลูกค้าเมื่อยืนยัน
-- [ ] Bank API เช็คยอดเงินเข้าอัตโนมัติ
-- [ ] OCR อ่านสลิปอัตโนมัติ
-- [ ] ระบบสัญญาเช่า / ใบเสร็จ
-- [ ] รายงานรายได้แบบละเอียด
+- [ ] เงินประกันแยกรายรุ่นรถ (ตอนนี้ค่าเดียวใช้ทุกคัน แต่ FAQ บอกว่าบางรุ่นต่างกัน)
+- [ ] Bank API เช็คยอดอัตโนมัติ / OCR อ่านสลิป
+- [ ] ลูกค้ายกเลิกหรือเลื่อนวันเองในเว็บ (ตอนนี้ต้องติดต่อแอดมิน)
+- [ ] ระบบรีวิว / คูปองส่วนลด
+- [ ] รายงานยอดขายแบบละเอียด export ได้
 
 ---
 
-## 13. ข้อควรระวัง
+## 14. ข้อควรระวังเวลาแก้โค้ด
 
-1. **ฐานข้อมูลมีชุดเดียว** — เครื่อง local ต่อฐานข้อมูลตัวเดียวกับเว็บจริง
-   ถ้าเพิ่ม/ลบข้อมูลตอนทดสอบ ข้อมูลจริงจะเปลี่ยนตามด้วย
-2. **ไฟล์ `AGENTS.md` ในโปรเจกต์** เตือนว่า Next.js เวอร์ชันนี้มี breaking changes
-   ถ้าจะแก้โค้ดควรเช็คเอกสารใน `node_modules/next/dist/docs/` ก่อน
-3. **อย่าลบไฟล์ `prisma.config.ts`** — Prisma 7 ต้องใช้ ไม่งั้นต่อฐานข้อมูลไม่ได้
-4. **หลังแก้ `schema.prisma` ทุกครั้ง** ต้องรัน `npx prisma generate` แล้วตามด้วย `npm run db:push`
-5. `npx prisma db push` จะแก้โครงสร้างตารางจริง — ระวังข้อมูลหาย ถ้าลบ field ออก
+1. **`lib/pickup-points.ts` ห้าม import prisma** — client component ใช้ไฟล์นี้ ถ้าใส่เข้าไป build จะพัง
+2. **สร้างการจองใหม่ต้องผ่าน `lib/create-booking.ts`** อย่าเขียน `prisma.booking.create` ตรงๆ ไม่งั้นกฎกันจองทับ/blacklist จะหลุด
+3. **ราคาและค่าธรรมเนียมดึงจาก Settings** อย่า hardcode ตัวเลข
+4. **รัน `npm run build` ก่อน push ทุกครั้ง** — `tsc` และ ESLint จับ error เรื่อง bundling ไม่ได้
+5. **แก้ schema แล้วต้อง `db:push`** ก่อนโค้ดขึ้น production
+6. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง
+7. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ
