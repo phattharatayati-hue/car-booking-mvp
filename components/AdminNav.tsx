@@ -92,6 +92,21 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/storage",
+    label: "พื้นที่เก็บไฟล์",
+    icon: (
+      <>
+        <ellipse cx="12" cy="6" rx="7" ry="3" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/settings",
     label: "ตั้งค่าระบบ",
     icon: (
