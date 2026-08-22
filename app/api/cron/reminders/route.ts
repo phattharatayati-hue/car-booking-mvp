@@ -3,10 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { pushMessage, siteUrl } from "@/lib/line";
 import {
   getSettings,
-  bangkokHour,
-  bangkokDateStr,
-  bangkokDayRange,
   formatBangkokDateTime,
+  formatMinutesBefore,
 } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +18,17 @@ type DueBooking = {
 };
 
 /**
- * ส่งแจ้งเตือนก่อนคืนรถ
+ * ส่งแจ้งเตือนก่อนถึงเวลานัดคืนรถ
  *
- * เรียกโดย Vercel Cron (หรือ cron ภายนอก) — ป้องกันด้วย CRON_SECRET
- * ใส่ ?force=1 เพื่อข้ามการเช็คชั่วโมง (ใช้ตอนกดทดสอบจากหลังบ้าน)
+ * ตรรกะ: ดูเวลานัดคืนรถ (endDate) ของแต่ละการจอง แล้วส่งเมื่อเหลือเวลาไม่เกิน
+ * ค่าที่ตั้งไว้ใน /admin/settings (returnReminderMinutesBefore เช่น 120 = 2 ชม.)
+ * ส่งครั้งเดียวต่อการจอง กันซ้ำด้วย returnReminderSentAt
+ *
+ * ควรให้ cron ยิงเข้ามาทุก ~15 นาที เพื่อให้เวลาเตือนแม่น
+ * (Vercel Hobby รันได้วันละครั้ง — ต้องใช้ cron ภายนอกหรืออัปเป็น Pro)
+ *
+ * เรียกโดย Vercel Cron หรือ cron ภายนอก — ป้องกันด้วย CRON_SECRET
+ * ใส่ ?force=1 เพื่อส่งให้การจองที่เลยเวลานัดคืนไปแล้วด้วย (ใช้ตอนทดสอบ/ตามเก็บ)
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -45,28 +50,24 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const hour = bangkokHour(now);
+  const leadMinutes = settings.returnReminderMinutesBefore;
 
-  // cron อาจรันหลายรอบต่อวัน — ส่งเฉพาะชั่วโมงที่ตั้งไว้
-  if (!force && hour !== settings.returnReminderHour) {
-    return NextResponse.json({
-      ok: true,
-      skipped: `ยังไม่ถึงเวลาส่ง (ตอนนี้ ${hour}:00 ตั้งไว้ ${settings.returnReminderHour}:00)`,
-    });
-  }
+  // ขอบบน = การจองที่เข้าระยะเตือนแล้ว (เหลือถึงกำหนดคืนไม่เกิน leadMinutes)
+  const until = new Date(now.getTime() + leadMinutes * 60000);
 
-  // หาวันคืนรถเป้าหมาย = วันนี้ + จำนวนวันที่ตั้งไว้
-  const targetDate = new Date(now.getTime() + settings.returnReminderDays * 86400000);
-  const targetStr = bangkokDateStr(targetDate);
-  const { start, end } = bangkokDayRange(targetStr);
+  // ปกติไม่ส่งย้อนหลังให้คันที่เลยเวลานัดคืนไปแล้ว — ใส่ ?force=1 ถ้าต้องการตามเก็บ
+  const endDateFilter = force
+    ? { lte: until }
+    : { lte: until, gte: now };
 
   const bookings = await prisma.booking.findMany({
     where: {
       status: "CONFIRMED",
       returnReminderSentAt: null,
-      endDate: { gte: start, lt: end },
+      endDate: endDateFilter,
     },
     include: { car: true, customer: true },
+    orderBy: { endDate: "asc" },
   });
 
   let sent = 0;
@@ -78,17 +79,17 @@ export async function GET(request: Request) {
       continue;
     }
 
-    const dayWord =
-      settings.returnReminderDays === 0
-        ? "วันนี้"
-        : settings.returnReminderDays === 1
-        ? "พรุ่งนี้"
-        : `อีก ${settings.returnReminderDays} วัน`;
+    // เหลือเวลาจริงถึงกำหนดคืน ณ ตอนส่ง (ปัดเป็นนาที)
+    const minutesLeft = Math.round((b.endDate.getTime() - now.getTime()) / 60000);
+    const headline =
+      minutesLeft <= 0
+        ? "ถึงกำหนดคืนรถแล้วครับ"
+        : `อีกประมาณ ${formatMinutesBefore(minutesLeft)} ถึงกำหนดคืนรถครับ`;
 
     const text = [
       "🔔 แจ้งเตือนคืนรถ",
       "",
-      `ถึงกำหนดคืนรถ${dayWord}แล้วครับ`,
+      headline,
       "",
       `รถ: ${b.car.brand} ${b.car.name}`,
       `ทะเบียน: ${b.car.licensePlate}`,
@@ -116,7 +117,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    targetDate: targetStr,
+    leadMinutes,
+    window: { from: now.toISOString(), to: until.toISOString() },
     found: bookings.length,
     sent,
     skipped,

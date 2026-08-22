@@ -146,8 +146,8 @@ model BookingDocument {
 model Settings {
   id                  String   @id @default("default")
   returnReminderOn    Boolean  @default(true)
-  returnReminderDays  Int      @default(1)   // เตือนล่วงหน้ากี่วันก่อนคืนรถ
-  returnReminderHour  Int      @default(9)   // เตือนเวลากี่โมง (0-23 เวลาไทย)
+  /// เตือนล่วงหน้ากี่นาที ก่อน "เวลานัดคืนรถ" ของการจองนั้น (ค่าเริ่มต้น 120 = 2 ชั่วโมง)
+  returnReminderMinutesBefore Int @default(120)
   openHour            Int      @default(6)   // เวลาเปิดรับ-คืนรถ
   closeHour           Int      @default(20)  // เวลาปิด
   /// ค่าจองที่ลูกค้าโอนล่วงหน้าเพื่อกันวัน (บาท)

@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getSettings, SETTINGS_ID } from "@/lib/settings";
+import {
+  getSettings,
+  SETTINGS_ID,
+  splitMinutes,
+  formatMinutesBefore,
+  REMINDER_MIN_MINUTES,
+  REMINDER_MAX_MINUTES,
+} from "@/lib/settings";
 
 async function saveSettingsAction(formData: FormData) {
   "use server";
@@ -12,19 +19,26 @@ async function saveSettingsAction(formData: FormData) {
   if (!session?.user) redirect("/login");
 
   const on = formData.get("returnReminderOn") === "on";
-  const days = Number(formData.get("returnReminderDays"));
-  const hour = Number(formData.get("returnReminderHour"));
+  const leadHours = Number(formData.get("returnReminderLeadHours"));
+  const leadMinutes = Number(formData.get("returnReminderLeadMinutes"));
   const openHour = Number(formData.get("openHour"));
   const closeHour = Number(formData.get("closeHour"));
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
   const bookingFee = Number(formData.get("bookingFee"));
   const securityDeposit = Number(formData.get("securityDeposit"));
 
-  if (!Number.isInteger(days) || days < 0 || days > 14) {
-    redirect("/admin/settings?error=days");
+  if (
+    !Number.isInteger(leadHours) ||
+    !Number.isInteger(leadMinutes) ||
+    leadHours < 0 ||
+    leadMinutes < 0 ||
+    leadMinutes > 59
+  ) {
+    redirect("/admin/settings?error=lead");
   }
-  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
-    redirect("/admin/settings?error=hour");
+  const minutesBefore = leadHours * 60 + leadMinutes;
+  if (minutesBefore < REMINDER_MIN_MINUTES || minutesBefore > REMINDER_MAX_MINUTES) {
+    redirect("/admin/settings?error=leadRange");
   }
   if (
     !Number.isInteger(openHour) ||
@@ -49,8 +63,7 @@ async function saveSettingsAction(formData: FormData) {
 
   const data = {
     returnReminderOn: on,
-    returnReminderDays: days,
-    returnReminderHour: hour,
+    returnReminderMinutesBefore: minutesBefore,
     openHour,
     closeHour,
     bookingFee,
@@ -69,8 +82,8 @@ async function saveSettingsAction(formData: FormData) {
 }
 
 const ERRORS: Record<string, string> = {
-  days: "จำนวนวันต้องอยู่ระหว่าง 0-14",
-  hour: "เวลาต้องอยู่ระหว่าง 0-23",
+  lead: "เวลาแจ้งเตือนล่วงหน้าไม่ถูกต้อง (นาทีต้องอยู่ระหว่าง 0-59)",
+  leadRange: "เวลาแจ้งเตือนล่วงหน้าต้องอยู่ระหว่าง 5 นาที ถึง 7 วัน",
   hours: "เวลาเปิดต้องน้อยกว่าเวลาปิด",
   note: "เงื่อนไขการให้บริการยาวเกิน 500 ตัวอักษร",
   money: "ค่าจองและเงินประกันต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
@@ -87,6 +100,7 @@ export default async function SettingsPage({
 }) {
   const { ok, error } = await searchParams;
   const settings = await getSettings();
+  const lead = splitMinutes(settings.returnReminderMinutesBefore);
 
   const pendingCount = await prisma.booking.count({
     where: { status: "CONFIRMED", returnReminderSentAt: null },
@@ -212,7 +226,8 @@ export default async function SettingsPage({
         <div className="pt-5 border-t border-slate-100">
           <h2 className="font-semibold text-slate-900">แจ้งเตือนก่อนคืนรถ</h2>
           <p className="text-sm text-slate-500 mt-1">
-            ส่งข้อความหาลูกค้าที่ผูก LINE ไว้ เฉพาะการจองที่ยืนยันแล้ว
+            นับจาก<strong>เวลานัดคืนรถของการจองนั้น</strong> ถอยหลังตามที่ตั้งไว้
+            ส่งทาง LINE ให้ลูกค้าที่ผูกบัญชีไว้ เฉพาะการจองที่ยืนยันแล้ว และส่งครั้งเดียวต่อการจอง
           </p>
         </div>
 
@@ -228,43 +243,42 @@ export default async function SettingsPage({
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass} htmlFor="returnReminderDays">
-              เตือนล่วงหน้า (วัน)
+            <label className={labelClass} htmlFor="returnReminderLeadHours">
+              เตือนล่วงหน้า (ชั่วโมง)
             </label>
             <input
-              id="returnReminderDays"
-              name="returnReminderDays"
+              id="returnReminderLeadHours"
+              name="returnReminderLeadHours"
               type="number"
               min={0}
-              max={14}
+              max={168}
               required
-              defaultValue={settings.returnReminderDays}
+              defaultValue={lead.hours}
               className={inputClass}
             />
-            <p className="text-xs text-slate-500 mt-1.5">
-              0 = เตือนวันคืนรถ · 1 = เตือนก่อน 1 วัน
-            </p>
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="returnReminderHour">
-              เวลาที่ส่ง (นาฬิกา)
+            <label className={labelClass} htmlFor="returnReminderLeadMinutes">
+              และอีก (นาที)
             </label>
-            <select
-              id="returnReminderHour"
-              name="returnReminderHour"
-              defaultValue={String(settings.returnReminderHour)}
+            <input
+              id="returnReminderLeadMinutes"
+              name="returnReminderLeadMinutes"
+              type="number"
+              min={0}
+              max={59}
+              required
+              defaultValue={lead.minutes}
               className={inputClass}
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, "0")}:00 น.
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-500 mt-1.5">เวลาประเทศไทย</p>
+            />
           </div>
         </div>
+
+        <p className="text-xs text-slate-500 -mt-2">
+          ตอนนี้ตั้งไว้ <strong>{formatMinutesBefore(settings.returnReminderMinutesBefore)}</strong>{" "}
+          ก่อนเวลานัดคืนรถของการจองแต่ละรายการ · ตั้งได้ตั้งแต่ 5 นาที ถึง 7 วัน
+        </p>
 
         <button
           type="submit"
@@ -276,16 +290,19 @@ export default async function SettingsPage({
 
       <div className="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-5">
         <h2 className="font-semibold text-amber-900 text-sm mb-2">
-          ข้อจำกัดของ Vercel Hobby
+          ความแม่นของเวลาเตือน ขึ้นกับความถี่ของ cron
         </h2>
         <p className="text-sm text-amber-900/90 leading-relaxed">
-          แพลนฟรีของ Vercel รันงานตามเวลาได้<strong>วันละครั้งเท่านั้น</strong> และคลาดเคลื่อนได้ ±59 นาที
-          ตอนนี้ตั้งไว้ให้ทำงานประมาณ <strong>09:00 น.</strong> ทุกวัน
-          ฉะนั้นถ้าตั้งเวลาส่งเป็นเวลาอื่น ระบบจะยังไม่ส่งจนกว่าจะถึงรอบถัดไป
+          ระบบจะเตือนได้ตรงเวลาก็ต่อเมื่อมี cron ยิงเข้ามาถี่ (แนะนำทุก 15 นาที)
+          แต่ Vercel แพลน Hobby รันงานตามเวลาได้<strong>วันละครั้งเท่านั้น</strong> (ตอนนี้ราว 09:00 น.)
+          ฉะนั้นบนแพลนนี้จะเตือนได้เฉพาะรถที่ครบกำหนดคืนใกล้รอบนั้นพอดี
         </p>
         <p className="text-sm text-amber-900/90 leading-relaxed mt-2">
-          ถ้าต้องการให้ตั้งเวลาได้อิสระจริงๆ มี 2 ทาง — อัปเกรดเป็น Vercel Pro
-          หรือใช้บริการ cron ภายนอกฟรี (เช่น cron-job.org) ตั้งให้ยิงมาที่ระบบทุกชั่วโมง
+          วิธีทำให้แม่น เลือกอย่างใดอย่างหนึ่ง — อัปเป็น <strong>Vercel Pro</strong> แล้วแก้{" "}
+          <code className="text-xs">vercel.json</code> เป็น <code className="text-xs">*/15 * * * *</code>{" "}
+          หรือใช้ cron ภายนอกฟรี (เช่น cron-job.org) ตั้งยิงมาที่{" "}
+          <code className="text-xs">/api/cron/reminders</code> ทุก 15 นาที
+          พร้อมส่ง header <code className="text-xs">Authorization: Bearer &lt;CRON_SECRET&gt;</code>
         </p>
       </div>
 

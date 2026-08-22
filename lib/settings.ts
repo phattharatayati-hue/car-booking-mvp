@@ -5,8 +5,8 @@ export const TZ = "Asia/Bangkok";
 
 export type AppSettings = {
   returnReminderOn: boolean;
-  returnReminderDays: number;
-  returnReminderHour: number;
+  /** เตือนล่วงหน้ากี่นาที ก่อนเวลานัดคืนรถของการจองนั้น */
+  returnReminderMinutesBefore: number;
   openHour: number;
   closeHour: number;
   bookingFee: number;
@@ -16,8 +16,7 @@ export type AppSettings = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   returnReminderOn: true,
-  returnReminderDays: 1,
-  returnReminderHour: 9,
+  returnReminderMinutesBefore: 120,
   openHour: 6,
   closeHour: 20,
   bookingFee: 500,
@@ -36,8 +35,7 @@ export async function getSettings(): Promise<AppSettings> {
     });
     return {
       returnReminderOn: row.returnReminderOn,
-      returnReminderDays: row.returnReminderDays,
-      returnReminderHour: row.returnReminderHour,
+      returnReminderMinutesBefore: row.returnReminderMinutesBefore,
       openHour: row.openHour,
       closeHour: row.closeHour,
       bookingFee: row.bookingFee,
@@ -123,4 +121,23 @@ export function bangkokDayRange(dateStr: string) {
   const start = new Date(`${dateStr}T00:00:00+07:00`);
   const end = new Date(start.getTime() + 86400000);
   return { start, end };
+}
+
+/** ขอบเขตที่ยอมให้ตั้งค่าเตือนล่วงหน้าได้ — 5 นาที ถึง 7 วัน */
+export const REMINDER_MIN_MINUTES = 5;
+export const REMINDER_MAX_MINUTES = 7 * 24 * 60;
+
+/** แยกนาทีรวมเป็น ชั่วโมง + นาที สำหรับแสดงในฟอร์ม */
+export function splitMinutes(total: number): { hours: number; minutes: number } {
+  const t = Math.max(0, Math.trunc(total));
+  return { hours: Math.floor(t / 60), minutes: t % 60 };
+}
+
+/** ข้อความอ่านง่ายจากจำนวนนาที เช่น "2 ชั่วโมง", "1 ชั่วโมง 30 นาที", "45 นาที" */
+export function formatMinutesBefore(total: number): string {
+  const { hours, minutes } = splitMinutes(total);
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours} ชั่วโมง`);
+  if (minutes) parts.push(`${minutes} นาที`);
+  return parts.join(" ") || "0 นาที";
 }

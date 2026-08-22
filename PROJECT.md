@@ -85,7 +85,7 @@ BookingDocument  id, bookingId→Booking, kind, fileUrl, status,
 PickupPoint      id, name, fee, isActive, sortOrder
 Settings         id="default", openHour, closeHour, bookingFee,
                  securityDeposit, serviceNote,
-                 returnReminderOn, returnReminderDays, returnReminderHour
+                 returnReminderOn, returnReminderMinutesBefore
 CustomerOtp      phone(id), codeHash, expiresAt, attempts
 LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ```
@@ -123,8 +123,21 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 
 **Blacklist** — เช็คจาก Customer เดิมที่หาด้วยเบอร์โทร **ก่อน** สร้างเรคคอร์ดใหม่
 
+**แจ้งลูกค้าหลังจองสำเร็จ** — `createBooking` จะ push ข้อความทาง LINE ให้ลูกค้าที่ผูกบัญชีไว้เสมอ
+บอกยอดค่าจอง เลขบัญชี จุดรับ-ส่ง และลิงก์ไปแนบสลิป/ส่งเอกสาร
+สำคัญกับการจองผ่าน LIFF เพราะปิดหน้าต่างแล้วข้อมูลบนจอหายหมด ไม่มีอะไรค้างในแชท
+ถ้าเป็นรถพาร์ทเนอร์จะไม่ส่งเลขบัญชี แต่บอกว่ายังไม่ต้องโอนจนกว่าจะยืนยัน
+
 **เอกสาร 3 อย่าง** — บัตรประชาชน/Passport, ใบขับขี่, เอกสารจองเดินทางหรือที่พัก
 แอดมินกดผ่าน/ไม่ผ่านแยกรายใบพร้อมเหตุผล ลูกค้าส่งใหม่ได้ สถานะกลับเป็นรอตรวจอัตโนมัติ
+
+**แจ้งเตือนก่อนคืนรถ** — นับจาก `endDate` (เวลานัดคืนรถของการจองนั้น) ถอยหลังตาม
+`Settings.returnReminderMinutesBefore` (ค่าเริ่มต้น 120 นาที = 2 ชั่วโมง ตั้งได้ 5 นาที–7 วันที่ `/admin/settings`)
+`/api/cron/reminders` จะส่งให้การจอง `CONFIRMED` ที่ `returnReminderSentAt` ยังว่าง และเหลือเวลาถึงกำหนดคืน
+ไม่เกินค่าที่ตั้งไว้ ส่งครั้งเดียวต่อการจอง · ใส่ `?force=1` เพื่อตามเก็บรายการที่เลยเวลานัดคืนไปแล้ว
+**ความแม่นขึ้นกับความถี่ cron** — ต้องยิงทุก ~15 นาทีจึงจะตรง แต่ Hobby รันได้วันละครั้ง
+(ตอนนี้ `vercel.json` = `0 2 * * *` ≈ 09:00 ไทย) เมื่ออัปเป็น Pro ให้แก้เป็น `*/15 * * * *`
+หรือใช้ cron ภายนอกยิงมาพร้อม header `Authorization: Bearer <CRON_SECRET>`
 
 **เวลา** — ใช้ Asia/Bangkok ตลอด ผ่าน `Intl.DateTimeFormat` ใน `lib/settings.ts` ไม่พึ่ง timezone ของเซิร์ฟเวอร์
 
@@ -145,7 +158,7 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 | `lib/pickup-points.ts` | ค่าคงที่/helper จุดรับ-ส่ง (**ห้ามใส่ prisma**) |
 | `lib/pickup-points-server.ts` | ดึงจุดรับ-ส่งจากฐานข้อมูล |
 | `lib/image-resize.ts` | ย่อรูปในเบราว์เซอร์ก่อนอัปโหลด |
-| `lib/contact.ts` | เบอร์โทร เวลาทำการ (แก้ที่เดียวเปลี่ยนทุกที่) |
+| `lib/contact.ts` | เบอร์โทร เวลาทำการ **เลขบัญชีรับโอน** (แก้ที่เดียวเปลี่ยนทุกที่) |
 | `lib/customer-session.ts` | เซสชันลูกค้าสำหรับหน้า `/my` |
 
 ---
@@ -293,6 +306,12 @@ Display period เป็นช่องบังคับ ต้องใส่�
 มี client component import โมดูลที่ `import prisma` เข้ามา → Turbopack ลาก `pg` ไป bundle ฝั่ง browser
 **แยกไฟล์**: helper ที่ client ใช้ต้องไม่มี prisma (ดู `lib/pickup-points.ts` vs `-server.ts`)
 
+### กดเลือกรถใน LINE แล้ววนกลับมาหน้าเลือกรถไม่จบ
+LINE ส่งพารามิเตอร์ของลิงก์ LIFF มาเป็น `liff.state` เช่น `?liff.state=%3Fcar%3Dabc`
+ปกติ LIFF SDK แกะให้ตอน `liff.init()` แต่หน้าที่ไม่ได้เรียก init จะไม่มีใครแกะ
+พอเด้งไปล็อกอินแล้ว LINE ส่งกลับมาที่ endpoint เปล่าๆ จึงวนซ้ำ
+**แก้:** แกะ `liff.state` เองฝั่ง server แล้ว redirect + ใส่ตัวกันวนลูปตอนเรียก `liff.login`
+
 ### อัปโหลดรูปขึ้น 413
 Vercel จำกัด request body ของ serverless function ไว้ราว **4.5MB** และปฏิเสธก่อนถึงโค้ดเรา
 แก้ด้วยการย่อรูปในเบราว์เซอร์ก่อนส่ง (`lib/image-resize.ts`)
@@ -340,7 +359,8 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 
 **ต้องแก้ก่อนใช้จริง**
 
-- [ ] เลขบัญชีธนาคารในหน้าอัปโหลดสลิป — ยังเป็น `123-4-56789-0`
+- [ ] **เลขบัญชีธนาคาร** — ยังเป็น `123-4-56789-0` แก้ที่ `lib/contact.ts` → `BANK_ACCOUNT`
+      (ตอนนี้ระบบส่งเลขนี้ไปให้ลูกค้าทาง LINE แล้ว ควรแก้ก่อนเปิดใช้จริง)
 - [ ] รหัสผ่านแอดมิน — ยังเป็น `changeme123`
 - [ ] ทะเบียนรถ — ยังเป็นรหัสชั่วคราว (`ATIV-01`, `CITYT-01` …)
 - [ ] รูปรถทั้ง 7 คัน — อัปที่ `/admin/cars`
@@ -365,4 +385,5 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 4. **รัน `npm run build` ก่อน push ทุกครั้ง** — `tsc` และ ESLint จับ error เรื่อง bundling ไม่ได้
 5. **แก้ schema แล้วต้อง `db:push`** ก่อนโค้ดขึ้น production
 6. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง
-7. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ
+7. **หน้า LIFF ใหม่ต้องแกะ `liff.state`** ถ้าหน้านั้นไม่ได้เรียก `liff.init` เอง
+8. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ
