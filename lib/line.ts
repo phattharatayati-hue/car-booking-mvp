@@ -206,6 +206,7 @@ export function buildNewBookingMessage(data: {
   startDate: Date;
   endDate: Date;
   totalPrice: number;
+  afterHoursTotal?: number;
   siteUrl: string;
   isRequest?: boolean;
   partnerName?: string;
@@ -225,6 +226,9 @@ export function buildNewBookingMessage(data: {
     `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
   ];
 
+  if (data.afterHoursTotal) {
+    lines.push(`(รวมค่ารับ-คืนนอกเวลา ${data.afterHoursTotal.toLocaleString()} บาท)`);
+  }
   if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
   if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
   lines.push("");
@@ -255,6 +259,7 @@ export function buildCustomerBookingMessage(data: {
   startDate: Date;
   endDate: Date;
   totalPrice: number;
+  afterHoursTotal?: number;
   bookingFee: number;
   bankAccount: string;
   siteUrl: string;
@@ -272,6 +277,11 @@ export function buildCustomerBookingMessage(data: {
     `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
   ];
 
+  if (data.afterHoursTotal) {
+    lines.push(
+      `(รวมค่าบริการรับ-คืนรถนอกเวลา ${data.afterHoursTotal.toLocaleString()} บาท)`
+    );
+  }
   if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
   if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
 

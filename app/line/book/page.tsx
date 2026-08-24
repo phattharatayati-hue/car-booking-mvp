@@ -7,6 +7,7 @@ import Image from "next/image";
 import LiffBooking from "./LiffBooking";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr, getSettings, timeOptions } from "@/lib/settings";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
 import ServiceNote from "@/components/ServiceNote";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { needsApproval } from "@/lib/booking-status";
@@ -56,7 +57,8 @@ export default async function LineBookPage({
 
   const settings = await getSettings();
   const pickupPoints = await getPickupPoints();
-  const times = timeOptions(settings.openHour, settings.closeHour);
+  const times = timeOptions();
+  const afterHoursRates = await getAfterHoursRates();
   const liffId = process.env.NEXT_PUBLIC_LIFF_BOOKING_ID ?? process.env.NEXT_PUBLIC_LIFF_ID ?? "";
 
   // ยังไม่เลือกรถ — แสดงรายการให้เลือกก่อน
@@ -131,6 +133,7 @@ export default async function LineBookPage({
           }}
           availability={map.get(car.id) ?? {}}
           timeOptions={times}
+          afterHoursRates={afterHoursRates}
           liffId={liffId}
           pickupPoints={pickupPoints}
         />

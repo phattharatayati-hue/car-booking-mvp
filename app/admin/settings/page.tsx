@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import {
   getSettings,
@@ -21,8 +22,6 @@ async function saveSettingsAction(formData: FormData) {
   const on = formData.get("returnReminderOn") === "on";
   const leadHours = Number(formData.get("returnReminderLeadHours"));
   const leadMinutes = Number(formData.get("returnReminderLeadMinutes"));
-  const openHour = Number(formData.get("openHour"));
-  const closeHour = Number(formData.get("closeHour"));
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
   const bookingFee = Number(formData.get("bookingFee"));
   const securityDeposit = Number(formData.get("securityDeposit"));
@@ -40,15 +39,6 @@ async function saveSettingsAction(formData: FormData) {
   if (minutesBefore < REMINDER_MIN_MINUTES || minutesBefore > REMINDER_MAX_MINUTES) {
     redirect("/admin/settings?error=leadRange");
   }
-  if (
-    !Number.isInteger(openHour) ||
-    !Number.isInteger(closeHour) ||
-    openHour < 0 ||
-    closeHour > 23 ||
-    openHour >= closeHour
-  ) {
-    redirect("/admin/settings?error=hours");
-  }
   if (serviceNote.length > 500) {
     redirect("/admin/settings?error=note");
   }
@@ -64,8 +54,6 @@ async function saveSettingsAction(formData: FormData) {
   const data = {
     returnReminderOn: on,
     returnReminderMinutesBefore: minutesBefore,
-    openHour,
-    closeHour,
     bookingFee,
     securityDeposit,
     serviceNote,
@@ -84,7 +72,6 @@ async function saveSettingsAction(formData: FormData) {
 const ERRORS: Record<string, string> = {
   lead: "เวลาแจ้งเตือนล่วงหน้าไม่ถูกต้อง (นาทีต้องอยู่ระหว่าง 0-59)",
   leadRange: "เวลาแจ้งเตือนล่วงหน้าต้องอยู่ระหว่าง 5 นาที ถึง 7 วัน",
-  hours: "เวลาเปิดต้องน้อยกว่าเวลาปิด",
   note: "เงื่อนไขการให้บริการยาวเกิน 500 ตัวอักษร",
   money: "ค่าจองและเงินประกันต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
 };
@@ -133,41 +120,12 @@ export default async function SettingsPage({
         <div>
           <h2 className="font-semibold text-slate-900">เวลารับ-คืนรถ</h2>
           <p className="text-sm text-slate-500 mt-1">
-            ลูกค้าจะเลือกเวลารับ-คืนรถได้เฉพาะในช่วงนี้ ทั้งบนเว็บและใน LINE
+            ลูกค้าเลือกรับ-คืนรถได้ทุกเวลา ช่วงนอกเวลาทำการคิดค่าบริการเพิ่ม
+            ตั้งช่วงเวลาและราคาได้ที่หน้า{" "}
+            <Link href="/admin/after-hours" className="text-blue-700 font-medium hover:underline">
+              ค่าบริการนอกเวลา
+            </Link>
           </p>
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="openHour">เปิดเวลา</label>
-            <select
-              id="openHour"
-              name="openHour"
-              defaultValue={String(settings.openHour)}
-              className={inputClass}
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, "0")}:00 น.
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="closeHour">ปิดเวลา</label>
-            <select
-              id="closeHour"
-              name="closeHour"
-              defaultValue={String(settings.closeHour)}
-              className={inputClass}
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, "0")}:00 น.
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         <div className="pt-5 border-t border-slate-100">

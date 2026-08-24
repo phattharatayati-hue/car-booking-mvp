@@ -33,7 +33,9 @@
 | `/admin/cars` | จัดการรถ ราคา รูป สถานะ |
 | `/admin/partners` | คลังรถพาร์ทเนอร์ (นายหน้า) |
 | `/admin/pickup-points` | จุดรับ-ส่งรถ ตั้งค่าบริการรายจุด |
-| `/admin/settings` | เวลาทำการ ค่าจอง เงินประกัน เงื่อนไขบริการ แจ้งเตือนคืนรถ |
+| `/admin/settings` | ค่าจอง เงินประกัน เงื่อนไขบริการ แจ้งเตือนคืนรถ |
+| `/admin/after-hours` | ช่วงเวลาและราคาค่าบริการรับ-คืนรถนอกเวลา |
+| `/admin/storage` | พื้นที่เก็บไฟล์ที่ใช้ไป แยกตามประเภท |
 | `/admin/users` | จัดการแอดมิน ผูก LINE |
 | `/admin/account` | บัญชีตัวเอง |
 
@@ -83,9 +85,9 @@ BookingDocument  id, bookingId→Booking, kind, fileUrl, status,
                  rejectReason?, reviewedBy?, reviewedAt?
                  @@unique([bookingId, kind])
 PickupPoint      id, name, fee, isActive, sortOrder
-Settings         id="default", openHour, closeHour, bookingFee,
-                 securityDeposit, serviceNote,
+Settings         id="default", bookingFee, securityDeposit, serviceNote,
                  returnReminderOn, returnReminderMinutesBefore
+AfterHoursRate   id, label, startMinute, endMinute, fee, isActive
 CustomerOtp      phone(id), codeHash, expiresAt, attempts
 LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ```
@@ -118,6 +120,17 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 4. อนุมัติแล้วลูกค้าจึงโอนค่าจอง
 5. ระบบเก็บ `costPerDay` เพื่อคำนวณกำไรให้แอดมินเห็น
 
+**รับ-คืนรถได้ทุกเวลา + ค่าบริการนอกเวลา** — ไม่มีการบล็อกเวลาแล้ว (เลิกใช้ `openHour`/`closeHour`)
+ช่วงที่คิดเงินเก็บในตาราง `AfterHoursRate` ตั้งเองได้ที่ `/admin/after-hours`
+คิด **แยกทั้งเวลารับและเวลาคืน แล้วบวกกัน** เช่น รับ 23:00 (+200) คืน 06:00 (+100) = +300
+ค่าเริ่มต้น (จาก `prisma/seed-after-hours.ts`): 07:00-20:00 ฟรี · 05:00-07:00 และ 20:00-22:00 +100 · 22:00-05:00 +200
+ช่วงที่ `endMinute <= startMinute` คือช่วงข้ามเที่ยงคืน · ถ้าเผลอตั้งทับกัน ระบบคิดอันที่แพงที่สุด
+(หน้าหลังบ้านกันไม่ให้บันทึกช่วงที่ทับกันอยู่แล้ว)
+
+**คิดราคาที่เดียว** — `lib/pricing.ts` (ไม่มี prisma ใช้ได้ทั้ง client และ server)
+ทั้งเว็บ LIFF แชท LINE และ `create-booking.ts` เรียก `quoteBooking()` ตัวเดียวกัน
+ราคาที่ลูกค้าเห็นก่อนกดจองจึงตรงกับที่บันทึกลงฐานข้อมูลเสมอ
+
 **กันจองทับ** — `lib/create-booking.ts` เป็นจุดเดียวที่สร้างการจอง ใช้ร่วมกันทั้งเว็บ LIFF และแชท
 เช็คช่วงเวลาทับกับสถานะที่ยังใช้งานอยู่ (`REQUESTED`, `PENDING_DEPOSIT`, `CONFIRMED`) เสมอ
 
@@ -148,6 +161,8 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `lib/create-booking.ts` | **จุดเดียวที่สร้างการจอง** กฎตรวจสอบทั้งหมดอยู่ที่นี่ |
+| `lib/pricing.ts` | **จุดเดียวที่คิดราคา** ค่าเช่า + ค่านอกเวลา (**ห้ามใส่ prisma**) |
+| `lib/after-hours-server.ts` | ดึงช่วงค่าบริการนอกเวลาจากฐานข้อมูล |
 | `lib/settings.ts` | อ่านค่าตั้งค่า + ตัวช่วยเรื่องเวลาไทยทั้งหมด |
 | `lib/availability.ts` | คำนวณวันว่าง/ไม่ว่าง สำหรับปฏิทิน |
 | `lib/booking-status.ts` | ป้ายสถานะ สี และ `needsApproval()` |
@@ -194,6 +209,7 @@ npm run dev
 | `npx prisma generate` | สร้าง Prisma Client (Vercel รันเองผ่าน postinstall) |
 | `npx tsx prisma/seed-cars.ts` | ใส่/อัปเดตรถจริง 7 คันพร้อมราคา |
 | `npx tsx prisma/seed-pickup-points.ts` | ใส่จุดรับ-ส่ง 3 จุดเริ่มต้น |
+| `npx tsx prisma/seed-after-hours.ts` | ใส่ช่วงค่าบริการนอกเวลาเริ่มต้น 3 ช่วง |
 | `npx tsx prisma/cleanup-demo-cars.ts` | เก็บกวาดรถเดโม (ใส่ `--apply` เพื่อลงมือจริง) |
 | `npx tsx scripts/setup-richmenu.ts` | ติดตั้ง rich menu ขึ้น LINE OA |
 | `npm run build` | **ต้องรันก่อน push ทุกครั้ง** |
@@ -369,6 +385,8 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 
 **ฟีเจอร์ที่ยังไม่มี**
 
+- [ ] **ค่าบริการจุดรับ-ส่ง (`PickupPoint.fee`) ยังไม่ถูกคิดเงิน** — ป้ายบนเว็บบอก "+N บาท"
+      แต่ `totalPrice` ไม่ได้รวมไว้ ถ้าจะคิดจริงต้องเพิ่มใน `lib/pricing.ts`
 - [ ] เงินประกันแยกรายรุ่นรถ (ตอนนี้ค่าเดียวใช้ทุกคัน แต่ FAQ บอกว่าบางรุ่นต่างกัน)
 - [ ] Bank API เช็คยอดอัตโนมัติ / OCR อ่านสลิป
 - [ ] ลูกค้ายกเลิกหรือเลื่อนวันเองในเว็บ (ตอนนี้ต้องติดต่อแอดมิน)
@@ -381,7 +399,8 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 
 1. **`lib/pickup-points.ts` ห้าม import prisma** — client component ใช้ไฟล์นี้ ถ้าใส่เข้าไป build จะพัง
 2. **สร้างการจองใหม่ต้องผ่าน `lib/create-booking.ts`** อย่าเขียน `prisma.booking.create` ตรงๆ ไม่งั้นกฎกันจองทับ/blacklist จะหลุด
-3. **ราคาและค่าธรรมเนียมดึงจาก Settings** อย่า hardcode ตัวเลข
+3. **ราคาและค่าธรรมเนียมดึงจาก Settings และ `lib/pricing.ts`** อย่า hardcode ตัวเลข
+   และอย่าคำนวณ `days * pricePerDay` เองที่อื่น ให้เรียก `quoteBooking()` เสมอ ไม่งั้นค่านอกเวลาจะหลุด
 4. **รัน `npm run build` ก่อน push ทุกครั้ง** — `tsc` และ ESLint จับ error เรื่อง bundling ไม่ได้
 5. **แก้ schema แล้วต้อง `db:push`** ก่อนโค้ดขึ้น production
 6. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง

@@ -9,6 +9,7 @@ import BookingForm from "./BookingForm";
 import { getSettings, timeOptions } from "@/lib/settings";
 import ServiceNote from "@/components/ServiceNote";
 import { getPickupPoints } from "@/lib/pickup-points-server";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { needsApproval } from "@/lib/booking-status";
 import { getAvailability } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
@@ -27,7 +28,8 @@ export default async function BookCarPage({
 
   const settings = await getSettings();
   const pickupPoints = await getPickupPoints();
-  const times = timeOptions(settings.openHour, settings.closeHour);
+  const afterHoursRates = await getAfterHoursRates();
+  const times = timeOptions();
   const isRequest = needsApproval(car);
 
   const fromStr = bangkokDateStr(new Date());
@@ -59,6 +61,7 @@ export default async function BookCarPage({
               carId={car.id}
               pricePerDay={car.pricePerDay}
               timeOptions={times}
+              afterHoursRates={afterHoursRates}
               isRequest={isRequest}
               availability={availability}
               pickupPoints={pickupPoints}
@@ -119,8 +122,7 @@ export default async function BookCarPage({
                     isRequest ? "bg-violet-50 text-violet-900" : "bg-blue-50 text-blue-900"
                   }`}
                 >
-                  รับ-คืนรถได้เวลา {String(settings.openHour).padStart(2, "0")}:00 -{" "}
-                  {String(settings.closeHour).padStart(2, "0")}:00 น.
+                  รับ-คืนรถได้ทุกเวลา · นอกเวลาทำการมีค่าบริการเพิ่มตามช่วงเวลา
                   <br />
                   {isRequest ? (
                     <>

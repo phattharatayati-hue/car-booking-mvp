@@ -7,8 +7,6 @@ export type AppSettings = {
   returnReminderOn: boolean;
   /** เตือนล่วงหน้ากี่นาที ก่อนเวลานัดคืนรถของการจองนั้น */
   returnReminderMinutesBefore: number;
-  openHour: number;
-  closeHour: number;
   bookingFee: number;
   securityDeposit: number;
   serviceNote: string;
@@ -17,8 +15,6 @@ export type AppSettings = {
 export const DEFAULT_SETTINGS: AppSettings = {
   returnReminderOn: true,
   returnReminderMinutesBefore: 120,
-  openHour: 6,
-  closeHour: 20,
   bookingFee: 500,
   securityDeposit: 3000,
   serviceNote:
@@ -36,8 +32,6 @@ export async function getSettings(): Promise<AppSettings> {
     return {
       returnReminderOn: row.returnReminderOn,
       returnReminderMinutesBefore: row.returnReminderMinutesBefore,
-      openHour: row.openHour,
-      closeHour: row.closeHour,
       bookingFee: row.bookingFee,
       securityDeposit: row.securityDeposit,
       serviceNote: row.serviceNote,
@@ -99,20 +93,17 @@ export function formatBangkokDateTime(d: Date): string {
   return `${date} ${formatBangkokTime(d)} น.`;
 }
 
-/** รายการเวลาให้เลือก ตามเวลาทำการ */
-export function timeOptions(openHour: number, closeHour: number): string[] {
+/**
+ * รายการเวลาให้เลือกตอนจอง — เปิดให้จองได้ทุกเวลา ทีละครึ่งชั่วโมง (00:00-23:30)
+ * เวลานอกเวลาทำการมีค่าธรรมเนียมเพิ่ม ตั้งได้ที่ /admin/after-hours
+ */
+export function timeOptions(): string[] {
   const out: string[] = [];
-  for (let h = openHour; h <= closeHour; h++) {
+  for (let h = 0; h < 24; h++) {
     out.push(`${String(h).padStart(2, "0")}:00`);
-    if (h !== closeHour) out.push(`${String(h).padStart(2, "0")}:30`);
+    out.push(`${String(h).padStart(2, "0")}:30`);
   }
   return out;
-}
-
-/** เช็คว่าเวลาอยู่ในเวลาทำการไหม */
-export function isWithinHours(d: Date, openHour: number, closeHour: number): boolean {
-  const h = bangkokHour(d);
-  return h >= openHour && h <= closeHour;
 }
 
 /** ช่วงเวลาของ "วันนั้นทั้งวัน" ตามเวลาไทย แปลงกลับเป็น UTC เพื่อ query */

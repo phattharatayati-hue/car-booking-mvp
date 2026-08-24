@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
+import { feeForTime, rateRangeLabel, type AfterHoursRate } from "@/lib/pricing";
 import { BANK_ACCOUNT } from "@/lib/contact";
 
 import type { Liff } from "@/lib/liff-types";
@@ -51,12 +52,14 @@ export default function LiffBooking({
   car,
   availability,
   timeOptions,
+  afterHoursRates,
   liffId,
   pickupPoints,
 }: {
   car: LiffCar;
   availability: Record<string, DayStatus>;
   timeOptions: string[];
+  afterHoursRates: AfterHoursRate[];
   liffId: string;
   pickupPoints: PickupOption[];
 }) {
@@ -142,7 +145,10 @@ export default function LiffBooking({
           )
         )
       : 0;
-  const total = days * car.pricePerDay;
+  const pickupFee = feeForTime(startTime, afterHoursRates);
+  const returnFee = feeForTime(endTime, afterHoursRates);
+  const afterHoursTotal = pickupFee.fee + returnFee.fee;
+  const total = days * car.pricePerDay + afterHoursTotal;
 
   async function handleSubmit() {
     if (!startDate || !endDate) {
@@ -350,6 +356,12 @@ export default function LiffBooking({
               <option key={t} value={t}>{t} น.</option>
             ))}
           </select>
+          {pickupFee.fee > 0 && pickupFee.rate && (
+            <p className="text-xs text-amber-700 mt-1.5">
+              {pickupFee.rate.label} ({rateRangeLabel(pickupFee.rate)}) +
+              {pickupFee.fee.toLocaleString()} ฿
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="et">
@@ -365,6 +377,12 @@ export default function LiffBooking({
               <option key={t} value={t}>{t} น.</option>
             ))}
           </select>
+          {returnFee.fee > 0 && returnFee.rate && (
+            <p className="text-xs text-amber-700 mt-1.5">
+              {returnFee.rate.label} ({rateRangeLabel(returnFee.rate)}) +
+              {returnFee.fee.toLocaleString()} ฿
+            </p>
+          )}
         </div>
       </div>
 
@@ -428,6 +446,11 @@ export default function LiffBooking({
         <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
           <div className="text-sm text-slate-600">
             {days} วัน × {car.pricePerDay.toLocaleString()} ฿
+            {afterHoursTotal > 0 && (
+              <span className="block text-xs text-amber-700 mt-0.5">
+                + ค่ารับ-คืนนอกเวลา {afterHoursTotal.toLocaleString()} ฿
+              </span>
+            )}
           </div>
           <div className="text-right">
             <p className="text-xs text-slate-500">ยอดรวม</p>

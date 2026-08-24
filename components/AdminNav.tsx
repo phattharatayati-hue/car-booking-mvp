@@ -92,6 +92,16 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/after-hours",
+    label: "ค่าบริการนอกเวลา",
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </>
+    ),
+  },
+  {
     href: "/admin/storage",
     label: "พื้นที่เก็บไฟล์",
     icon: (

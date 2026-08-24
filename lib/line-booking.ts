@@ -16,10 +16,10 @@ import {
   getSettings,
   toBangkokDate,
   formatBangkokDateTime,
-  isWithinHours,
 } from "@/lib/settings";
+import { quoteBooking, feeForMinute, bangkokMinuteOfDay } from "@/lib/pricing";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
 
-const DAY_MS = 86400000;
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
 
@@ -43,12 +43,18 @@ function pickerMin(from: Date): string {
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
-function hoursLabel(openHour: number, closeHour: number) {
-  return `${String(openHour).padStart(2, "0")}:00 - ${String(closeHour).padStart(2, "0")}:00 น.`;
-}
-
-function dayCount(start: Date, end: Date) {
-  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / DAY_MS));
+/** สรุปค่าธรรมเนียมนอกเวลาให้ลูกค้าเห็นในแชท */
+function afterHoursNote(
+  start: Date,
+  end: Date,
+  rates: Awaited<ReturnType<typeof getAfterHoursRates>>
+): string | null {
+  const p = feeForMinute(bangkokMinuteOfDay(start), rates);
+  const r = feeForMinute(bangkokMinuteOfDay(end), rates);
+  const parts: string[] = [];
+  if (p.fee > 0) parts.push(`รับรถนอกเวลา +${p.fee.toLocaleString()} บาท`);
+  if (r.fee > 0) parts.push(`คืนรถนอกเวลา +${r.fee.toLocaleString()} บาท`);
+  return parts.length ? parts.join(" · ") : null;
 }
 
 async function clearDraft(lineUserId: string) {
@@ -94,10 +100,7 @@ async function handlePickCar(replyToken: string, lineUserId: string, carId: stri
     update: { step: "pick_start", carId, startDate: null, endDate: null },
   });
 
-  const [settings, busy] = await Promise.all([
-    getSettings(),
-    getBusyRanges(car.id, 60),
-  ]);
+  const busy = await getBusyRanges(car.id, 60);
 
   const busyText = formatBusyRanges(busy);
 
@@ -105,10 +108,7 @@ async function handlePickCar(replyToken: string, lineUserId: string, carId: stri
     { type: "text", text: `${car.brand} ${car.name}\n\n${busyText}` },
     datePicker({
       title: `${car.brand} ${car.name}`,
-      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนรถได้ ${hoursLabel(
-        settings.openHour,
-        settings.closeHour
-      )})`,
+      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนได้ทุกเวลา นอกเวลาทำการมีค่าบริการเพิ่ม)`,
       label: "เลือกวัน-เวลารับรถ",
       action: "pick_start",
       min: pickerMin(new Date()),
@@ -124,19 +124,7 @@ async function handlePickStart(replyToken: string, lineUserId: string, dateStr: 
     return;
   }
 
-  const settings = await getSettings();
   const start = toBangkokDate(dateStr);
-
-  if (!isWithinHours(start, settings.openHour, settings.closeHour)) {
-    await replyMessage(
-      replyToken,
-      `รับรถได้เฉพาะเวลา ${hoursLabel(
-        settings.openHour,
-        settings.closeHour
-      )}\nกรุณาเลือกเวลาใหม่ครับ`
-    );
-    return;
-  }
 
   const minEnd = new Date(start.getTime() + 3600000);
 
@@ -180,17 +168,6 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     return;
   }
 
-  if (!isWithinHours(end, settings.openHour, settings.closeHour)) {
-    await replyMessage(
-      replyToken,
-      `คืนรถได้เฉพาะเวลา ${hoursLabel(
-        settings.openHour,
-        settings.closeHour
-      )}\nกรุณาเลือกเวลาใหม่ครับ`
-    );
-    return;
-  }
-
   // เช็คว่ามีคนจองทับช่วงนี้หรือยัง
   const clash = await prisma.booking.findFirst({
     where: {
@@ -209,8 +186,11 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     return;
   }
 
-  const days = dayCount(start, end);
-  const total = days * car.pricePerDay;
+  const rates = await getAfterHoursRates();
+  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates });
+  const days = quote.days;
+  const total = quote.total;
+  const note = afterHoursNote(start, end, rates);
 
   await prisma.lineDraft.update({
     where: { lineUserId },
@@ -225,7 +205,7 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
       days,
       pricePerDay: car.pricePerDay,
       total,
-      serviceNote: settings.serviceNote,
+      serviceNote: [note, settings.serviceNote].filter(Boolean).join("\n"),
     }),
   ]);
 }
@@ -293,8 +273,9 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     return;
   }
 
-  const days = dayCount(start, end);
-  const total = days * car.pricePerDay;
+  const rates = await getAfterHoursRates();
+  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates });
+  const total = quote.total;
   const name = (await getProfileName(lineUserId)) ?? "ลูกค้า LINE";
 
   // หาลูกค้าเดิมจากเบอร์ ถ้าไม่มีค่อยสร้างใหม่ (ให้ blacklist ทำงาน)
@@ -344,6 +325,9 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         `รับรถ: ${formatBangkokDateTime(start)}`,
         `คืนรถ: ${formatBangkokDateTime(end)}`,
         `ยอดรวม: ${total.toLocaleString()} บาท`,
+        ...(quote.afterHoursTotal
+          ? [`(รวมค่ารับ-คืนนอกเวลา ${quote.afterHoursTotal.toLocaleString()} บาท)`]
+          : []),
         `รหัสคำขอ: ${booking.id.slice(0, 8).toUpperCase()}`,
         "",
         "รถคันนี้เป็นรถจากพาร์ทเนอร์",
@@ -376,6 +360,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         startDate: start,
         endDate: end,
         totalPrice: total,
+        afterHoursTotal: quote.afterHoursTotal,
         siteUrl: siteUrl(),
         isRequest,
         partnerName: car.partner?.name,

@@ -148,8 +148,6 @@ model Settings {
   returnReminderOn    Boolean  @default(true)
   /// เตือนล่วงหน้ากี่นาที ก่อน "เวลานัดคืนรถ" ของการจองนั้น (ค่าเริ่มต้น 120 = 2 ชั่วโมง)
   returnReminderMinutesBefore Int @default(120)
-  openHour            Int      @default(6)   // เวลาเปิดรับ-คืนรถ
-  closeHour           Int      @default(20)  // เวลาปิด
   /// ค่าจองที่ลูกค้าโอนล่วงหน้าเพื่อกันวัน (บาท)
   bookingFee          Int      @default(500)
   /// เงินประกันรถที่เก็บวันรับรถและคืนให้หลังคืนรถ (บาท) — ไม่ได้เก็บผ่านเว็บ
@@ -203,4 +201,19 @@ model PickupPoint {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// ค่าธรรมเนียมรับ-คืนรถนอกเวลาทำการ — แอดมินเพิ่ม/แก้/ลบเองได้ในหลังบ้าน
+/// เวลาเก็บเป็น "นาทีนับจากเที่ยงคืน" ตามเวลาไทย (0-1439)
+/// ถ้า endMinute <= startMinute คือช่วงที่ข้ามเที่ยงคืน เช่น 22:00-05:00
+model AfterHoursRate {
+  id          String   @id @default(cuid())
+  label       String   // ชื่อช่วงที่แสดงให้ลูกค้าเห็น เช่น "ช่วงดึก"
+  startMinute Int
+  endMinute   Int
+  /// ค่าธรรมเนียมต่อครั้ง (บาท) — คิดแยกทั้งตอนรับและตอนคืน
+  fee         Int
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

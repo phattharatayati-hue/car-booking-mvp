@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
+import {
+  feeForTime,
+  rateRangeLabel,
+  type AfterHoursRate,
+} from "@/lib/pricing";
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -13,6 +18,7 @@ export default function BookingForm({
   carId,
   pricePerDay,
   timeOptions,
+  afterHoursRates,
   isRequest = false,
   availability,
   pickupPoints,
@@ -20,6 +26,7 @@ export default function BookingForm({
   carId: string;
   pricePerDay: number;
   timeOptions: string[];
+  afterHoursRates: AfterHoursRate[];
   isRequest?: boolean;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
@@ -43,7 +50,16 @@ export default function BookingForm({
           )
         )
       : 0;
-  const total = days * pricePerDay;
+  const pickupFee = feeForTime(startTime, afterHoursRates);
+  const returnFee = feeForTime(endTime, afterHoursRates);
+  const afterHoursTotal = pickupFee.fee + returnFee.fee;
+  const total = days * pricePerDay + afterHoursTotal;
+
+  /** ป้ายค่าธรรมเนียมข้างช่องเลือกเวลา */
+  function feeHint(f: ReturnType<typeof feeForTime>) {
+    if (!f.rate || f.fee <= 0) return "ไม่มีค่าบริการเพิ่ม";
+    return `${f.rate.label} (${rateRangeLabel(f.rate)}) +${f.fee.toLocaleString()} บาท`;
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -141,6 +157,9 @@ export default function BookingForm({
                 <option key={t} value={t}>{t} น.</option>
               ))}
             </select>
+            <p className={`text-xs mt-1.5 ${pickupFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
+              {feeHint(pickupFee)}
+            </p>
           </div>
           <div>
             <label className={labelClass} htmlFor="endTime">เวลาคืนรถ</label>
@@ -155,6 +174,9 @@ export default function BookingForm({
                 <option key={t} value={t}>{t} น.</option>
               ))}
             </select>
+            <p className={`text-xs mt-1.5 ${returnFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
+              {feeHint(returnFee)}
+            </p>
           </div>
         </div>
 
@@ -191,6 +213,16 @@ export default function BookingForm({
               <span className="block text-xs text-slate-500 mt-0.5">
                 รับ {startTime} น. · คืน {endTime} น.
               </span>
+              {pickupFee.fee > 0 && (
+                <span className="block text-xs text-amber-700 mt-0.5">
+                  + รับรถนอกเวลา {pickupFee.fee.toLocaleString()} ฿
+                </span>
+              )}
+              {returnFee.fee > 0 && (
+                <span className="block text-xs text-amber-700 mt-0.5">
+                  + คืนรถนอกเวลา {returnFee.fee.toLocaleString()} ฿
+                </span>
+              )}
             </div>
             <div className="text-right">
               <p className="text-xs text-slate-500">ยอดรวม</p>

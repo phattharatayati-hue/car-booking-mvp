@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { getSettings, toBangkokDate, isWithinHours } from "@/lib/settings";
+import { getSettings, toBangkokDate } from "@/lib/settings";
+import { quoteBooking } from "@/lib/pricing";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import {
   notifyAdmin,
@@ -27,7 +29,14 @@ export type CreateBookingInput = {
 };
 
 export type CreateBookingResult =
-  | { ok: true; bookingId: string; isRequest: boolean; totalPrice: number; deposit: number }
+  | {
+      ok: true;
+      bookingId: string;
+      isRequest: boolean;
+      totalPrice: number;
+      deposit: number;
+      afterHoursTotal: number;
+    }
   | { ok: false; status: number; error: string };
 
 /**
@@ -56,19 +65,6 @@ export async function createBooking(
   if (start.getTime() < Date.now()) {
     return { ok: false, status: 400, error: "เลือกเวลารับรถย้อนหลังไม่ได้" };
   }
-  if (
-    !isWithinHours(start, settings.openHour, settings.closeHour) ||
-    !isWithinHours(end, settings.openHour, settings.closeHour)
-  ) {
-    return {
-      ok: false,
-      status: 400,
-      error: `รับ-คืนรถได้เฉพาะเวลา ${String(settings.openHour).padStart(2, "0")}:00 - ${String(
-        settings.closeHour
-      ).padStart(2, "0")}:00 น.`,
-    };
-  }
-
   const car = await prisma.car.findUnique({
     where: { id: carId },
     include: { partner: true },
@@ -93,11 +89,15 @@ export async function createBooking(
     };
   }
 
-  const days = Math.max(
-    1,
-    Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
-  );
-  const totalPrice = days * car.pricePerDay;
+  // ราคา = ค่าเช่าตามจำนวนวัน + ค่าธรรมเนียมนอกเวลา (คิดแยกตอนรับและตอนคืน)
+  const rates = await getAfterHoursRates();
+  const quote = quoteBooking({
+    start,
+    end,
+    pricePerDay: car.pricePerDay,
+    rates,
+  });
+  const totalPrice = quote.total;
 
   const phone = String(input.phone).replace(/[\s-]/g, "");
   let customer = await prisma.customer.findFirst({ where: { phone } });
@@ -155,6 +155,7 @@ export async function createBooking(
         startDate: start,
         endDate: end,
         totalPrice,
+        afterHoursTotal: quote.afterHoursTotal,
         siteUrl: siteUrl(),
         isRequest,
         partnerName: car.partner?.name,
@@ -179,6 +180,7 @@ export async function createBooking(
           startDate: start,
           endDate: end,
           totalPrice,
+          afterHoursTotal: quote.afterHoursTotal,
           bookingFee: settings.bookingFee,
           bankAccount: BANK_ACCOUNT,
           siteUrl: siteUrl(),
@@ -198,5 +200,6 @@ export async function createBooking(
     isRequest,
     totalPrice,
     deposit: settings.bookingFee,
+    afterHoursTotal: quote.afterHoursTotal,
   };
 }
