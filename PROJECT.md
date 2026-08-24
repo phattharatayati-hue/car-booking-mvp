@@ -255,7 +255,7 @@ npm run dev
 | `NEXT_PUBLIC_LIFF_ID` | LIFF หน้าเชื่อมบัญชี |
 | `NEXT_PUBLIC_LIFF_BOOKING_ID` | LIFF หน้าจองรถ |
 | `NEXT_PUBLIC_LINE_OA_ID` | LINE OA id เช่น `@606ugqjs` |
-| `CRON_SECRET` | ป้องกัน endpoint เตือนคืนรถ |
+| `CRON_SECRET` | **จำเป็น** — ถ้าไม่ตั้ง `/api/cron/reminders` จะตอบ 503 ทุกครั้ง (fail closed) |
 | `GOOGLE_OAUTH_CLIENT_ID` | เชื่อมปฏิทินของแอดมิน |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | เชื่อมปฏิทินของแอดมิน (Sensitive) |
 | `GOOGLE_TOKEN_ENC_KEY` | คีย์ AES-256 เข้ารหัส refresh token (Sensitive) |
@@ -316,6 +316,17 @@ Blob store เป็น **Private** ทั้งหมด เข้าถึง�
 `/api/file` ใช้ **allowlist** — เปิดสาธารณะแค่ `cars/` นอกนั้นต้องมี session
 โฟลเดอร์ใหม่ที่เพิ่มในอนาคตจะถูกปิดโดยปริยาย ไม่หลุดเงียบๆ
 
+**ความปลอดภัยของการเชื่อมปฏิทิน**
+
+- refresh token เข้ารหัส AES-256-GCM ก่อนเก็บ (`lib/crypto.ts`) คีย์จาก `GOOGLE_TOKEN_ENC_KEY`
+- `state` ของ OAuth เซ็น HMAC ด้วย `AUTH_SECRET` อายุ 10 นาที เทียบแบบ timing-safe
+  และ **callback ตรวจ session ว่าเป็นแอดมินคนเดียวกับที่กดเชื่อม** กันคนส่งลิงก์ consent
+  ที่ฝัง state ของตัวเองให้คนอื่นกด แล้วดูดปฏิทินคนนั้นมาเข้าบัญชีตัวเอง
+- `AUTH_SECRET` ต้องมีจริงและยาว ≥16 ตัว ไม่งั้น `signState` จะ throw (ไม่ degrade เป็นคีย์ว่าง)
+- ยกเลิกการเชื่อม = **ลบ event ในปฏิทินก่อน** แล้วจึง revoke token
+  (ถ้า revoke ก่อน จะลบไม่ได้อีกเลย ข้อมูลลูกค้าค้างในปฏิทินส่วนตัวถาวร)
+- เปลี่ยนบัญชี Google แล้วเชื่อมใหม่ ระบบสร้างปฏิทินใหม่ให้ ไม่ใช้ id เดิมที่บัญชีใหม่มองไม่เห็น
+
 **ความปลอดภัยอื่น**
 
 - OTP หน้า `/my` เก็บเฉพาะ HMAC ของรหัส อายุ 5 นาที ใช้ครั้งเดียว ผิดได้ 5 ครั้ง ขอใหม่ได้ทุก 60 วิ
@@ -324,6 +335,9 @@ Blob store เป็น **Private** ทั้งหมด เข้าถึง�
 - LINE webhook ตรวจ signature HMAC-SHA256 ทุก request
 - `idToken` จาก LIFF ตรวจกับ `api.line.me/oauth2/v2.1/verify` ฝั่ง server เสมอ **ไม่เชื่อ userId ที่ client ส่งมา**
 - API เอกสารรับเฉพาะ path ที่ออกจาก `/api/upload` ของเราเอง
+- `/api/upload` — สลิปกับเอกสารอัปได้โดยไม่ล็อกอิน (เก็บ private) แต่ **รูปรถต้องเป็นแอดมิน**
+  เพราะ `cars/` เปิดสาธารณะ
+- `/api/cron/reminders` ปฏิเสธทุก request ถ้าไม่มี `CRON_SECRET` (fail closed)
 
 ---
 
@@ -436,12 +450,15 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 
 ## 14. ข้อควรระวังเวลาแก้โค้ด
 
-1. **`lib/pickup-points.ts` ห้าม import prisma** — client component ใช้ไฟล์นี้ ถ้าใส่เข้าไป build จะพัง
-2. **สร้างการจองใหม่ต้องผ่าน `lib/create-booking.ts`** อย่าเขียน `prisma.booking.create` ตรงๆ ไม่งั้นกฎกันจองทับ/blacklist จะหลุด
-3. **ราคาและค่าธรรมเนียมดึงจาก Settings และ `lib/pricing.ts`** อย่า hardcode ตัวเลข
+1. **แอดมินทุกคนเท่ากัน** — `UserRole` มีค่าเดียว (`ADMIN`) แอดมินคนไหนก็มอบหมาย/ถอนงาน
+   ของคนอื่นได้ ซึ่งเป็นเจตนา (ต้องช่วยกันจัดคิวได้) ถ้าวันหนึ่งเพิ่ม role ที่สิทธิ์ต่างกัน
+   ต้องกลับมาใส่การตรวจสิทธิ์ใน `app/admin/assignments/actions.ts`
+2. **`lib/pickup-points.ts` ห้าม import prisma** — client component ใช้ไฟล์นี้ ถ้าใส่เข้าไป build จะพัง
+3. **สร้างการจองใหม่ต้องผ่าน `lib/create-booking.ts`** อย่าเขียน `prisma.booking.create` ตรงๆ ไม่งั้นกฎกันจองทับ/blacklist จะหลุด
+4. **ราคาและค่าธรรมเนียมดึงจาก Settings และ `lib/pricing.ts`** อย่า hardcode ตัวเลข
    และอย่าคำนวณ `days * pricePerDay` เองที่อื่น ให้เรียก `quoteBooking()` เสมอ ไม่งั้นค่านอกเวลาจะหลุด
-4. **รัน `npm run build` ก่อน push ทุกครั้ง** — `tsc` และ ESLint จับ error เรื่อง bundling ไม่ได้
-5. **แก้ schema แล้วต้อง `db:push`** ก่อนโค้ดขึ้น production
-6. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง
-7. **หน้า LIFF ใหม่ต้องแกะ `liff.state`** ถ้าหน้านั้นไม่ได้เรียก `liff.init` เอง
-8. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ
+5. **รัน `npm run build` ก่อน push ทุกครั้ง** — `tsc` และ ESLint จับ error เรื่อง bundling ไม่ได้
+6. **แก้ schema แล้วต้อง `db:push`** ก่อนโค้ดขึ้น production
+7. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง
+8. **หน้า LIFF ใหม่ต้องแกะ `liff.state`** ถ้าหน้านั้นไม่ได้เรียก `liff.init` เอง
+9. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ

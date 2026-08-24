@@ -90,8 +90,11 @@ export async function accessTokenFor(encryptedRefreshToken: string): Promise<str
 /** ยกเลิกสิทธิ์ที่ฝั่ง Google */
 export async function revokeToken(encryptedRefreshToken: string) {
   const token = decryptSecret(encryptedRefreshToken);
-  await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
+  // ส่งใน body ไม่ใช่ query string — query มักถูกเก็บใน log ของ proxy ระหว่างทาง
+  await fetch("https://oauth2.googleapis.com/revoke", {
     method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token }).toString(),
   });
 }
 

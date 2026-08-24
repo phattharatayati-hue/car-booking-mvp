@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,16 @@ export async function POST(request: Request) {
 
     if (!file) {
       return NextResponse.json({ error: "ไม่พบไฟล์ที่อัปโหลด" }, { status: 400 });
+    }
+
+    // สลิปและเอกสารต้องให้ลูกค้าอัปได้โดยไม่ล็อกอิน (เก็บ private อยู่แล้ว)
+    // แต่ cars/ เปิดสาธารณะผ่าน /api/file จึงต้องเป็นแอดมินเท่านั้น
+    // ไม่งั้นใครก็อัปรูปอะไรก็ได้มาฝากไว้บนโดเมนเรา
+    if (kind === "cars") {
+      const session = await auth();
+      if (!session?.user) {
+        return NextResponse.json({ error: "ต้องเข้าสู่ระบบก่อน" }, { status: 401 });
+      }
     }
 
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];

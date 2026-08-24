@@ -49,9 +49,18 @@ export function decryptSecret(stored: string): string {
   ]).toString("utf8");
 }
 
+/** คีย์เซ็น state — ต้องมีจริงและยาวพอ ไม่ยอมให้ degrade เป็นคีย์ว่าง */
+function stateKey(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.length < 16) {
+    throw new Error("ยังไม่ได้ตั้ง AUTH_SECRET (หรือสั้นเกินไป) — เซ็น state ไม่ได้");
+  }
+  return secret;
+}
+
 /** เซ็นข้อความสั้นๆ ด้วย AUTH_SECRET — ใช้กับ state ของ OAuth */
 export function signState(payload: string): string {
-  const secret = process.env.AUTH_SECRET ?? "";
+  const secret = stateKey();
   const mac = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
   return `${Buffer.from(payload, "utf8").toString("base64url")}.${mac}`;
 }
@@ -62,7 +71,7 @@ export function verifyState(state: string): string | null {
   if (!dataB64 || !mac) return null;
   const payload = Buffer.from(dataB64, "base64url").toString("utf8");
   const expected = crypto
-    .createHmac("sha256", process.env.AUTH_SECRET ?? "")
+    .createHmac("sha256", stateKey())
     .update(payload)
     .digest("base64url");
   const a = Buffer.from(mac);

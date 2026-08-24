@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { verifyState, encryptSecret } from "@/lib/crypto";
 import {
   exchangeCode,
@@ -44,6 +45,18 @@ export async function GET(request: Request) {
     return back("/admin/account?gerror=state");
   }
 
+  // ต้องเป็นแอดมินคนเดียวกับที่กดปุ่มเชื่อมเท่านั้น
+  // กันกรณีมีคนส่งลิงก์ consent ที่ฝัง state ของตัวเองให้แอดมินคนอื่นกด
+  // แล้วได้ token ของคนนั้นมาอยู่ในบัญชีตัวเอง
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email) return back("/login");
+
+  const me = await prisma.adminUser.findUnique({ where: { email } });
+  if (!me || me.id !== adminId) {
+    return back("/admin/account?gerror=mismatch");
+  }
+
   try {
     const token = await exchangeCode(code);
 
@@ -53,17 +66,22 @@ export async function GET(request: Request) {
     }
 
     const accessToken = token.access_token ?? "";
-    const email = await googleEmail(accessToken);
+    const googleAccountEmail = await googleEmail(accessToken);
 
-    // สร้างปฏิทินแยกให้คนนี้ ถ้ายังไม่มี
-    const existing = await prisma.adminUser.findUnique({ where: { id: adminId } });
+    // ใช้ปฏิทินเดิมได้เฉพาะเมื่อยังเป็นบัญชี Google เดิม
+    // ถ้าเปลี่ยนบัญชี ปฏิทินเดิมจะมองไม่เห็นจากบัญชีใหม่ ต้องสร้างใหม่
+    const sameAccount = Boolean(
+      googleAccountEmail && me.googleEmail && me.googleEmail === googleAccountEmail
+    );
     const calendarId =
-      existing?.googleCalendarId ?? (await createAppCalendar(accessToken));
+      sameAccount && me.googleCalendarId
+        ? me.googleCalendarId
+        : await createAppCalendar(accessToken);
 
     await prisma.adminUser.update({
       where: { id: adminId },
       data: {
-        googleEmail: email,
+        googleEmail: googleAccountEmail,
         googleRefreshToken: encryptSecret(token.refresh_token as string),
         googleCalendarId: calendarId,
         googleConnectedAt: new Date(),

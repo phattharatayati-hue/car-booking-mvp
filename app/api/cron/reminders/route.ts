@@ -102,12 +102,16 @@ export async function GET(request: Request) {
   const force = searchParams.get("force") === "1";
 
   // ตรวจสิทธิ์ — Vercel Cron ส่ง Authorization: Bearer <CRON_SECRET> มาให้
+  // ถ้าไม่ได้ตั้ง CRON_SECRET ให้ปฏิเสธไปเลย (fail closed)
+  // ไม่งั้น endpoint นี้จะเปิดสาธารณะ ใครยิงก็ส่ง LINE ถึงลูกค้าและกันเตือนซ้ำได้
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    console.error("CRON_SECRET ยังไม่ได้ตั้ง — ปฏิเสธ request");
+    return NextResponse.json({ error: "cron ยังไม่ได้ตั้งค่า" }, { status: 503 });
+  }
+  const authHeader = request.headers.get("authorization");
+  if (authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   // ทวงงานที่ยังไม่มีคนรับ — ไม่ขึ้นกับสวิตช์เตือนคืนรถ
