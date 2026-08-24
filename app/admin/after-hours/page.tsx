@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getAllAfterHoursRates } from "@/lib/after-hours-server";
+import { timeOptions } from "@/lib/settings";
 import {
   toMinuteOfDay,
   fromMinuteOfDay,
@@ -78,6 +79,15 @@ const ERRORS: Record<string, string> = {
   same: "เวลาเริ่มกับเวลาสิ้นสุดต้องไม่เท่ากัน",
   overlap: "ช่วงเวลานี้ทับกับช่วงที่มีอยู่แล้ว — แก้ช่วงเดิมหรือปิดใช้งานก่อน",
 };
+
+/** ตัวเลือกเวลา 24 ชั่วโมงแบบไทย — เพิ่มค่าปัจจุบันเข้าไปถ้าไม่ลงตัวครึ่งชั่วโมง */
+function timeChoices(current?: string): string[] {
+  const base = timeOptions();
+  if (current && !base.includes(current)) {
+    return [...base, current].sort();
+  }
+  return base;
+}
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -194,29 +204,33 @@ export default async function AfterHoursPage({
                   <label className={labelClass} htmlFor={`start-${r.id}`}>
                     เริ่ม
                   </label>
-                  <input
+                  <select
                     id={`start-${r.id}`}
                     name="startTime"
-                    type="time"
-                    step={1800}
                     defaultValue={fromMinuteOfDay(r.startMinute)}
                     required
                     className={inputClass}
-                  />
+                  >
+                    {timeChoices(fromMinuteOfDay(r.startMinute)).map((t) => (
+                      <option key={t} value={t}>{t} น.</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className={labelClass} htmlFor={`end-${r.id}`}>
                     ถึง
                   </label>
-                  <input
+                  <select
                     id={`end-${r.id}`}
                     name="endTime"
-                    type="time"
-                    step={1800}
                     defaultValue={fromMinuteOfDay(r.endMinute)}
                     required
                     className={inputClass}
-                  />
+                  >
+                    {timeChoices(fromMinuteOfDay(r.endMinute)).map((t) => (
+                      <option key={t} value={t}>{t} น.</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className={labelClass} htmlFor={`fee-${r.id}`}>
@@ -293,11 +307,19 @@ export default async function AfterHoursPage({
         </div>
         <div>
           <label className={labelClass} htmlFor="new-start">เริ่ม</label>
-          <input id="new-start" name="startTime" type="time" step={1800} required className={inputClass} />
+          <select id="new-start" name="startTime" defaultValue="22:00" required className={inputClass}>
+            {timeChoices().map((t) => (
+              <option key={t} value={t}>{t} น.</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={labelClass} htmlFor="new-end">ถึง</label>
-          <input id="new-end" name="endTime" type="time" step={1800} required className={inputClass} />
+          <select id="new-end" name="endTime" defaultValue="05:00" required className={inputClass}>
+            {timeChoices().map((t) => (
+              <option key={t} value={t}>{t} น.</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={labelClass} htmlFor="new-fee">บาท</label>

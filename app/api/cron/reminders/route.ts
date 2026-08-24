@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { pushMessage, siteUrl } from "@/lib/line";
+import { pushMessage, notifyAdmin, siteUrl } from "@/lib/line";
 import {
   getSettings,
   formatBangkokDateTime,
   formatMinutesBefore,
 } from "@/lib/settings";
+import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
+import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,71 @@ type DueBooking = {
  * เรียกโดย Vercel Cron หรือ cron ภายนอก — ป้องกันด้วย CRON_SECRET
  * ใส่ ?force=1 เพื่อส่งให้การจองที่เลยเวลานัดคืนไปแล้วด้วย (ใช้ตอนทดสอบ/ตามเก็บ)
  */
+/**
+ * ทวงงานรับ-ส่งรถที่ยังไม่มีแอดมินรับ
+ * เกณฑ์: เหลือไม่เกิน 24 ชั่วโมงก่อนเวลานัด และยังไม่มีใครรับงานนั้น
+ * ส่งเข้าแอดมินทุกคนที่ผูก LINE ไว้ (notifyAdmin)
+ */
+async function nudgeUnassigned(): Promise<{ found: number; notified: boolean }> {
+  const now = new Date();
+  const until = new Date(now.getTime() + 24 * 3600000);
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      status: { in: [...ACTIVE_BOOKING_STATUSES] },
+      OR: [
+        { startDate: { gte: now, lte: until } },
+        { endDate: { gte: now, lte: until } },
+      ],
+    },
+    include: { car: true, customer: true, assignments: true },
+    orderBy: { startDate: "asc" },
+  });
+
+  const missing: { at: Date; kind: HandoffKind; label: string }[] = [];
+
+  for (const b of bookings) {
+    const carLabel = `${b.car.brand} ${b.car.name} (${b.car.licensePlate})`;
+    const checks: { kind: HandoffKind; at: Date }[] = [
+      { kind: "DELIVERY", at: b.startDate },
+      { kind: "PICKUP", at: b.endDate },
+    ];
+    for (const c of checks) {
+      if (c.at < now || c.at > until) continue;
+      if (b.assignments.some((a) => a.kind === c.kind)) continue;
+      missing.push({
+        at: c.at,
+        kind: c.kind,
+        label: `${HANDOFF_LABEL[c.kind]} · ${formatBangkokDateTime(c.at)}\n   ${carLabel} · ${b.customer.fullName}`,
+      });
+    }
+  }
+
+  if (missing.length === 0) return { found: 0, notified: false };
+
+  missing.sort((a, b) => a.at.getTime() - b.at.getTime());
+
+  const text = [
+    "⚠️ มีงานรับ-ส่งรถที่ยังไม่มีคนรับ",
+    "",
+    `ภายใน 24 ชั่วโมงข้างหน้า ${missing.length} งาน`,
+    "",
+    ...missing.slice(0, 10).map((m, i) => `${i + 1}. ${m.label}`),
+    ...(missing.length > 10 ? ["", `และอีก ${missing.length - 10} งาน`] : []),
+    "",
+    "มอบหมายได้ที่หน้ารายการจอง",
+    `${siteUrl()}/admin/bookings`,
+  ].join("\n");
+
+  try {
+    await notifyAdmin(text);
+    return { found: missing.length, notified: true };
+  } catch (err) {
+    console.error("nudgeUnassigned failed:", err);
+    return { found: missing.length, notified: false };
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "1";
@@ -43,10 +110,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // ทวงงานที่ยังไม่มีคนรับ — ไม่ขึ้นกับสวิตช์เตือนคืนรถ
+  const nudge = await nudgeUnassigned();
+
   const settings = await getSettings();
 
   if (!settings.returnReminderOn) {
-    return NextResponse.json({ ok: true, skipped: "ปิดการแจ้งเตือนไว้" });
+    return NextResponse.json({ ok: true, nudge, skipped: "ปิดการแจ้งเตือนคืนรถไว้" });
   }
 
   const now = new Date();
@@ -117,6 +187,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    nudge,
     leadMinutes,
     window: { from: now.toISOString(), to: until.toISOString() },
     found: bookings.length,

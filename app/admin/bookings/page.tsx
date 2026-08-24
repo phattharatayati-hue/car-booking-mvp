@@ -17,6 +17,7 @@ import {
   type DocumentStatus,
 } from "@/lib/documents";
 import { STATUS_LABEL, STATUS_CLASS } from "@/lib/booking-status";
+import AssignmentBox from "@/components/AssignmentBox";
 
 type BookingRow = {
   id: string;
@@ -41,6 +42,17 @@ type BookingRow = {
     slipImageUrl: string;
     status: string;
   } | null;
+  assignments: {
+    id: string;
+    kind: string;
+    adminUserId: string;
+    meetAt: Date;
+    place: string | null;
+    note: string | null;
+    googleEventId: string | null;
+    syncError: string | null;
+    admin: { name: string };
+  }[];
   documents: {
     id: string;
     kind: string;
@@ -291,7 +303,14 @@ export default async function AdminBookingsPage({
       customer: true,
       deposit: true,
       documents: true,
+      assignments: { include: { admin: true }, orderBy: { createdAt: "asc" } },
     },
+  });
+
+  // รายชื่อแอดมินสำหรับเลือกผู้รับงาน
+  const admins = await prisma.adminUser.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, googleConnectedAt: true },
   });
 
   const requestCount = await prisma.booking.count({ where: { status: "REQUESTED" } });
@@ -619,6 +638,20 @@ export default async function AdminBookingsPage({
                 <div className="mt-5 pt-5 border-t border-slate-100 text-sm text-slate-500">
                   ลูกค้ายังไม่ได้อัปโหลดสลิปค่าจอง
                 </div>
+              )}
+
+              {b.status !== "CANCELLED" && b.status !== "REJECTED" && (
+                <AssignmentBox
+                  booking={{
+                    id: b.id,
+                    startDate: b.startDate,
+                    endDate: b.endDate,
+                    pickupPlace: b.pickupPlace ?? null,
+                    returnPlace: b.returnPlace ?? null,
+                  }}
+                  admins={admins}
+                  assignments={b.assignments}
+                />
               )}
 
               {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (

@@ -2,6 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { auth } from "@/lib/auth";
+import { bangkokDayRange, bangkokDateStr, formatBangkokTime } from "@/lib/settings";
+import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
+import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 
 export default async function AdminDashboard() {
   const [pendingCount, confirmedCount, carsCount, totalBookings, revenueAgg, recent] =
@@ -22,6 +26,45 @@ export default async function AdminDashboard() {
     ]);
 
   const revenue = revenueAgg._sum.totalPrice ?? 0;
+
+  // งานรับ-ส่งรถของฉันวันนี้ + งานที่ยังไม่มีคนรับ
+  const session = await auth();
+  const today = bangkokDayRange(bangkokDateStr(new Date()));
+
+  const me = session?.user?.email
+    ? await prisma.adminUser.findUnique({ where: { email: session.user.email } })
+    : null;
+
+  const myJobs = me
+    ? await prisma.bookingAssignment.findMany({
+        where: { adminUserId: me.id, meetAt: { gte: today.start, lt: today.end } },
+        orderBy: { meetAt: "asc" },
+        include: { booking: { include: { car: true, customer: true } } },
+      })
+    : [];
+
+  // งานที่ยังไม่มีคนรับ — นับจากการจองที่ยังใช้งานอยู่ ในอีก 7 วันข้างหน้า
+  const soon = new Date(Date.now() + 7 * 86400000);
+  const upcoming = await prisma.booking.findMany({
+    where: {
+      status: { in: [...ACTIVE_BOOKING_STATUSES] },
+      OR: [
+        { startDate: { gte: today.start, lt: soon } },
+        { endDate: { gte: today.start, lt: soon } },
+      ],
+    },
+    include: { assignments: true },
+  });
+
+  let unassignedCount = 0;
+  for (const b of upcoming) {
+    if (b.startDate >= today.start && b.startDate < soon) {
+      if (!b.assignments.some((a) => a.kind === "DELIVERY")) unassignedCount++;
+    }
+    if (b.endDate >= today.start && b.endDate < soon) {
+      if (!b.assignments.some((a) => a.kind === "PICKUP")) unassignedCount++;
+    }
+  }
 
   const stats = [
     {
@@ -81,6 +124,35 @@ export default async function AdminDashboard() {
         </>
       ),
     },
+    {
+      label: "งานรับ-ส่งของฉันวันนี้",
+      value: myJobs.length,
+      accent: "bg-blue-50 text-blue-600",
+      href: "/admin/bookings",
+      icon: (
+        <>
+          <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+          <path d="M5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </>
+      ),
+    },
+    {
+      label: "งานที่ยังไม่มีคนรับ",
+      value: unassignedCount,
+      accent: unassignedCount > 0 ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-400",
+      href: "/admin/bookings",
+      icon: (
+        <>
+          <path
+            d="M12 9v4M12 17h.01M10.3 3.9L2.4 18a1.8 1.8 0 001.6 2.7h16a1.8 1.8 0 001.6-2.7L13.7 3.9a1.8 1.8 0 00-3.4 0z"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
+      ),
+    },
   ];
 
   const statusLabel: Record<string, { text: string; cls: string }> = {
@@ -119,6 +191,39 @@ export default async function AdminDashboard() {
         <p className="text-blue-100 text-sm">รายได้จากการจองที่ยืนยันแล้ว</p>
         <p className="text-4xl font-bold mt-1.5">{revenue.toLocaleString()} ฿</p>
       </div>
+
+      {myJobs.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="font-semibold text-slate-900">งานรับ-ส่งรถของฉันวันนี้</h2>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {myJobs.map((j) => (
+              <div key={j.id} className="px-5 py-3.5 flex items-center gap-4">
+                <span className="font-mono text-sm text-slate-900 tabular-nums shrink-0">
+                  {formatBangkokTime(j.meetAt)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-900">
+                    {HANDOFF_LABEL[j.kind as HandoffKind]} · {j.booking.car.brand}{" "}
+                    {j.booking.car.name}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">
+                    {j.booking.customer.fullName} · {j.booking.customer.phone}
+                    {j.place ? ` · ${j.place}` : ""}
+                  </p>
+                </div>
+                <Link
+                  href="/admin/bookings"
+                  className="text-xs text-blue-700 hover:underline shrink-0"
+                >
+                  ดูการจอง
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">

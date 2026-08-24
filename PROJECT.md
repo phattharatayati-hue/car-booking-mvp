@@ -88,12 +88,16 @@ PickupPoint      id, name, fee, isActive, sortOrder
 Settings         id="default", bookingFee, securityDeposit, serviceNote,
                  returnReminderOn, returnReminderMinutesBefore
 AfterHoursRate   id, label, startMinute, endMinute, fee, isActive
+BookingAssignment id, bookingId→Booking, kind, adminUserId→AdminUser,
+                 meetAt, place?, note?, googleEventId?, syncedAt?, syncError?,
+                 notifiedAt?  @@unique([bookingId, kind, adminUserId])
 CustomerOtp      phone(id), codeHash, expiresAt, attempts
 LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ```
 
 **Enum**
 
+- `HandoffKind` — `DELIVERY` (ไปส่งรถ) / `PICKUP` (ไปรับรถคืน)
 - `CarSource` — `OWN` / `PARTNER`
 - `CarStatus` — `AVAILABLE` / `UNAVAILABLE`
 - `BookingStatus` — `REQUESTED` / `REJECTED` / `PENDING_DEPOSIT` / `CONFIRMED` / `CANCELLED` / `COMPLETED`
@@ -131,6 +135,19 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ทั้งเว็บ LIFF แชท LINE และ `create-booking.ts` เรียก `quoteBooking()` ตัวเดียวกัน
 ราคาที่ลูกค้าเห็นก่อนกดจองจึงตรงกับที่บันทึกลงฐานข้อมูลเสมอ
 
+**มอบหมายงานรับ-ส่งรถ** — หนึ่งการจองมีสองงาน (ส่งรถ / รับรถคืน) มอบหมายที่ `/admin/bookings`
+มอบหมาย **หลายคนต่อหนึ่งงาน** ได้ และคนละคนกันระหว่างงานส่งกับงานรับได้
+`meetAt` คือเวลานัดลูกค้าจริง ตั้งต้นจาก `startDate`/`endDate` แต่แอดมินแก้ได้
+เวลาลงปฏิทินจะกันเวลาเดินทาง 30 นาที (นัด 09:00 → 08:30-09:30) ดู `TRAVEL_BUFFER_MIN` ใน `lib/assignments.ts`
+คนที่ถูกมอบหมายได้ข้อความ LINE ทันที · งานที่ยังไม่มีคนรับและเหลือไม่ถึง 24 ชม.
+จะถูกทวงเข้าแอดมินทุกคนโดย `/api/cron/reminders`
+
+**ปฏิทินของแอดมิน** — แต่ละคนกดเชื่อมเองที่ `/admin/account` ระบบขอ scope เดียว
+`calendar.app.created` แล้วสร้างปฏิทินแยกชื่อ "งานรับส่งรถ · CM Car Rent" ให้
+**เข้าไม่ถึงปฏิทินอื่นของแอดมินเลย** · refresh token เข้ารหัส AES-256-GCM ก่อนเก็บ
+event กันเวลาเดินทาง 30 นาที และเตือนล่วงหน้า 1 วัน + 1 ชั่วโมง
+ถ้าซิงก์พลาด ข้อความผิดพลาดจะขึ้นในกล่องมอบหมายพร้อมปุ่ม "ลองซิงก์ใหม่"
+
 **กันจองทับ** — `lib/create-booking.ts` เป็นจุดเดียวที่สร้างการจอง ใช้ร่วมกันทั้งเว็บ LIFF และแชท
 เช็คช่วงเวลาทับกับสถานะที่ยังใช้งานอยู่ (`REQUESTED`, `PENDING_DEPOSIT`, `CONFIRMED`) เสมอ
 
@@ -162,6 +179,12 @@ LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 |---|---|
 | `lib/create-booking.ts` | **จุดเดียวที่สร้างการจอง** กฎตรวจสอบทั้งหมดอยู่ที่นี่ |
 | `lib/pricing.ts` | **จุดเดียวที่คิดราคา** ค่าเช่า + ค่านอกเวลา (**ห้ามใส่ prisma**) |
+| `lib/assignments.ts` | ป้ายกำกับงานรับ-ส่ง เวลาเผื่อเดินทาง (**ห้ามใส่ prisma**) |
+| `lib/google-calendar.ts` | คุย Google Calendar API + ลิงก์ OAuth |
+| `lib/calendar-sync.ts` | ซิงก์งานมอบหมายขึ้นปฏิทิน (ไม่ throw ออกข้างนอก) |
+| `lib/crypto.ts` | เข้ารหัส refresh token + เซ็น state ของ OAuth |
+| `app/admin/assignments/actions.ts` | มอบหมาย/ถอนงาน + แจ้ง LINE คนที่รับงาน |
+| `components/AssignmentBox.tsx` | กล่องมอบหมายในการ์ดการจอง |
 | `lib/after-hours-server.ts` | ดึงช่วงค่าบริการนอกเวลาจากฐานข้อมูล |
 | `lib/settings.ts` | อ่านค่าตั้งค่า + ตัวช่วยเรื่องเวลาไทยทั้งหมด |
 | `lib/availability.ts` | คำนวณวันว่าง/ไม่ว่าง สำหรับปฏิทิน |
@@ -233,10 +256,26 @@ npm run dev
 | `NEXT_PUBLIC_LIFF_BOOKING_ID` | LIFF หน้าจองรถ |
 | `NEXT_PUBLIC_LINE_OA_ID` | LINE OA id เช่น `@606ugqjs` |
 | `CRON_SECRET` | ป้องกัน endpoint เตือนคืนรถ |
+| `GOOGLE_OAUTH_CLIENT_ID` | เชื่อมปฏิทินของแอดมิน |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | เชื่อมปฏิทินของแอดมิน (Sensitive) |
+| `GOOGLE_TOKEN_ENC_KEY` | คีย์ AES-256 เข้ารหัส refresh token (Sensitive) |
 
 `NEXT_PUBLIC_*` ถูกฝังตอน build — **แก้แล้วต้อง redeploy** และอย่าตั้งเป็น Sensitive
 
 ---
+
+## 8.1 ตั้งค่า Google Calendar
+
+1. Google Cloud Console → สร้างโปรเจกต์ → เปิด **Google Calendar API**
+2. OAuth consent screen — ถ้าองค์กรมี Google Workspace เลือก **Internal** (ไม่ต้องส่ง Google ตรวจ)
+   ถ้าใช้ Gmail ทั่วไปเลือก External + โหมด Testing แล้วใส่อีเมลแอดมินเป็น test user (ได้ถึง 100 คน)
+3. สร้าง **OAuth client ID** แบบ Web application ใส่ redirect URI สองตัว:
+   `https://<โดเมน>/api/google/callback` และ `http://localhost:3000/api/google/callback`
+4. ใส่ env 3 ตัว (ดูหัวข้อ 7) แล้ว redeploy
+5. แอดมินแต่ละคนเข้า `/admin/account` กดเชื่อมเอง
+
+> scope ที่ขอคือ `calendar.app.created` เท่านั้น — สร้างปฏิทินของแอปเองและจัดการ event ในนั้นได้
+> ไม่เห็นและไม่แก้ปฏิทินอื่นของแอดมิน
 
 ## 8. ตั้งค่า LINE
 

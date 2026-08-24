@@ -38,6 +38,9 @@ export default function ConnectLine({
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+  /** เตรียม SDK เสร็จแล้วหรือยัง — ยังไม่ได้ล็อกอิน */
+  const [sdkReady, setSdkReady] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
 
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -55,10 +58,15 @@ export default function ConnectLine({
       try {
         const liff = await loadSdk();
         await liff.init({ liffId });
-        if (!liff.isLoggedIn()) {
-          liff.login({ redirectUri: window.location.href });
-          return;
-        }
+        if (cancelled) return;
+
+        setSdkReady(true);
+
+        // ไม่เด้งไปล็อกอินเอง — รอให้ผู้ใช้กดปุ่มก่อน
+        // แต่ถ้าล็อกอินอยู่แล้ว (เปิดในแอป LINE หรือเพิ่งกลับมาจากหน้าล็อกอิน)
+        // ก็ไปต่อให้เลย ไม่ต้องกดซ้ำ
+        if (!liff.isLoggedIn()) return;
+
         const token = liff.getIDToken();
         if (cancelled) return;
         if (!token) {
@@ -79,6 +87,31 @@ export default function ConnectLine({
       cancelled = true;
     };
   }, [liffId]);
+
+  /** ผู้ใช้กดปุ่มเอง จึงพาไปหน้าล็อกอินของ LINE */
+  async function handleLogin() {
+    setLoggingIn(true);
+    setInitError(null);
+    try {
+      const liff = await loadSdk();
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: window.location.href });
+        return;
+      }
+      const token = liff.getIDToken();
+      if (!token) {
+        setInitError("ไม่ได้รับข้อมูลยืนยันตัวตนจาก LINE");
+        setLoggingIn(false);
+        return;
+      }
+      setIdToken(token);
+      setReady(true);
+      setLoggingIn(false);
+    } catch (err) {
+      setInitError(err instanceof Error ? err.message : "เชื่อมต่อ LINE ไม่สำเร็จ");
+      setLoggingIn(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -196,10 +229,25 @@ export default function ConnectLine({
             <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
               {initError}
             </p>
-          ) : !ready ? (
+          ) : !ready && !sdkReady ? (
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <span className="w-5 h-5 rounded-full border-2 border-slate-200 border-t-blue-600 animate-spin" />
-              กำลังเชื่อมต่อ LINE...
+              กำลังเตรียมระบบ...
+            </div>
+          ) : !ready ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-slate-500">
+                กดปุ่มด้านล่างเพื่อเข้าสู่ระบบด้วยบัญชี LINE ของคุณ
+                เราขอแค่ชื่อและรูปโปรไฟล์ ไม่เห็นข้อความในแชทของคุณ
+              </p>
+              <button
+                type="button"
+                onClick={handleLogin}
+                disabled={loggingIn}
+                className="w-full rounded-xl bg-[#06C755] hover:bg-[#05b34c] disabled:opacity-60 text-white font-semibold py-3 transition-colors"
+              >
+                {loggingIn ? "กำลังพาไปหน้า LINE..." : "เข้าสู่ระบบด้วย LINE"}
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">

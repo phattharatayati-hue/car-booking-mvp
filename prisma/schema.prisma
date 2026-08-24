@@ -41,6 +41,12 @@ enum DocumentStatus {
   REJECTED
 }
 
+/// งานที่แอดมินต้องออกไปทำ — ไปส่งรถ หรือไปรับรถคืน
+enum HandoffKind {
+  DELIVERY   // ไปส่งรถให้ลูกค้า
+  PICKUP     // ไปรับรถคืนจากลูกค้า
+}
+
 enum DepositStatus {
   PENDING
   CONFIRMED
@@ -57,7 +63,15 @@ model AdminUser {
   // รหัสผูกบัญชี LINE แบบใช้ครั้งเดียว มีอายุ 10 นาที
   lineLinkCode      String?   @unique
   lineLinkExpiresAt DateTime?
+
+  // เชื่อม Google Calendar ต่อคน (เฟส 2) — refresh token ต้องเข้ารหัสก่อนเก็บ
+  googleEmail        String?
+  googleRefreshToken String?
+  googleCalendarId   String?   // id ของปฏิทิน "งานรับส่งรถ" ที่ระบบสร้างให้
+  googleConnectedAt  DateTime?
+
   createdAt    DateTime @default(now())
+  assignments  BookingAssignment[]
 }
 
 model Car {
@@ -121,6 +135,7 @@ model Booking {
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
   documents   BookingDocument[]
+  assignments BookingAssignment[]
 }
 
 /// เอกสารที่ลูกค้าอัปโหลดก่อนรับรถ — เก็บแบบ private ดูผ่าน /api/file เท่านั้น
@@ -216,4 +231,36 @@ model AfterHoursRate {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// มอบหมายแอดมินไปส่งรถ / ไปรับรถคืน
+/// หนึ่งงานมอบหมายให้หลายคนได้ (เช่น คนขับรถไปส่ง + คนขับรถตามไปรับกลับ)
+/// และคนละคนกันระหว่างงานส่งกับงานรับได้
+model BookingAssignment {
+  id          String      @id @default(cuid())
+  booking     Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId   String
+  kind        HandoffKind
+  admin       AdminUser   @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  adminUserId String
+
+  /// เวลานัดเจอลูกค้าจริง — event ในปฏิทินจะกันเวลาเดินทางให้เอง (ดู lib/assignments.ts)
+  meetAt      DateTime
+  /// จุดนัด — ตั้งต้นจากจุดรับ-ส่งที่ลูกค้าเลือก แต่แก้ได้
+  place       String?
+  note        String?
+
+  /// ผลการซิงก์ Google Calendar (เฟส 2)
+  googleEventId String?
+  syncedAt      DateTime?
+  syncError     String?
+
+  /// กันแจ้งเตือนซ้ำ
+  notifiedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  /// คนเดิมรับงานเดิมซ้ำไม่ได้
+  @@unique([bookingId, kind, adminUserId])
+  @@index([adminUserId, meetAt])
 }
