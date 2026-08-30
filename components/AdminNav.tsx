@@ -134,6 +134,26 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/guide",
+    label: "คู่มือการใช้งาน",
+    icon: (
+      <>
+        <path
+          d="M4 5.5A1.5 1.5 0 015.5 4H10a2 2 0 012 2v13a2 2 0 00-2-2H5.5A1.5 1.5 0 014 15.5v-10z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M20 5.5A1.5 1.5 0 0018.5 4H14a2 2 0 00-2 2v13a2 2 0 012-2h4.5a1.5 1.5 0 001.5-1.5v-10z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/users",
     label: "จัดการแอดมิน",
     devOnly: true,

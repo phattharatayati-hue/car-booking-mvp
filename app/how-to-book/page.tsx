@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { CustomerFlow } from "@/components/GuideDiagrams";
 import PublicShell from "@/components/PublicShell";
 import { getSettings } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
@@ -132,6 +133,9 @@ export default async function HowToBookPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+        {/* ภาพรวมก่อน แล้วค่อยลงรายละเอียดทีละขั้น */}
+        <CustomerFlow />
+
         <div className="flex flex-col gap-5">
           {STEPS.map((s, i) => (
             <div
