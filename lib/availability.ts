@@ -104,7 +104,10 @@ export async function getBusyRanges(
   }));
 }
 
-/** ข้อความสรุปช่วงไม่ว่าง สำหรับส่งในแชท */
+/**
+ * ข้อความสรุปช่วงไม่ว่าง สำหรับส่งในแชท
+ * เขียนแบบ "วันที่ เวลา ถึง วันที่ เวลา" และบอกด้วยว่าหลังจากนั้นว่าง
+ */
 export function formatBusyRanges(ranges: BusyRange[], max = 5): string {
   if (ranges.length === 0) return "ว่างทุกวันในช่วง 2 เดือนข้างหน้า ✅";
 
@@ -112,14 +115,19 @@ export function formatBusyRanges(ranges: BusyRange[], max = 5): string {
     .slice(0, max)
     .map(
       (r) =>
-        `• ${formatBangkokDateTime(r.start)} ถึง ${formatBangkokDateTime(r.end)}`
+        `• ไม่ว่าง ${formatBangkokDateTime(r.start)}\n  ถึง ${formatBangkokDateTime(r.end)}`
     );
 
   if (ranges.length > max) {
     lines.push(`• และอีก ${ranges.length - max} ช่วง`);
   }
 
-  return `ช่วงที่ไม่ว่าง:\n${lines.join("\n")}`;
+  return [
+    "ช่วงที่มีคนจองแล้ว:",
+    ...lines,
+    "",
+    "นอกช่วงนี้ว่างหมดครับ — เลือกเวลารับรถหลังเวลาที่ระบุได้เลย",
+  ].join("\n");
 }
 
 /** วันแรกที่ว่างทั้งวัน (ใช้แสดงบนการ์ดรถ) */
@@ -128,4 +136,19 @@ export function firstFreeDate(map: Availability, fromStr: string, days: number):
     if (map[dateStr] !== "full") return dateStr;
   }
   return null;
+}
+
+/**
+ * ช่วงที่ไม่ว่างของรถคันเดียว ในรูปแบบ ISO string
+ * ส่งลง client ได้ตรงๆ เพื่อปิดตัวเลือกเวลาที่ชนในฟอร์มจอง
+ */
+export async function getBusySpans(
+  carId: string,
+  days = 120
+): Promise<{ start: string; end: string }[]> {
+  const ranges = await getBusyRanges(carId, days);
+  return ranges.map((r) => ({
+    start: r.start.toISOString(),
+    end: r.end.toISOString(),
+  }));
 }

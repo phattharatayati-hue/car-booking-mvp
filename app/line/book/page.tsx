@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import LiffBooking from "./LiffBooking";
-import { getAvailability } from "@/lib/availability";
+import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr, getSettings, timeOptions } from "@/lib/settings";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import ServiceNote from "@/components/ServiceNote";
@@ -117,6 +117,7 @@ export default async function LineBookPage({
 
   const fromStr = bangkokDateStr(new Date());
   const map = await getAvailability([car.id], fromStr, 90);
+  const busySpans = await getBusySpans(car.id, 120);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-5">
@@ -134,6 +135,7 @@ export default async function LineBookPage({
           availability={map.get(car.id) ?? {}}
           timeOptions={times}
           afterHoursRates={afterHoursRates}
+          busySpans={busySpans}
           liffId={liffId}
           pickupPoints={pickupPoints}
         />

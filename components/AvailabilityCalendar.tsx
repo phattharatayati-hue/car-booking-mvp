@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { describeDayBusy, type BusySpan } from "@/lib/day-slots";
 
 export type DayStatus = "free" | "partial" | "full";
 
@@ -40,12 +41,15 @@ export default function AvailabilityCalendar({
   endDate,
   onSelect,
   months = 2,
+  busySpans = [],
 }: {
   availability: Record<string, DayStatus>;
   startDate: string;
   endDate: string;
   onSelect: (start: string, end: string) => void;
   months?: number;
+  /** ช่วงที่รถไม่ว่าง — ใช้บอกว่าวันที่เลือกติดช่วงไหน */
+  busySpans?: BusySpan[];
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -119,24 +123,34 @@ export default function AvailabilityCalendar({
         </div>
       </div>
 
-      {/* คำอธิบายสี */}
-      <div className="px-4 py-3 flex flex-wrap gap-x-4 gap-y-2 border-b border-slate-100 text-xs">
-        <span className="inline-flex items-center gap-1.5 text-slate-600">
-          <span className="w-4 h-4 rounded-md bg-white border border-slate-300" />
-          ว่าง
-        </span>
-        <span className="inline-flex items-center gap-1.5 text-slate-600">
-          <span className="w-4 h-4 rounded-md bg-amber-100 border border-amber-300" />
-          ว่างบางช่วง
-        </span>
-        <span className="inline-flex items-center gap-1.5 text-slate-600">
-          <span className="w-4 h-4 rounded-md bg-red-500 border border-red-500" />
-          <span className="font-medium text-red-600">ไม่ว่าง</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5 text-slate-600">
-          <span className="w-4 h-4 rounded-md bg-blue-600 border border-blue-600" />
-          วันที่เลือก
-        </span>
+      {/* คำอธิบายสี — มีสัญลักษณ์กำกับด้วย ไม่พึ่งสีอย่างเดียว */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="w-4 h-4 rounded-md bg-white border border-slate-300" />
+            ว่างทั้งวัน
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="w-4 h-4 rounded-md bg-amber-100 border border-amber-300 grid place-items-center text-[9px] font-bold text-amber-700">
+              ◗
+            </span>
+            ว่างบางเวลา
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="w-4 h-4 rounded-md bg-red-500 border border-red-500 grid place-items-center text-[10px] font-bold text-white">
+              ✕
+            </span>
+            <span className="font-medium text-red-600">ไม่ว่าง</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-slate-600">
+            <span className="w-4 h-4 rounded-md bg-blue-600 border border-blue-600" />
+            วันที่เลือก
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+          วัน<span className="text-amber-700 font-medium">สีเหลือง</span>คือวันที่มีคนรับหรือคืนรถ
+          ยังจองได้ถ้าเลือกเวลาไม่ชนกัน — แตะดูได้เลย ระบบจะบอกว่าว่างตั้งแต่กี่โมง
+        </p>
       </div>
 
       <div className="p-4">
@@ -231,6 +245,14 @@ export default function AvailabilityCalendar({
                     } else if (status === "partial") {
                       cls =
                         "bg-amber-100 border border-amber-300 text-amber-900 hover:border-amber-500";
+                      content = (
+                        <>
+                          <span>{cell.getDate()}</span>
+                          <span className="block text-[9px] leading-none font-bold text-amber-700 -mt-0.5">
+                            ◗
+                          </span>
+                        </>
+                      );
                     }
 
                     return (
@@ -241,10 +263,8 @@ export default function AvailabilityCalendar({
                         onClick={() => handleClick(dateStr)}
                         title={
                           status === "full"
-                            ? "วันนี้มีคนจองเต็มแล้ว"
-                            : status === "partial"
-                            ? "ว่างบางช่วงเวลา"
-                            : "ว่าง"
+                            ? "วันนี้มีคนจองเต็มทั้งวัน"
+                            : describeDayBusy(dateStr, busySpans) ?? "ว่างทั้งวัน"
                         }
                         className={`h-11 rounded-lg text-sm transition-all flex flex-col items-center justify-center ${cls} ${
                           isToday && !isStart && !isEnd ? "ring-2 ring-blue-300" : ""
@@ -260,6 +280,28 @@ export default function AvailabilityCalendar({
           })}
         </div>
       </div>
+      {/* บอกช่วงที่ติดของวันที่เลือก */}
+      {(startDate || endDate) && (
+        <div className="px-4 pb-4 -mt-1 flex flex-col gap-1.5">
+          {[
+            { label: "วันรับรถ", date: startDate },
+            { label: "วันคืนรถ", date: endDate },
+          ].map(({ label, date }) => {
+            if (!date) return null;
+            const note = describeDayBusy(date, busySpans);
+            if (!note) return null;
+            return (
+              <p
+                key={label}
+                className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+              >
+                <span className="font-medium">{label} {thaiDate(date)}</span> — {note}
+              </p>
+            );
+          })}
+        </div>
+      )}
+
     </div>
   );
 }

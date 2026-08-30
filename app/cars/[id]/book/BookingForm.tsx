@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
@@ -9,6 +9,12 @@ import {
   rateRangeLabel,
   type AfterHoursRate,
 } from "@/lib/pricing";
+import {
+  timeChoicesFor,
+  firstFreeTime,
+  rangeBusy,
+  type BusySpan,
+} from "@/lib/day-slots";
 
 const inputClass =
   "w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors";
@@ -19,6 +25,7 @@ export default function BookingForm({
   pricePerDay,
   timeOptions,
   afterHoursRates,
+  busySpans = [],
   isRequest = false,
   availability,
   pickupPoints,
@@ -27,6 +34,7 @@ export default function BookingForm({
   pricePerDay: number;
   timeOptions: string[];
   afterHoursRates: AfterHoursRate[];
+  busySpans?: BusySpan[];
   isRequest?: boolean;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
@@ -50,6 +58,30 @@ export default function BookingForm({
           )
         )
       : 0;
+  // ตัวเลือกเวลา — ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
+  const startChoices = timeChoicesFor(startDate, timeOptions, busySpans);
+  const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
+  const overlaps = rangeBusy(startDate, startTime, endDate, endTime, busySpans);
+
+  // ถ้าเวลาที่เลือกอยู่กลายเป็นเวลาที่ชน ให้เลื่อนไปเวลาว่างแรกของวันนั้นให้เลย
+  useEffect(() => {
+    if (!startDate) return;
+    if (startChoices.find((c) => c.time === startTime)?.busy) {
+      const next = firstFreeTime(startDate, timeOptions, busySpans);
+      if (next) setStartTime(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate]);
+
+  useEffect(() => {
+    if (!endDate) return;
+    if (endChoices.find((c) => c.time === endTime)?.busy) {
+      const next = firstFreeTime(endDate, timeOptions, busySpans);
+      if (next) setEndTime(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endDate]);
+
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
@@ -68,6 +100,12 @@ export default function BookingForm({
 
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
+      setSubmitting(false);
+      return;
+    }
+
+    if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
+      setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
       setSubmitting(false);
       return;
     }
@@ -123,6 +161,7 @@ export default function BookingForm({
       <section>
         <h2 className="text-sm font-semibold text-slate-900 mb-3">ช่วงเวลาเช่า</h2>
         <AvailabilityCalendar
+          busySpans={busySpans}
           availability={availability}
           startDate={startDate}
           endDate={endDate}
@@ -153,8 +192,10 @@ export default function BookingForm({
               onChange={(e) => setStartTime(e.target.value)}
               className={inputClass}
             >
-              {timeOptions.map((t) => (
-                <option key={t} value={t}>{t} น.</option>
+              {startChoices.map((c) => (
+                <option key={c.time} value={c.time} disabled={c.busy}>
+                  {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
+                </option>
               ))}
             </select>
             <p className={`text-xs mt-1.5 ${pickupFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
@@ -170,8 +211,10 @@ export default function BookingForm({
               onChange={(e) => setEndTime(e.target.value)}
               className={inputClass}
             >
-              {timeOptions.map((t) => (
-                <option key={t} value={t}>{t} น.</option>
+              {endChoices.map((c) => (
+                <option key={c.time} value={c.time} disabled={c.busy}>
+                  {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
+                </option>
               ))}
             </select>
             <p className={`text-xs mt-1.5 ${returnFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
@@ -203,6 +246,12 @@ export default function BookingForm({
             <p className="sm:col-span-2 text-xs text-slate-500 -mt-1">
               ถ้าต้องการจุดอื่นนอกรายการ เลือก “{OTHER_PLACE}” แล้วแอดมินจะติดต่อกลับไปนัดจุดรับ-ส่งครับ
             </p>
+          </div>
+        )}
+
+        {overlaps && (
+          <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
+            ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกวันหรือเวลาใหม่
           </div>
         )}
 
