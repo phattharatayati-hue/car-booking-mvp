@@ -3,10 +3,10 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { pushMessage } from "@/lib/line";
-import { createLinkCode } from "@/lib/line-link";
 import AddAdminForm from "@/components/AddAdminForm";
 
 type AdminRow = {
@@ -18,16 +18,6 @@ type AdminRow = {
   lineLinkExpiresAt: Date | null;
   createdAt: Date;
 };
-
-/** คำนวณสถานะรหัสผูก — แยกออกมานอก component เพราะอ่านเวลาปัจจุบัน */
-function linkCodeState(code: string | null, expiresAt: Date | null) {
-  const expires = expiresAt?.getTime() ?? 0;
-  const remaining = expires - Date.now();
-  return {
-    isValid: Boolean(code) && remaining > 0,
-    minutesLeft: Math.max(1, Math.ceil(remaining / 60000)),
-  };
-}
 
 async function addAdminAction(formData: FormData) {
   "use server";
@@ -54,18 +44,6 @@ async function addAdminAction(formData: FormData) {
 
   revalidatePath("/admin/users");
   redirect("/admin/users?ok=added");
-}
-
-async function createLinkCodeAction(formData: FormData) {
-  "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-
-  const id = String(formData.get("id") ?? "");
-  await createLinkCode(id);
-
-  revalidatePath("/admin/users");
-  redirect("/admin/users?ok=code");
 }
 
 async function unlinkLineAction(formData: FormData) {
@@ -146,7 +124,6 @@ async function testLineAction(formData: FormData) {
 
 const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
   added: { text: "เพิ่มแอดมินเรียบร้อยแล้ว", tone: "ok" },
-  code: { text: "สร้างรหัสผูกบัญชีแล้ว — นำไปพิมพ์ในแชท LINE ภายใน 10 นาที", tone: "ok" },
   unlinked: { text: "ยกเลิกการผูก LINE เรียบร้อยแล้ว", tone: "ok" },
   updated: { text: "อัปเดต LINE ID เรียบร้อยแล้ว", tone: "ok" },
   deleted: { text: "ลบแอดมินเรียบร้อยแล้ว", tone: "ok" },
@@ -203,22 +180,20 @@ export default async function AdminUsersPage({
 
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
         <h2 className="font-semibold text-blue-900 text-sm mb-2">
-          วิธีผูก LINE เพื่อรับแจ้งเตือน
+          การผูก LINE ทำที่หน้าบัญชีของตัวเอง
         </h2>
-        <ol className="text-sm text-blue-900/90 leading-relaxed list-decimal list-inside space-y-1">
-          <li>กดปุ่ม <span className="font-semibold">สร้างรหัสผูก LINE</span> ที่บัญชีของคนนั้น</li>
-          <li>เพิ่มเพื่อน LINE Official Account ของร้าน</li>
-          <li>พิมพ์<span className="font-semibold">เลข 6 หลัก</span>ที่ได้ ส่งในแชท — ระบบจะผูกให้อัตโนมัติ</li>
-        </ol>
+        <p className="text-sm text-blue-900/90 leading-relaxed">
+          รหัสผูกต้องพิมพ์ส่งจากแชท LINE ของเจ้าตัว แอดมินแต่ละคนจึงต้องไปกดเองที่{" "}
+          <Link href="/admin/account" className="font-semibold underline">
+            บัญชีของฉัน
+          </Link>{" "}
+          — หน้านี้ดูได้ว่าใครผูกแล้วบ้าง และยกเลิกการผูกให้คนที่ลาออกได้
+        </p>
       </div>
 
       <div className="flex flex-col gap-4">
         {admins.map((admin: AdminRow) => {
           const isSelf = admin.email === session?.user?.email;
-          const { isValid: codeIsValid, minutesLeft } = linkCodeState(
-            admin.lineLinkCode,
-            admin.lineLinkExpiresAt
-          );
           return (
             <div
               key={admin.id}
@@ -253,7 +228,7 @@ export default async function AdminUsersPage({
                 </span>
               </div>
 
-              {/* ผูก LINE */}
+              {/* สถานะการผูก LINE — สร้างรหัสได้ที่หน้าบัญชีของเจ้าตัวเท่านั้น */}
               {admin.lineUserId ? (
                 <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
                   <span className="text-sm text-emerald-900">
@@ -266,28 +241,20 @@ export default async function AdminUsersPage({
                     </button>
                   </form>
                 </div>
-              ) : codeIsValid ? (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4">
-                  <p className="text-sm text-blue-900 mb-2">
-                    พิมพ์รหัสนี้ส่งในแชท LINE ของร้าน (หมดอายุใน {minutesLeft} นาที)
-                  </p>
-                  <p className="text-4xl font-bold tracking-[0.3em] text-blue-900 font-mono">
-                    {admin.lineLinkCode}
-                  </p>
-                  <form action={createLinkCodeAction} className="mt-3">
-                    <input type="hidden" name="id" value={admin.id} />
-                    <button className="text-sm font-medium text-blue-700 hover:text-blue-900">
-                      ขอรหัสใหม่
-                    </button>
-                  </form>
-                </div>
               ) : (
-                <form action={createLinkCodeAction}>
-                  <input type="hidden" name="id" value={admin.id} />
-                  <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
-                    🔗 สร้างรหัสผูก LINE
-                  </button>
-                </form>
+                <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                  <span className="text-sm text-slate-600">
+                    ยังไม่ผูก LINE — จะไม่ได้รับแจ้งเตือนการจองและงานที่ได้รับมอบหมาย
+                  </span>
+                  {isSelf && (
+                    <Link
+                      href="/admin/account"
+                      className="ml-auto text-sm font-semibold text-blue-700 hover:underline"
+                    >
+                      ไปผูกที่บัญชีของฉัน
+                    </Link>
+                  )}
+                </div>
               )}
 
               <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-end">

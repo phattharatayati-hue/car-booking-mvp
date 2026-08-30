@@ -133,6 +133,16 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/account",
+    label: "บัญชีของฉัน",
+    icon: (
+      <>
+        <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M4.5 20a7.5 7.5 0 0115 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
     href: "/admin/users",
     label: "จัดการแอดมิน",
     icon: (
