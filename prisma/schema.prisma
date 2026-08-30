@@ -90,6 +90,33 @@ model Car {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   bookings      Booking[]
+  rates         CarRate[]
+}
+
+enum CarRateKind {
+  PRICE // ตั้งราคาต่อวันใหม่สำหรับช่วงนั้น
+  BLOCK // ปิดรับจองในช่วงนั้น
+}
+
+/**
+ * ราคาตามช่วงวันของรถรายคัน และช่วงที่ปิดรับจอง
+ * startDate/endDate เก็บเป็นเที่ยงคืนเวลาไทย และนับรวมวันสุดท้ายด้วย
+ * ช่วง PRICE ห้ามทับกันเอง (ตรวจตอนบันทึก) ส่วน BLOCK ทับได้และชนะเสมอ
+ */
+model CarRate {
+  id          String      @id @default(cuid())
+  car         Car         @relation(fields: [carId], references: [id], onDelete: Cascade)
+  carId       String
+  kind        CarRateKind @default(PRICE)
+  label       String
+  startDate   DateTime
+  endDate     DateTime
+  pricePerDay Int?
+  note        String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([carId, startDate, endDate])
 }
 
 /// เจ้าของรถที่เอารถมาฝากปล่อยเช่า

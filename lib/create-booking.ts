@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getSettings, toBangkokDate } from "@/lib/settings";
 import { quoteBooking } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
+import { getCarRates } from "@/lib/car-rates-server";
+import { blockingRates, bangkokDateStrOf, formatRateRange } from "@/lib/car-rates";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import {
   notifyAdmin,
@@ -89,13 +91,26 @@ export async function createBooking(
     };
   }
 
-  // ราคา = ค่าเช่าตามจำนวนวัน + ค่าธรรมเนียมนอกเวลา (คิดแยกตอนรับและตอนคืน)
+  // ช่วงที่แอดมินปิดรับจองไว้ — ด่านสุดท้าย กันคนยิง API ตรง
+  const carRates = await getCarRates(carId);
+  const blocked = blockingRates(bangkokDateStrOf(start), bangkokDateStrOf(end), carRates);
+  if (blocked.length > 0) {
+    const b = blocked[0];
+    return {
+      ok: false,
+      status: 409,
+      error: `รถคันนี้ปิดรับจองช่วง ${formatRateRange(b)} (${b.label}) กรุณาเลือกวันอื่น`,
+    };
+  }
+
+  // ราคา = ค่าเช่ารายวันตามช่วงราคา + ค่าธรรมเนียมนอกเวลา (คิดแยกตอนรับและตอนคืน)
   const rates = await getAfterHoursRates();
   const quote = quoteBooking({
     start,
     end,
     pricePerDay: car.pricePerDay,
     rates,
+    carRates,
   });
   const totalPrice = quote.total;
 

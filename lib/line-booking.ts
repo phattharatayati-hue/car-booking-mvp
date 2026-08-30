@@ -19,6 +19,8 @@ import {
 } from "@/lib/settings";
 import { quoteBooking, feeForMinute, bangkokMinuteOfDay } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
+import { getCarRates } from "@/lib/car-rates-server";
+import { blockingRates, bangkokDateStrOf, formatRateRange } from "@/lib/car-rates";
 
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
@@ -186,8 +188,18 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     return;
   }
 
+  const carRates = await getCarRates(car.id);
+  const blocked = blockingRates(bangkokDateStrOf(start), bangkokDateStrOf(end), carRates);
+  if (blocked.length > 0) {
+    await replyMessage(
+      replyToken,
+      `ขออภัยครับ รถคันนี้ปิดรับจองช่วง ${formatRateRange(blocked[0])} (${blocked[0].label})\nกรุณาเลือกวันอื่นครับ`
+    );
+    return;
+  }
+
   const rates = await getAfterHoursRates();
-  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates });
+  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates, carRates });
   const days = quote.days;
   const total = quote.total;
   const note = afterHoursNote(start, end, rates);
@@ -204,6 +216,7 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
       end,
       days,
       pricePerDay: car.pricePerDay,
+      segments: quote.segments,
       total,
       serviceNote: [note, settings.serviceNote].filter(Boolean).join("\n"),
     }),
@@ -274,7 +287,13 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
   }
 
   const rates = await getAfterHoursRates();
-  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates });
+  const quote = quoteBooking({
+    start,
+    end,
+    pricePerDay: car.pricePerDay,
+    rates,
+    carRates: await getCarRates(car.id),
+  });
   const total = quote.total;
   const name = (await getProfileName(lineUserId)) ?? "ลูกค้า LINE";
 

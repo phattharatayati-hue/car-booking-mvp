@@ -37,8 +37,15 @@ export default async function EditCarPage({
           {car.brand} {car.name}
         </h1>
         <p className="text-slate-500 text-sm mt-1">
-          ทะเบียน {car.licensePlate} · มีการจอง {bookingCount} รายการ
+          ทะเบียน {car.licensePlate} · ราคาปกติ {car.pricePerDay.toLocaleString()} บาท/วัน · มีการจอง{" "}
+          {bookingCount} รายการ
         </p>
+        <Link
+          href={`/admin/cars/${car.id}/rates`}
+          className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          📅 ราคาตามช่วงวัน และช่วงปิดรับจอง
+        </Link>
       </div>
 
       <EditCarForm

@@ -10,6 +10,12 @@ import {
   type AfterHoursRate,
 } from "@/lib/pricing";
 import {
+  rentSegments,
+  blockingRates,
+  formatRateRange,
+  type CarRateView,
+} from "@/lib/car-rates";
+import {
   timeChoicesFor,
   firstFreeTime,
   rangeBusy,
@@ -26,6 +32,7 @@ export default function BookingForm({
   timeOptions,
   afterHoursRates,
   busySpans = [],
+  carRates = [],
   isRequest = false,
   availability,
   pickupPoints,
@@ -35,6 +42,7 @@ export default function BookingForm({
   timeOptions: string[];
   afterHoursRates: AfterHoursRate[];
   busySpans?: BusySpan[];
+  carRates?: CarRateView[];
   isRequest?: boolean;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
@@ -85,7 +93,17 @@ export default function BookingForm({
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
-  const total = days * pricePerDay + afterHoursTotal;
+
+  // ค่าเช่าคิดรายวันตามช่วงราคาของรถคันนี้ แล้วยุบวันที่ราคาเท่ากันเข้าด้วยกัน
+  const segments =
+    days > 0 && startDate
+      ? rentSegments(new Date(`${startDate}T${startTime}:00+07:00`), days, pricePerDay, carRates)
+      : [];
+  const rentTotal = segments.reduce((sum, seg) => sum + seg.total, 0);
+  const total = rentTotal + afterHoursTotal;
+
+  // ช่วงที่แอดมินปิดรับจอง
+  const blocked = blockingRates(startDate, endDate, carRates);
 
   /** ป้ายค่าธรรมเนียมข้างช่องเลือกเวลา */
   function feeHint(f: ReturnType<typeof feeForTime>) {
@@ -106,6 +124,15 @@ export default function BookingForm({
 
     if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
       setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
+      setSubmitting(false);
+      return;
+    }
+
+    const nowBlocked = blockingRates(startDate, endDate, carRates);
+    if (nowBlocked.length > 0) {
+      setError(
+        `รถคันนี้ปิดรับจองช่วง ${formatRateRange(nowBlocked[0])} (${nowBlocked[0].label}) กรุณาเลือกวันอื่น`
+      );
       setSubmitting(false);
       return;
     }
@@ -255,10 +282,33 @@ export default function BookingForm({
           </div>
         )}
 
+        {blocked.length > 0 && (
+          <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
+            รถคันนี้ปิดรับจองช่วง {formatRateRange(blocked[0])} ({blocked[0].label}) กรุณาเลือกวันอื่น
+          </div>
+        )}
+
         {days > 0 && (
           <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between">
             <div className="text-sm text-slate-600">
-              {days} วัน × {pricePerDay.toLocaleString()} ฿
+              {segments.length > 1 ? (
+                segments.map((seg) => (
+                  <span key={seg.from} className="block">
+                    {formatRateRange({ startDate: seg.from, endDate: seg.to })} ·{" "}
+                    {seg.days} วัน × {seg.pricePerDay.toLocaleString()} ฿
+                    {seg.label ? (
+                      <span className="text-amber-700"> ({seg.label})</span>
+                    ) : null}
+                  </span>
+                ))
+              ) : (
+                <>
+                  {days} วัน × {(segments[0]?.pricePerDay ?? pricePerDay).toLocaleString()} ฿
+                  {segments[0]?.label ? (
+                    <span className="text-amber-700"> ({segments[0].label})</span>
+                  ) : null}
+                </>
+              )}
               <span className="block text-xs text-slate-500 mt-0.5">
                 รับ {startTime} น. · คืน {endTime} น.
               </span>

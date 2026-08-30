@@ -43,6 +43,17 @@ export async function getAvailability(
     select: { carId: true, startDate: true, endDate: true },
   });
 
+  // ช่วงที่แอดมินปิดรับจอง — นับเป็นไม่ว่างทั้งวัน
+  const blocks = (await prisma.carRate.findMany({
+    where: {
+      carId: { in: carIds },
+      kind: "BLOCK",
+      startDate: { lt: rangeEnd },
+      endDate: { gte: rangeStart },
+    },
+    select: { carId: true, startDate: true, endDate: true },
+  })) as { carId: string; startDate: Date; endDate: Date }[];
+
   const dates = dateList(fromStr, days);
 
   type Row = { carId: string; startDate: Date; endDate: Date };
@@ -50,10 +61,22 @@ export async function getAvailability(
 
   for (const carId of carIds) {
     const mine = rows.filter((b) => b.carId === carId);
+    const myBlocks = blocks
+      .filter((b) => b.carId === carId)
+      .map((b) => ({
+        start: b.startDate,
+        // endDate คือวันสุดท้ายที่ปิด จึงขยายถึงสิ้นวันนั้น
+        end: new Date(b.endDate.getTime() + DAY_MS),
+      }));
     const map: Availability = {};
 
     for (const dateStr of dates) {
       const { start: dayStart, end: dayEnd } = bangkokDayRange(dateStr);
+
+      if (myBlocks.some((b) => b.start <= dayStart && b.end >= dayEnd)) {
+        map[dateStr] = "full";
+        continue;
+      }
 
       for (const b of mine) {
         const bs = new Date(b.startDate);
@@ -79,13 +102,32 @@ export async function getAvailability(
   return result;
 }
 
-/** ช่วงที่ไม่ว่างของรถคันเดียว ใช้แสดงเป็นข้อความใน LINE */
+/**
+ * ช่วงที่ไม่ว่างของรถคันเดียว — รวมทั้งการจองของลูกค้าอื่น
+ * และช่วงที่แอดมินปิดรับจองไว้ (CarRate kind = BLOCK)
+ */
 export async function getBusyRanges(
   carId: string,
   days = 60
 ): Promise<BusyRange[]> {
   const now = new Date();
   const rangeEnd = new Date(now.getTime() + days * DAY_MS);
+
+  const blocks = (await prisma.carRate.findMany({
+    where: {
+      carId,
+      kind: "BLOCK",
+      endDate: { gte: new Date(now.getTime() - DAY_MS) },
+      startDate: { lt: rangeEnd },
+    },
+    select: { startDate: true, endDate: true },
+  })) as { startDate: Date; endDate: Date }[];
+
+  // endDate ของช่วงปิดคือ "วันสุดท้ายที่ปิด" จึงต้องขยายไปถึงสิ้นวันนั้น
+  const blockRanges: BusyRange[] = blocks.map((b) => ({
+    start: b.startDate,
+    end: new Date(b.endDate.getTime() + DAY_MS),
+  }));
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -98,10 +140,13 @@ export async function getBusyRanges(
     select: { startDate: true, endDate: true },
   });
 
-  return (bookings as { startDate: Date; endDate: Date }[]).map((b) => ({
-    start: b.startDate,
-    end: b.endDate,
-  }));
+  const bookingRanges: BusyRange[] = (
+    bookings as { startDate: Date; endDate: Date }[]
+  ).map((b) => ({ start: b.startDate, end: b.endDate }));
+
+  return [...bookingRanges, ...blockRanges].sort(
+    (a, b) => a.start.getTime() - b.start.getTime()
+  );
 }
 
 /**

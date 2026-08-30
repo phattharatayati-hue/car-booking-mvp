@@ -6,6 +6,13 @@
  * ส่วนการดึงข้อมูลช่วงเวลาจากฐานข้อมูลอยู่ที่ lib/after-hours-server.ts
  */
 
+import {
+  rentSegments,
+  formatRateRange,
+  type CarRateView,
+  type RentSegment,
+} from "@/lib/car-rates";
+
 export const MINUTES_PER_DAY = 24 * 60;
 
 export type AfterHoursRate = {
@@ -88,6 +95,8 @@ export type QuoteLine = {
 export type Quote = {
   days: number;
   rentTotal: number;
+  /** ค่าเช่าแยกตามช่วงราคา — วันที่ราคาเท่ากันและติดกันจะถูกยุบเป็นช่วงเดียว */
+  segments: RentSegment[];
   pickupFee: number;
   returnFee: number;
   afterHoursTotal: number;
@@ -109,21 +118,27 @@ export function quoteBooking(params: {
   end: Date;
   pricePerDay: number;
   rates: AfterHoursRate[];
+  /** ช่วงราคาตามวันของรถคันนั้น — ไม่ส่งมาก็ใช้ราคาปกติทุกวัน */
+  carRates?: CarRateView[];
 }): Quote {
-  const { start, end, pricePerDay, rates } = params;
+  const { start, end, pricePerDay, rates, carRates = [] } = params;
   const days = rentalDays(start, end);
-  const rentTotal = days * pricePerDay;
+
+  // คิดราคาทีละวัน แล้วยุบวันที่ราคาเท่ากันและติดกันเข้าด้วยกัน
+  const segments = rentSegments(start, days, pricePerDay, carRates);
+  const rentTotal = segments.reduce((sum, seg) => sum + seg.total, 0);
 
   const pickup = feeForMinute(bangkokMinuteOfDay(start), rates);
   const ret = feeForMinute(bangkokMinuteOfDay(end), rates);
 
-  const lines: QuoteLine[] = [
-    {
-      kind: "rent",
-      label: `ค่าเช่า ${days} วัน × ${pricePerDay.toLocaleString()} บาท`,
-      amount: rentTotal,
-    },
-  ];
+  const lines: QuoteLine[] = segments.map((seg) => ({
+    kind: "rent" as const,
+    label: seg.label
+      ? `${seg.label} (${formatRateRange({ startDate: seg.from, endDate: seg.to })}) ${seg.days} วัน × ${seg.pricePerDay.toLocaleString()} บาท`
+      : `ค่าเช่า ${seg.days} วัน × ${seg.pricePerDay.toLocaleString()} บาท`,
+    amount: seg.total,
+  }));
+
   if (pickup.fee > 0 && pickup.rate) {
     lines.push({
       kind: "pickup",
@@ -144,6 +159,7 @@ export function quoteBooking(params: {
   return {
     days,
     rentTotal,
+    segments,
     pickupFee: pickup.fee,
     returnFee: ret.fee,
     afterHoursTotal,

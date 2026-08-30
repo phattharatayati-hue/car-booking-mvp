@@ -2,6 +2,8 @@
  * ข้อความแบบ Flex สำหรับการจองรถผ่านแชท LINE
  */
 
+import { formatRateRange, type RentSegment } from "@/lib/car-rates";
+
 export type FlexCar = {
   id: string;
   brand: string;
@@ -134,6 +136,8 @@ export function bookingSummary(opts: {
   end: Date;
   days: number;
   pricePerDay: number;
+  /** ค่าเช่าแยกตามช่วงราคา — ถ้ามีหลายช่วงจะแสดงทีละบรรทัด */
+  segments?: RentSegment[];
   total: number;
   serviceNote?: string;
 }) {
@@ -171,7 +175,14 @@ export function bookingSummary(opts: {
           row("วันรับรถ", fmtDate(opts.start)),
           row("วันคืนรถ", fmtDate(opts.end)),
           row("จำนวนวัน", `${opts.days} วัน`),
-          row("ราคา/วัน", `${opts.pricePerDay.toLocaleString()} บาท`),
+          ...(opts.segments && opts.segments.length > 1
+            ? opts.segments.map((seg) =>
+                row(
+                  seg.label ?? "ราคาปกติ",
+                  `${formatRateRange({ startDate: seg.from, endDate: seg.to })}\n${seg.days} วัน × ${seg.pricePerDay.toLocaleString()} = ${seg.total.toLocaleString()} บาท`
+                )
+              )
+            : [row("ราคา/วัน", `${opts.pricePerDay.toLocaleString()} บาท`)]),
           { type: "separator", margin: "md" },
           row("ยอดรวม", `${opts.total.toLocaleString()} บาท`, true),
           ...(opts.serviceNote?.trim()

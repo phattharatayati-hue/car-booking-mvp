@@ -10,6 +10,7 @@ import { getSettings, timeOptions } from "@/lib/settings";
 import ServiceNote from "@/components/ServiceNote";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
+import { getCarRates } from "@/lib/car-rates-server";
 import { needsApproval } from "@/lib/booking-status";
 import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
@@ -36,6 +37,7 @@ export default async function BookCarPage({
   const availabilityMap = await getAvailability([car.id], fromStr, 90);
   const availability = availabilityMap.get(car.id) ?? {};
   const busySpans = await getBusySpans(car.id, 120);
+  const carRates = await getCarRates(car.id);
 
   return (
     <PublicShell>
@@ -64,6 +66,7 @@ export default async function BookCarPage({
               timeOptions={times}
               afterHoursRates={afterHoursRates}
               busySpans={busySpans}
+              carRates={carRates}
               isRequest={isRequest}
               availability={availability}
               pickupPoints={pickupPoints}
