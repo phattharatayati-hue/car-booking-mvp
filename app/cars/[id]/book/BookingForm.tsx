@@ -19,6 +19,7 @@ import {
   timeChoicesFor,
   firstFreeTime,
   rangeBusy,
+  isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
 
@@ -90,6 +91,19 @@ export default function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endDate]);
 
+  /** เช่าวันเดียว — เวลาคืนต้องหลังเวลารับ */
+  const sameDay = Boolean(startDate && endDate && startDate === endDate);
+  const sameDayInvalid = sameDay && endTime <= startTime;
+
+  // เลือกวันเดียวกันแล้วเวลาคืนยังไม่หลังเวลารับ — เลื่อนให้อัตโนมัติ
+  useEffect(() => {
+    if (!sameDay) return;
+    if (endTime > startTime) return;
+    const next = timeOptions.find((t) => t > startTime && !isTimeBusy(endDate, t, busySpans));
+    if (next) setEndTime(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameDay, startTime, endDate]);
+
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
@@ -118,6 +132,12 @@ export default function BookingForm({
 
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
+      setSubmitting(false);
+      return;
+    }
+
+    if (startDate === endDate && endTime <= startTime) {
+      setError("เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ กรุณาเลือกเวลาคืนใหม่");
       setSubmitting(false);
       return;
     }
@@ -279,6 +299,12 @@ export default function BookingForm({
         {overlaps && (
           <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
             ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกวันหรือเวลาใหม่
+          </div>
+        )}
+
+        {sameDayInvalid && (
+          <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
+            เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ — เลือกเวลาคืนให้ช้ากว่า {startTime} น.
           </div>
         )}
 

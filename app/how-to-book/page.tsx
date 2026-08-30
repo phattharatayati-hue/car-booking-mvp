@@ -8,6 +8,7 @@ import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { BANK_ACCOUNT, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
 import {
   CustomerFlow,
+  CalendarTapDiagram,
   MoneyTimeline,
   AfterHoursClock,
   CalendarLegendDiagram,
@@ -167,6 +168,27 @@ export default async function HowToBookPage() {
             title="1. เลือกรถและวันเวลา"
             lead="เลือกคันที่ถูกใจ แล้วเลือกวันรับ-คืนบนปฏิทิน ระบบคำนวณราคาให้ทันทีที่เลือก"
           >
+            <h3 className="font-semibold text-slate-900 text-lg mt-2">
+              เลือกวันด้วยการแตะสองครั้ง
+            </h3>
+            <p>
+              ปฏิทินไม่มีช่องให้พิมพ์วันที่ ใช้วิธี<b>แตะเอา</b> —
+              แตะครั้งแรกคือ<b>วันรับรถ</b> แล้วแตะอีกครั้งคือ<b>วันคืนรถ</b>
+              ระบบจะระบายสีวันที่อยู่ระหว่างกลางให้เห็นว่าเช่ากี่วัน
+            </p>
+            <CalendarTapDiagram />
+            <Tips
+              items={[
+                "แตะครั้งแรก = วันรับรถ · แตะครั้งที่สอง = วันคืนรถ ด้านบนปฏิทินมีป้ายบอกว่ากำลังอยู่ขั้นไหน",
+                "เช่าวันเดียว รับเช้าคืนเย็น ให้แตะวันเดิมซ้ำอีกครั้ง แล้วเลือกเวลาคืนให้หลังเวลารับ",
+                "แตะผิดกดปุ่ม ล้าง มุมขวาบนของปฏิทิน แล้วเริ่มใหม่ได้เลย",
+                "เลือกวันครบแล้วค่อยเลือกเวลารับและเวลาคืนในช่องด้านล่างปฏิทิน",
+              ]}
+            />
+
+            <h3 className="font-semibold text-slate-900 text-lg mt-4">
+              สีในปฏิทินแปลว่าอะไร
+            </h3>
             <CalendarLegendDiagram />
             <Tips
               items={[

@@ -77,7 +77,13 @@ export default function AvailabilityCalendar({
       onSelect(dateStr, "");
       return;
     }
-    if (dateStr <= startDate) {
+    // แตะวันเดิมซ้ำ = เช่าวันเดียว (รับเช้า คืนเย็นวันเดียวกัน)
+    if (dateStr === startDate) {
+      onSelect(startDate, startDate);
+      return;
+    }
+    // แตะวันก่อนหน้าวันรับรถ = เริ่มเลือกใหม่จากวันนั้น
+    if (dateStr < startDate) {
       onSelect(dateStr, "");
       return;
     }
@@ -90,11 +96,15 @@ export default function AvailabilityCalendar({
 
   const base = new Date(today.getFullYear(), today.getMonth() + offset, 1);
 
-  const hint = !startDate
-    ? "แตะวันที่ต้องการรับรถ"
-    : !endDate
-    ? "แตะวันคืนรถอีกครั้ง"
-    : `${thaiDate(startDate)} → ${thaiDate(endDate)}`;
+  /** ขั้นที่กำลังทำอยู่ — 0 = ยังไม่เลือก, 1 = เลือกวันรับแล้ว, 2 = ครบแล้ว */
+  const step = !startDate ? 0 : !endDate ? 1 : 2;
+
+  const hint =
+    step === 0
+      ? "แตะวันที่ต้องการรับรถ"
+      : step === 1
+      ? "แตะอีกครั้งเพื่อเลือกวันคืนรถ"
+      : `${thaiDate(startDate)} → ${thaiDate(endDate)}`;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
@@ -121,6 +131,65 @@ export default function AvailabilityCalendar({
             </button>
           )}
         </div>
+      </div>
+
+      {/* บอกว่ากำลังอยู่ขั้นไหน — ลูกค้าส่วนใหญ่ไม่รู้ว่าต้องแตะสองครั้ง */}
+      <div className="px-4 py-3 border-b border-slate-100 bg-white">
+        <div className="flex items-stretch gap-2">
+          {[
+            { n: 1, t: "แตะวันรับรถ", d: startDate ? thaiDate(startDate) : "ยังไม่เลือก" },
+            { n: 2, t: "แตะวันคืนรถ", d: endDate ? thaiDate(endDate) : "ยังไม่เลือก" },
+          ].map((it, i) => {
+            const done = i === 0 ? Boolean(startDate) : Boolean(endDate);
+            const active = step === i;
+            return (
+              <div
+                key={it.n}
+                className={`flex-1 rounded-xl border px-3 py-2.5 transition-colors ${
+                  active
+                    ? "border-blue-300 bg-blue-50 ring-4 ring-blue-500/10"
+                    : done
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[11px] font-bold ${
+                      done
+                        ? "bg-emerald-600 text-white"
+                        : active
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-300 text-white"
+                    }`}
+                  >
+                    {done ? "✓" : it.n}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold ${
+                      active ? "text-blue-800" : done ? "text-emerald-800" : "text-slate-500"
+                    }`}
+                  >
+                    {it.t}
+                  </span>
+                </div>
+                <p
+                  className={`text-[11px] mt-1 ps-7 truncate ${
+                    done ? "text-emerald-700" : "text-slate-400"
+                  }`}
+                >
+                  {it.d}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+        {step === 1 ? (
+          <p className="mt-2.5 text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+            เลือกวันรับรถแล้ว — ตอนนี้แตะ<b>วันคืนรถ</b> ระบบจะระบายสีช่วงที่เช่าให้เห็น
+            · <b>เช่าวันเดียว</b>ให้แตะวันเดิมซ้ำอีกครั้ง แล้วเลือกเวลาคืนให้หลังเวลารับ
+          </p>
+        ) : null}
       </div>
 
       {/* คำอธิบายสี — มีสัญลักษณ์กำกับด้วย ไม่พึ่งสีอย่างเดียว */}

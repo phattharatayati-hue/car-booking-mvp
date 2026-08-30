@@ -770,3 +770,95 @@ export function CustomerStatusFlow() {
     </Frame>
   );
 }
+
+/** วิธีแตะเลือกวัน — แตะครั้งแรกคือวันรับ ครั้งที่สองคือวันคืน */
+export function CalendarTapDiagram() {
+  const days = ["6", "7", "8", "9", "10", "11"];
+
+  /** วาดปฏิทินย่อหนึ่งชุด */
+  const Mini = ({
+    ox,
+    start,
+    end,
+    step,
+  }: {
+    ox: number;
+    start?: string;
+    end?: string;
+    step: string;
+  }) => (
+    <g>
+      <rect x={ox} y={64} width={272} height={150} rx={22} fill="#fff" stroke={NAVY_LINE} strokeWidth="1.8" />
+      <text x={ox + 136} y={94} textAnchor="middle" fontSize="13" fontWeight="600" fill={NAVY}>
+        {step}
+      </text>
+      {days.map((d, i) => {
+        const inRange = Boolean(start && end && d > start && d < end);
+        const isEdge = d === start || d === end;
+        return (
+          <g key={d}>
+            <rect
+              x={ox + 16 + i * 41}
+              y={112}
+              width={36}
+              height={36}
+              rx={12}
+              fill={isEdge ? NAVY : inRange ? TINT : "#fff"}
+              stroke={isEdge ? NAVY : inRange ? NAVY_LINE : LINE}
+              strokeWidth="1.5"
+            />
+            <text
+              x={ox + 34 + i * 41}
+              y={136}
+              textAnchor="middle"
+              fontSize="13"
+              fontWeight="600"
+              fill={isEdge ? "#fff" : inRange ? NAVY : MUTED}
+            >
+              {d}
+            </text>
+            {d === start ? (
+              <text x={ox + 34 + i * 41} y={172} textAnchor="middle" fontSize="11" fill={NAVY}>
+                รับรถ
+              </text>
+            ) : null}
+            {d === end ? (
+              <text x={ox + 34 + i * 41} y={172} textAnchor="middle" fontSize="11" fill={NAVY}>
+                คืนรถ
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+      {start && !end ? (
+        <text x={ox + 136} y={196} textAnchor="middle" fontSize="12" fill={MUTED}>
+          รอแตะวันคืนรถ
+        </text>
+      ) : null}
+      {start && end ? (
+        <text x={ox + 136} y={196} textAnchor="middle" fontSize="12" fill={OK}>
+          เช่า 5 วัน · เลือกครบแล้ว
+        </text>
+      ) : null}
+      {!start ? (
+        <text x={ox + 136} y={196} textAnchor="middle" fontSize="12" fill={MUTED}>
+          ยังไม่ได้เลือกอะไร
+        </text>
+      ) : null}
+    </g>
+  );
+
+  return (
+    <Frame title="เลือกวันเช่าด้วยการแตะสองครั้ง — ครั้งแรกวันรับ ครั้งที่สองวันคืน" viewBox="0 0 940 250">
+      <Defs />
+      <Mini ox={20} step="เริ่มต้น" />
+      <Mini ox={334} start="6" step="แตะครั้งที่ 1 → วันรับรถ" />
+      <Mini ox={648} start="6" end="10" step="แตะครั้งที่ 2 → วันคืนรถ" />
+      <Arrow x1={296} y1={139} x2={330} y2={139} />
+      <Arrow x1={610} y1={139} x2={644} y2={139} />
+      <text x={470} y={236} textAnchor="middle" fontSize="12.5" fill={MUTED}>
+        เช่าวันเดียวให้แตะวันเดิมซ้ำอีกครั้ง · แตะผิดกดปุ่ม ล้าง มุมขวาบนของปฏิทินเพื่อเริ่มใหม่
+      </text>
+    </Frame>
+  );
+}

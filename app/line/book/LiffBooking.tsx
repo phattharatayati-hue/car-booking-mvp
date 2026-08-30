@@ -9,6 +9,7 @@ import {
   timeChoicesFor,
   firstFreeTime,
   rangeBusy,
+  isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
 import { BANK_ACCOUNT } from "@/lib/contact";
@@ -176,6 +177,18 @@ export default function LiffBooking({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endDate]);
 
+  /** เช่าวันเดียว — เวลาคืนต้องหลังเวลารับ */
+  const sameDay = Boolean(startDate && endDate && startDate === endDate);
+  const sameDayInvalid = sameDay && endTime <= startTime;
+
+  useEffect(() => {
+    if (!sameDay) return;
+    if (endTime > startTime) return;
+    const next = timeOptions.find((t) => t > startTime && !isTimeBusy(endDate, t, busySpans));
+    if (next) setEndTime(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sameDay, startTime, endDate]);
+
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
@@ -186,6 +199,12 @@ export default function LiffBooking({
       setError("กรุณาเลือกวันรับและวันคืนรถ");
       return;
     }
+    if (startDate === endDate && endTime <= startTime) {
+      setError("เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ กรุณาเลือกเวลาคืนใหม่");
+      setSubmitting(false);
+      return;
+    }
+
     if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
       setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
       return;
@@ -479,6 +498,12 @@ export default function LiffBooking({
             placeholder="0812345678"
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm"
           />
+        </div>
+      )}
+
+      {sameDayInvalid && (
+        <div className="text-sm bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3">
+          เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ — เลือกเวลาคืนให้ช้ากว่า {startTime} น.
         </div>
       )}
 
