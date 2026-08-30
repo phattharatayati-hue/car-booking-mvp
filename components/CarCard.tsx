@@ -29,7 +29,7 @@ export default function CarCard({ car, availability }: CarCardProps) {
     : "ไม่ว่างช่วงนี้";
 
   return (
-    <div className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-lg hover:shadow-slate-200/60 hover:-translate-y-0.5 transition-all duration-200">
+    <div className="group bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-lg hover:shadow-slate-200/60 hover:-translate-y-0.5 transition-all duration-200">
       <div className="relative w-full aspect-[4/3] bg-slate-100 overflow-hidden">
         {car.photoUrl ? (
           <Image

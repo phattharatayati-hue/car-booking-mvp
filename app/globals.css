@@ -1,16 +1,90 @@
 @import "tailwindcss";
 
+/**
+ * ระบบสีของ PHUPING CORPORATION
+ *
+ * โทนอ่อน มุมมน กรมท่าคู่ทอง
+ * เราตั้งค่าทับสเกลสีของ Tailwind (blue / slate / amber / emerald / red) ไปเลย
+ * คลาสเดิมทั้งเว็บจึงเปลี่ยนหน้าตาตามทันที โดยไม่ต้องไล่แก้ทีละไฟล์
+ *   blue    = กรมท่า (สีหลัก ปุ่ม ลิงก์)
+ *   amber   = ทอง (สิ่งที่ต้องมอง ค่าบริการนอกเวลา ราคาช่วงพิเศษ)
+ *   emerald = สำเร็จ · red = ยกเลิก/ผิดพลาด · slate = พื้นและตัวอักษร
+ */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f5f8fc;
+  --foreground: #1b2b41;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-noto-thai), var(--font-geist-sans), ui-sans-serif, system-ui,
-    sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* ฟอนต์ฝังมากับโปรเจกต์ ประกาศไว้ที่ app/layout.tsx */
+  --font-sans: "IBM Plex Sans Thai", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Anuphan", "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* กรมท่า — สีหลัก */
+  --color-blue-50: #eaf1fa;
+  --color-blue-100: #d8e4f2;
+  --color-blue-200: #c3d6ec;
+  --color-blue-300: #9cbadd;
+  --color-blue-400: #5b87b8;
+  --color-blue-500: #35608f;
+  --color-blue-600: #26456e;
+  --color-blue-700: #1b3455;
+  --color-blue-800: #152943;
+  --color-blue-900: #101f34;
+
+  /* เทาอมน้ำเงิน — พื้นและตัวอักษร */
+  --color-slate-50: #f5f8fc;
+  --color-slate-100: #edf2f8;
+  --color-slate-200: #e1e9f2;
+  --color-slate-300: #cfdae7;
+  --color-slate-400: #94a2b4;
+  --color-slate-500: #647388;
+  --color-slate-600: #52627a;
+  --color-slate-700: #3c4e67;
+  --color-slate-800: #29394f;
+  --color-slate-900: #1b2b41;
+
+  /* ทอง — สิ่งที่ต้องมอง */
+  --color-amber-50: #fcf2e0;
+  --color-amber-100: #f8e9cc;
+  --color-amber-200: #f0dfbe;
+  --color-amber-300: #e6cf9c;
+  --color-amber-400: #d3b25c;
+  --color-amber-500: #c9a227;
+  --color-amber-600: #b08f1e;
+  --color-amber-700: #a87526;
+  --color-amber-800: #8a6e12;
+  --color-amber-900: #6b5310;
+
+  /* สำเร็จ */
+  --color-emerald-50: #e6f4ee;
+  --color-emerald-100: #d7ede3;
+  --color-emerald-200: #cde8dd;
+  --color-emerald-500: #3d9878;
+  --color-emerald-600: #2f8567;
+  --color-emerald-700: #27795c;
+  --color-emerald-800: #1f6349;
+
+  /* ยกเลิก / ผิดพลาด */
+  --color-red-50: #fbebe9;
+  --color-red-100: #f7ddda;
+  --color-red-200: #f3d5d1;
+  --color-red-500: #c25548;
+  --color-red-600: #b34438;
+  --color-red-700: #9c3a2f;
+  --color-red-800: #86322a;
+
+  /* มุมมนขึ้นทั้งระบบ */
+  --radius-md: 0.7rem;
+  --radius-lg: 0.9rem;
+  --radius-xl: 1.1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
 }
 
 body {
@@ -20,6 +94,29 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* หัวข้อใช้ฟอนต์ Anuphan ให้ต่างจากเนื้อความ */
+h1,
+h2,
+.font-display {
+  font-family: var(--font-display);
+  text-wrap: balance;
+}
+
+/* ตัวเลขที่เรียงเป็นคอลัมน์ต้องตรงหลัก */
+.tabular-nums,
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ปุ่มและช่องกรอกสูงพอให้แตะด้วยนิ้วโป้งบนมือถือ */
+button,
+[type="button"],
+[type="submit"],
+select,
+input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: 2.75rem;
+}
+
 /* ทำให้ปฏิทินของ input[type=date] กดง่ายขึ้น */
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
@@ -27,6 +124,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+
+/* โฟกัสด้วยคีย์บอร์ดต้องเห็นชัด */
+:focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
 }
 
 @keyframes fade-up {
@@ -42,4 +145,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 .animate-fade-up {
   animation: fade-up 0.4s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
 }

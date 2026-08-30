@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Brand from "@/components/Brand";
 import { signIn } from "@/lib/auth";
 import { AuthError } from "next-auth";
 
@@ -33,22 +34,11 @@ export default async function LoginPage({
     <div className="min-h-screen flex flex-col bg-slate-50">
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <Link href="/" className="flex items-center justify-center gap-2.5 mb-8">
-            <span className="w-10 h-10 rounded-xl bg-blue-600 text-white grid place-items-center shadow-sm shadow-blue-600/30">
-              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
-                <path
-                  d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11m-14 0h14m-14 0a1 1 0 00-1 1v4h2m13-5a1 1 0 011 1v4h-2m0 0H7"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="font-bold text-lg text-slate-900">CM Car Rent</span>
-          </Link>
+          <div className="flex justify-center mb-8">
+            <Brand href="/" size="lg" subtitle="ระบบหลังบ้าน" />
+          </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm shadow-blue-900/[0.04] p-8">
             <h1 className="text-xl font-bold text-slate-900">เข้าสู่ระบบแอดมิน</h1>
             <p className="text-slate-500 text-sm mt-1 mb-6">
               จัดการรถและตรวจสอบการจอง

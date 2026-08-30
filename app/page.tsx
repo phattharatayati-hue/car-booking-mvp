@@ -82,13 +82,13 @@ export default async function HomePage() {
           className="absolute inset-0 -z-10 opacity-60"
           style={{
             backgroundImage:
-              "radial-gradient(60% 50% at 80% 0%, rgba(37,99,235,0.12) 0%, rgba(248,250,252,0) 100%)",
+              "radial-gradient(60% 50% at 80% 0%, rgba(38,69,110,0.10) 0%, rgba(245,248,252,0) 100%)",
           }}
         />
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
           <div className="max-w-2xl animate-fade-up">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-blue-100 text-blue-700 text-xs font-medium shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
               บริการเช่ารถในเชียงใหม่
             </span>
 
@@ -105,13 +105,13 @@ export default async function HomePage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/cars"
-                className="px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/25 transition-colors"
+                className="px-7 py-3.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-600/25 transition-colors"
               >
                 ดูรถทั้งหมด
               </Link>
               <Link
                 href="/how-to-book"
-                className="px-6 py-3.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold transition-colors"
+                className="px-7 py-3.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold transition-colors"
               >
                 วิธีการจอง
               </Link>
@@ -119,19 +119,19 @@ export default async function HomePage() {
 
             <div className="mt-10 flex flex-wrap gap-8">
               <div>
-                <p className="text-2xl font-bold text-slate-900">{totalCars}</p>
+                <p className="text-2xl font-display font-bold text-slate-900">{totalCars}</p>
                 <p className="text-sm text-slate-500">คันพร้อมให้เช่า</p>
               </div>
               {minPrice !== null && (
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">
+                  <p className="text-2xl font-display font-bold text-slate-900">
                     {minPrice.toLocaleString()}฿
                   </p>
                   <p className="text-sm text-slate-500">เริ่มต้นต่อวัน</p>
                 </div>
               )}
               <div>
-                <p className="text-2xl font-bold text-slate-900">24 ชม.</p>
+                <p className="text-2xl font-display font-bold text-slate-900">24 ชม.</p>
                 <p className="text-sm text-slate-500">จองได้ตลอดเวลา</p>
               </div>
             </div>
@@ -145,9 +145,9 @@ export default async function HomePage() {
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="bg-white rounded-2xl border border-slate-200 p-6"
+              className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm shadow-blue-900/[0.03]"
             >
-              <span className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 grid place-items-center mb-4">
+              <span className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 grid place-items-center mb-4">
                 <svg viewBox="0 0 24 24" fill="none" className="w-[22px] h-[22px]">
                   {f.icon}
                 </svg>
