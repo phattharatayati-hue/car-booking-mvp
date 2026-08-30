@@ -24,12 +24,17 @@ async function addAdminAction(formData: FormData) {
   "use server";
   await requireDev();
 
+  // ช่องนี้คือ "ชื่อผู้ใช้" ที่ใช้ล็อกอิน — เก็บในคอลัมน์ email เพราะเป็นคีย์เฉพาะอยู่แล้ว
+  // จะใส่เป็นชื่อธรรมดา (Sutimon) หรืออีเมลเต็มก็ได้
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
   if (!email || !name || password.length < 8) {
     redirect("/admin/users?error=invalid");
+  }
+  if (!/^[a-z0-9._@-]{3,}$/.test(email)) {
+    redirect("/admin/users?error=username");
   }
 
   const existing = await prisma.adminUser.findUnique({ where: { email } });
@@ -163,7 +168,11 @@ const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
     tone: "ok",
   },
   invalid: { text: "ข้อมูลไม่ครบ หรือรหัสผ่านสั้นกว่า 8 ตัวอักษร", tone: "error" },
-  duplicate: { text: "อีเมลนี้ถูกใช้งานแล้ว", tone: "error" },
+  duplicate: { text: "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว", tone: "error" },
+  username: {
+    text: "ชื่อผู้ใช้ใช้ได้เฉพาะตัวอักษรอังกฤษ ตัวเลข . _ - @ และยาวอย่างน้อย 3 ตัว",
+    tone: "error",
+  },
   weakpassword: { text: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร", tone: "error" },
   self: { text: "ลบบัญชีตัวเองไม่ได้", tone: "error" },
   last: { text: "ลบไม่ได้ ต้องเหลือแอดมินอย่างน้อย 1 คน", tone: "error" },

@@ -51,14 +51,14 @@ export default async function LoginPage({
                   <path d="M12 8v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                   <circle cx="12" cy="16" r="1" fill="currentColor" />
                 </svg>
-                อีเมลหรือรหัสผ่านไม่ถูกต้อง
+                ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง
               </div>
             )}
 
             <form action={loginAction} className="flex flex-col gap-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                  อีเมล หรือชื่อผู้ใช้
+                  ชื่อผู้ใช้
                 </label>
                 <input
                   id="email"
@@ -67,7 +67,7 @@ export default async function LoginPage({
                   required
                   autoComplete="username"
                   className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors"
-                  placeholder="admin@example.com"
+                  placeholder="Sutimon"
                 />
               </div>
               <div>

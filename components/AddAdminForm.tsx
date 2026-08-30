@@ -49,15 +49,23 @@ export default function AddAdminForm({
           <input id="new-name" name="name" required placeholder="สมชาย ใจดี" className={inputClass} />
         </div>
         <div>
-          <label className={labelClass} htmlFor="new-email">อีเมล (ใช้ล็อกอิน)</label>
+          <label className={labelClass} htmlFor="new-username">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label>
           <input
-            id="new-email"
+            id="new-username"
             name="email"
-            type="email"
+            type="text"
             required
-            placeholder="somchai@example.com"
+            autoCapitalize="none"
+            autoComplete="off"
+            spellCheck={false}
+            pattern="[A-Za-z0-9._@-]{3,}"
+            title="ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีด หรือขีดล่าง อย่างน้อย 3 ตัว"
+            placeholder="Sutimon"
             className={inputClass}
           />
+          <p className="mt-1 text-xs text-slate-500">
+            ภาษาอังกฤษหรือตัวเลข ห้ามเว้นวรรค · ใช้อีเมลก็ได้ถ้าต้องการ
+          </p>
         </div>
         <div>
           <label className={labelClass} htmlFor="new-password">รหัสผ่าน</label>
@@ -75,7 +83,7 @@ export default function AddAdminForm({
       </div>
 
       <p className="mt-4 text-sm text-slate-500">
-        สร้างบัญชีเสร็จแล้วค่อยกด “สร้างรหัสผูก LINE” ที่การ์ดของคนนั้นเพื่อเชื่อมการแจ้งเตือน
+        บอกชื่อผู้ใช้และรหัสผ่านให้เจ้าตัว แล้วให้เขาเข้าไปผูก LINE เองที่หน้า “บัญชีของฉัน”
       </p>
 
       <button
