@@ -49,6 +49,10 @@ export default function BookingForm({
   pickupPoints: PickupOption[];
 }) {
   const router = useRouter();
+  /** วันนี้ตามเวลาไทย — ใช้กันไม่ให้เลือกวันย้อนหลัง */
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(
+    new Date()
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
@@ -221,13 +225,38 @@ export default function BookingForm({
         <input type="hidden" name="startDate" value={startDate} />
         <input type="hidden" name="endDate" value={endDate} />
 
-        <p className="mt-3 text-sm text-slate-500">
-          {!startDate
-            ? "กดเลือกวันรับรถบนปฏิทิน"
-            : !endDate
-            ? "กดเลือกวันคืนรถอีกครั้ง"
-            : `เลือกแล้ว ${startDate} ถึง ${endDate}`}
-        </p>
+        {/* เลือกวันจากปฏิทินด้านบน หรือกรอกตรงนี้ก็ได้ — เช่าวันเดียวใส่วันเดียวกันได้เลย */}
+        <div className="grid sm:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label className={labelClass} htmlFor="startDateInput">วันรับรถ</label>
+            <input
+              id="startDateInput"
+              type="date"
+              value={startDate}
+              min={todayStr}
+              onChange={(e) => {
+                const v = e.target.value;
+                setStartDate(v);
+                if (endDate && endDate < v) setEndDate("");
+              }}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass} htmlFor="endDateInput">วันคืนรถ</label>
+            <input
+              id="endDateInput"
+              type="date"
+              value={endDate}
+              min={startDate || todayStr}
+              onChange={(e) => setEndDate(e.target.value)}
+              className={inputClass}
+            />
+            <p className="text-xs mt-1.5 text-slate-500">
+              เช่าวันเดียว ใส่วันเดียวกับวันรับรถได้เลย
+            </p>
+          </div>
+        </div>
 
         <div className="grid sm:grid-cols-2 gap-4 mt-4">
           <div>

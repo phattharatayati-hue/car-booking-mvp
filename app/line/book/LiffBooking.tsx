@@ -143,6 +143,11 @@ export default function LiffBooking({
     };
   }, [liffId]);
 
+  /** วันนี้ตามเวลาไทย — กันเลือกวันย้อนหลัง */
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(
+    new Date()
+  );
+
   const days =
     startDate && endDate
       ? Math.max(
@@ -396,7 +401,41 @@ export default function LiffBooking({
         months={1}
       />
 
+      {/* เลือกจากปฏิทินด้านบน หรือกรอกวันตรงนี้ก็ได้ */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="sd">
+            วันรับรถ
+          </label>
+          <input
+            id="sd"
+            type="date"
+            value={startDate}
+            min={todayStr}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStartDate(v);
+              if (endDate && endDate < v) setEndDate("");
+            }}
+            className="w-full rounded-xl bg-white border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="ed">
+            วันคืนรถ
+          </label>
+          <input
+            id="ed"
+            type="date"
+            value={endDate}
+            min={startDate || todayStr}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full rounded-xl bg-white border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          />
+        </div>
+        <p className="col-span-2 -mt-1 text-xs text-slate-500">
+          เช่าวันเดียว ใส่วันเดียวกับวันรับรถได้เลย
+        </p>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="st">
             เวลารับรถ
