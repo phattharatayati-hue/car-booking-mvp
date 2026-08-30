@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { requireDev } from "@/lib/roles";
 import {
   getSettings,
   SETTINGS_ID,
@@ -16,8 +16,7 @@ import {
 
 async function saveSettingsAction(formData: FormData) {
   "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  await requireDev();
 
   const on = formData.get("returnReminderOn") === "on";
   const leadHours = Number(formData.get("returnReminderLeadHours"));
@@ -85,6 +84,8 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
+  await requireDev();
+
   const { ok, error } = await searchParams;
   const settings = await getSettings();
   const lead = splitMinutes(settings.returnReminderMinutesBefore);

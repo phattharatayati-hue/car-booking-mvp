@@ -3,26 +3,26 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import bcrypt from "bcryptjs";
-import { auth } from "@/lib/auth";
-import { pushMessage } from "@/lib/line";
+import { requireDev } from "@/lib/roles";
+import { revokeToken } from "@/lib/google-calendar";
 import AddAdminForm from "@/components/AddAdminForm";
 
 type AdminRow = {
   id: string;
   email: string;
   name: string;
+  role: "ADMIN" | "DEV";
   lineUserId: string | null;
-  lineLinkCode: string | null;
-  lineLinkExpiresAt: Date | null;
+  googleEmail: string | null;
+  googleRefreshToken: string | null;
+  googleConnectedAt: Date | null;
   createdAt: Date;
 };
 
 async function addAdminAction(formData: FormData) {
   "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  await requireDev();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
@@ -46,25 +46,9 @@ async function addAdminAction(formData: FormData) {
   redirect("/admin/users?ok=added");
 }
 
-async function unlinkLineAction(formData: FormData) {
-  "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-
-  const id = String(formData.get("id") ?? "");
-  await prisma.adminUser.update({
-    where: { id },
-    data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
-  });
-
-  revalidatePath("/admin/users");
-  redirect("/admin/users?ok=unlinked");
-}
-
 async function resetPasswordAction(formData: FormData) {
   "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  await requireDev();
 
   const id = String(formData.get("id") ?? "");
   const password = String(formData.get("password") ?? "");
@@ -80,10 +64,65 @@ async function resetPasswordAction(formData: FormData) {
   redirect("/admin/users?ok=password");
 }
 
+/** ตัดการผูก LINE ของแอดมินคนหนึ่ง — ใช้ตอนเขาเปลี่ยนบัญชี LINE หรือลาออก */
+async function unlinkLineAction(formData: FormData) {
+  "use server";
+  await requireDev();
+
+  const id = String(formData.get("id") ?? "");
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) redirect("/admin/users?error=notfound");
+  if (!target.lineUserId) redirect("/admin/users?error=noline");
+
+  await prisma.adminUser.update({
+    where: { id },
+    data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
+  });
+
+  revalidatePath("/admin/users");
+  redirect("/admin/users?ok=unlinked");
+}
+
+/** ตัดการเชื่อม Google Calendar ของแอดมินคนหนึ่ง */
+async function disconnectCalendarAction(formData: FormData) {
+  "use server";
+  await requireDev();
+
+  const id = String(formData.get("id") ?? "");
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) redirect("/admin/users?error=notfound");
+  if (!target.googleRefreshToken) redirect("/admin/users?error=nogoogle");
+
+  // เพิกถอนสิทธิ์ที่ฝั่ง Google — ล้มเหลวก็ยังล้างข้อมูลฝั่งเราต่อ
+  try {
+    await revokeToken(target.googleRefreshToken);
+  } catch (err) {
+    console.error("revoke failed:", err);
+  }
+
+  await prisma.adminUser.update({
+    where: { id },
+    data: {
+      googleEmail: null,
+      googleRefreshToken: null,
+      googleCalendarId: null,
+      googleConnectedAt: null,
+    },
+  });
+
+  // event เก่าที่ค้างในปฏิทินเดิมจะถูกเพิกเฉย — ล้าง id ทิ้งไม่ให้ระบบพยายามแก้ต่อ
+  await prisma.bookingAssignment.updateMany({
+    where: { adminUserId: id },
+    data: { googleEventId: null, syncedAt: null, syncError: null },
+  });
+
+  revalidatePath("/admin/users");
+  redirect("/admin/users?ok=gdisconnected");
+}
+
 async function deleteAdminAction(formData: FormData) {
   "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const me = await requireDev();
 
   const id = String(formData.get("id") ?? "");
 
@@ -91,8 +130,13 @@ async function deleteAdminAction(formData: FormData) {
   if (!target) redirect("/admin/users?error=notfound");
 
   // กันลบตัวเอง
-  if (target.email === session.user.email) {
+  if (target.id === me.id) {
     redirect("/admin/users?error=self");
+  }
+
+  // กันลบบัญชีผู้ดูแลระบบคนอื่น
+  if (target.role === "DEV") {
+    redirect("/admin/users?error=dev");
   }
 
   // กันลบจนไม่เหลือแอดมินเลย
@@ -106,40 +150,27 @@ async function deleteAdminAction(formData: FormData) {
   redirect("/admin/users?ok=deleted");
 }
 
-async function testLineAction(formData: FormData) {
-  "use server";
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-
-  const lineUserId = String(formData.get("lineUserId") ?? "").trim();
-  if (!lineUserId) redirect("/admin/users?error=noline");
-
-  await pushMessage(
-    lineUserId,
-    "🔔 ทดสอบการแจ้งเตือนจากระบบจองรถ\n\nถ้าคุณเห็นข้อความนี้ แปลว่าตั้งค่าถูกต้องแล้ว"
-  );
-
-  redirect("/admin/users?ok=test");
-}
-
 const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
   added: { text: "เพิ่มแอดมินเรียบร้อยแล้ว", tone: "ok" },
-  unlinked: { text: "ยกเลิกการผูก LINE เรียบร้อยแล้ว", tone: "ok" },
-  updated: { text: "อัปเดต LINE ID เรียบร้อยแล้ว", tone: "ok" },
   deleted: { text: "ลบแอดมินเรียบร้อยแล้ว", tone: "ok" },
   password: { text: "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว", tone: "ok" },
-  test: { text: "ส่งข้อความทดสอบแล้ว กรุณาเช็ค LINE", tone: "ok" },
+  unlinked: {
+    text: "ตัดการผูก LINE เรียบร้อยแล้ว — ให้เจ้าตัวผูกใหม่ได้ที่หน้าบัญชีของฉัน",
+    tone: "ok",
+  },
+  gdisconnected: {
+    text: "ตัดการเชื่อม Google Calendar เรียบร้อยแล้ว — งานเก่าที่ลงปฏิทินไว้จะไม่ถูกอัปเดตอีก",
+    tone: "ok",
+  },
   invalid: { text: "ข้อมูลไม่ครบ หรือรหัสผ่านสั้นกว่า 8 ตัวอักษร", tone: "error" },
   duplicate: { text: "อีเมลนี้ถูกใช้งานแล้ว", tone: "error" },
-  lineid: {
-    text: "รูปแบบ LINE ID ไม่ถูกต้อง (ต้องขึ้นต้นด้วย U หรือ C ตามด้วยตัวอักษร/ตัวเลข 32 ตัว)",
-    tone: "error",
-  },
   weakpassword: { text: "รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร", tone: "error" },
   self: { text: "ลบบัญชีตัวเองไม่ได้", tone: "error" },
   last: { text: "ลบไม่ได้ ต้องเหลือแอดมินอย่างน้อย 1 คน", tone: "error" },
   notfound: { text: "ไม่พบบัญชีนี้", tone: "error" },
-  noline: { text: "ยังไม่ได้ผูก LINE ID", tone: "error" },
+  dev: { text: "ลบบัญชีผู้ดูแลระบบไม่ได้", tone: "error" },
+  noline: { text: "บัญชีนี้ยังไม่ได้ผูก LINE", tone: "error" },
+  nogoogle: { text: "บัญชีนี้ยังไม่ได้เชื่อม Google Calendar", tone: "error" },
 };
 
 export default async function AdminUsersPage({
@@ -147,12 +178,16 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
+  const me = await requireDev();
+
   const { ok, error } = await searchParams;
-  const session = await auth();
-  const admins = await prisma.adminUser.findMany({ orderBy: { createdAt: "asc" } });
+  // ซ่อนบัญชีผู้ดูแลระบบคนอื่น — เห็นได้เฉพาะของตัวเอง
+  const admins = (await prisma.adminUser.findMany({
+    orderBy: { createdAt: "asc" },
+  })) as AdminRow[];
+  const visible = admins.filter((a) => a.role !== "DEV" || a.id === me.id);
 
   const flash = MESSAGES[ok ?? ""] ?? MESSAGES[error ?? ""];
-  const linkedCount = admins.filter((a: AdminRow) => a.lineUserId).length;
 
   return (
     <div>
@@ -160,7 +195,7 @@ export default async function AdminUsersPage({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">จัดการแอดมิน</h1>
           <p className="text-slate-500 text-sm mt-1">
-            มีแอดมิน {admins.length} คน · ผูก LINE แล้ว {linkedCount} คน
+            มีแอดมิน {visible.length} คน · สร้างบัญชี ตั้งรหัสผ่านใหม่ และตัดการเชื่อม LINE/ปฏิทินได้ที่นี่
           </p>
         </div>
         <AddAdminForm action={addAdminAction} />
@@ -178,95 +213,81 @@ export default async function AdminUsersPage({
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
-        <h2 className="font-semibold text-blue-900 text-sm mb-2">
-          การผูก LINE ทำที่หน้าบัญชีของตัวเอง
-        </h2>
-        <p className="text-sm text-blue-900/90 leading-relaxed">
-          รหัสผูกต้องพิมพ์ส่งจากแชท LINE ของเจ้าตัว แอดมินแต่ละคนจึงต้องไปกดเองที่{" "}
-          <Link href="/admin/account" className="font-semibold underline">
-            บัญชีของฉัน
-          </Link>{" "}
-          — หน้านี้ดูได้ว่าใครผูกแล้วบ้าง และยกเลิกการผูกให้คนที่ลาออกได้
-        </p>
-      </div>
-
       <div className="flex flex-col gap-4">
-        {admins.map((admin: AdminRow) => {
-          const isSelf = admin.email === session?.user?.email;
+        {visible.map((admin: AdminRow) => {
+          const isSelf = admin.id === me.id;
           return (
             <div
               key={admin.id}
               className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"
             >
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <span className="w-11 h-11 rounded-full bg-slate-900 text-white grid place-items-center font-semibold shrink-0">
-                    {admin.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
-                      {admin.name}
-                      {isSelf && (
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                          คุณ
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-sm text-slate-500 truncate">{admin.email}</p>
-                  </div>
+              <div className="flex items-center gap-3.5 min-w-0 mb-5">
+                <span className="w-11 h-11 rounded-full bg-slate-900 text-white grid place-items-center font-semibold shrink-0">
+                  {admin.name.slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
+                    {admin.name}
+                    {isSelf && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        คุณ
+                      </span>
+                    )}
+                    {admin.role === "DEV" && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-900 text-white border border-slate-900">
+                        ผู้ดูแลระบบ
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-slate-500 truncate">{admin.email}</p>
                 </div>
+              </div>
 
+              <div className="flex flex-wrap gap-2 mb-4">
                 <span
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full border shrink-0 ${
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
                     admin.lineUserId
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : "bg-slate-100 text-slate-500 border-slate-200"
                   }`}
                 >
-                  {admin.lineUserId ? "🔔 รับแจ้งเตือน LINE" : "ยังไม่ผูก LINE"}
+                  {admin.lineUserId ? "🔔 ผูก LINE แล้ว" : "ยังไม่ผูก LINE"}
+                </span>
+                <span
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                    admin.googleConnectedAt
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-slate-100 text-slate-500 border-slate-200"
+                  }`}
+                >
+                  {admin.googleConnectedAt
+                    ? `📅 เชื่อมปฏิทินแล้ว${admin.googleEmail ? ` · ${admin.googleEmail}` : ""}`
+                    : "ยังไม่เชื่อมปฏิทิน"}
                 </span>
               </div>
 
-              {/* สถานะการผูก LINE — สร้างรหัสได้ที่หน้าบัญชีของเจ้าตัวเท่านั้น */}
-              {admin.lineUserId ? (
-                <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
-                  <span className="text-sm text-emerald-900">
-                    ผูกบัญชี LINE เรียบร้อยแล้ว
-                  </span>
-                  <form action={unlinkLineAction} className="ml-auto">
-                    <input type="hidden" name="id" value={admin.id} />
-                    <button className="text-sm font-medium text-emerald-800 hover:text-red-600 transition-colors">
-                      ยกเลิกการผูก
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-                  <span className="text-sm text-slate-600">
-                    ยังไม่ผูก LINE — จะไม่ได้รับแจ้งเตือนการจองและงานที่ได้รับมอบหมาย
-                  </span>
-                  {isSelf && (
-                    <Link
-                      href="/admin/account"
-                      className="ml-auto text-sm font-semibold text-blue-700 hover:underline"
-                    >
-                      ไปผูกที่บัญชีของฉัน
-                    </Link>
+              {(admin.lineUserId || admin.googleConnectedAt) && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {admin.lineUserId && (
+                    <form action={unlinkLineAction}>
+                      <input type="hidden" name="id" value={admin.id} />
+                      <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+                        ตัดการผูก LINE
+                      </button>
+                    </form>
+                  )}
+                  {admin.googleConnectedAt && (
+                    <form action={disconnectCalendarAction}>
+                      <input type="hidden" name="id" value={admin.id} />
+                      <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+                        ตัดการเชื่อมปฏิทิน
+                      </button>
+                    </form>
                   )}
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-end">
-                {admin.lineUserId && (
-                  <form action={testLineAction}>
-                    <input type="hidden" name="lineUserId" value={admin.lineUserId} />
-                    <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                      ส่งข้อความทดสอบ
-                    </button>
-                  </form>
-                )}
-
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-end">
                 <form action={resetPasswordAction} className="flex gap-2 items-end">
                   <input type="hidden" name="id" value={admin.id} />
                   <input

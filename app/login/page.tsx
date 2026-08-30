@@ -68,14 +68,14 @@ export default async function LoginPage({
             <form action={loginAction} className="flex flex-col gap-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                  อีเมล
+                  อีเมล หรือชื่อผู้ใช้
                 </label>
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   name="email"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-colors"
                   placeholder="admin@example.com"
                 />

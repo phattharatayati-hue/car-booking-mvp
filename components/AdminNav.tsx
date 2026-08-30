@@ -119,6 +119,7 @@ const ITEMS = [
   {
     href: "/admin/settings",
     label: "ตั้งค่าระบบ",
+    devOnly: true,
     icon: (
       <>
         <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
@@ -133,18 +134,9 @@ const ITEMS = [
     ),
   },
   {
-    href: "/admin/account",
-    label: "บัญชีของฉัน",
-    icon: (
-      <>
-        <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M4.5 20a7.5 7.5 0 0115 0" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      </>
-    ),
-  },
-  {
     href: "/admin/users",
     label: "จัดการแอดมิน",
+    devOnly: true,
     icon: (
       <>
         <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.7" />
@@ -160,12 +152,13 @@ const ITEMS = [
   },
 ];
 
-export default function AdminNav() {
+export default function AdminNav({ isDev = false }: { isDev?: boolean }) {
   const pathname = usePathname();
+  const items = ITEMS.filter((item) => isDev || !("devOnly" in item && item.devOnly));
 
   return (
     <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const active =
           item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
         return (
