@@ -6,6 +6,8 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { oauthConfigured, CALENDAR_NAME } from "@/lib/google-calendar";
 import { formatBangkokDateTime } from "@/lib/settings";
+import { createLinkCode } from "@/lib/line-link";
+import { pushMessage } from "@/lib/line";
 
 async function changePasswordAction(formData: FormData) {
   "use server";
@@ -36,6 +38,63 @@ async function changePasswordAction(formData: FormData) {
   redirect("/admin/account?ok=1");
 }
 
+/** ผู้ใช้ที่ล็อกอินอยู่ — ใช้ในแอ็กชันของ LINE */
+async function requireMe() {
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email) redirect("/login");
+  const me = await prisma.adminUser.findUnique({ where: { email } });
+  if (!me) redirect("/login");
+  return me;
+}
+
+/** ขอรหัส 6 หลักไปพิมพ์ในแชท LINE ของร้าน */
+async function createLinkCodeAction() {
+  "use server";
+  const me = await requireMe();
+  await createLinkCode(me.id);
+  redirect("/admin/account?lok=code");
+}
+
+/** ยกเลิกการผูก LINE ของตัวเอง */
+async function unlinkLineAction() {
+  "use server";
+  const me = await requireMe();
+  await prisma.adminUser.update({
+    where: { id: me.id },
+    data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
+  });
+  redirect("/admin/account?lok=unlinked");
+}
+
+/** ส่งข้อความทดสอบหาตัวเอง */
+async function testLineAction() {
+  "use server";
+  const me = await requireMe();
+  if (!me.lineUserId) redirect("/admin/account?lerror=noline");
+
+  try {
+    await pushMessage(
+      me.lineUserId,
+      "🔔 ทดสอบการแจ้งเตือนจากระบบจองรถ\n\nถ้าคุณเห็นข้อความนี้ แปลว่าตั้งค่าถูกต้องแล้ว"
+    );
+  } catch {
+    redirect("/admin/account?lerror=send");
+  }
+  redirect("/admin/account?lok=test");
+}
+
+const LOK: Record<string, string> = {
+  code: "สร้างรหัสผูกบัญชีแล้ว — นำไปพิมพ์ในแชท LINE ของร้านภายใน 10 นาที",
+  unlinked: "ยกเลิกการผูก LINE เรียบร้อยแล้ว",
+  test: "ส่งข้อความทดสอบแล้ว กรุณาเช็คแชท LINE",
+};
+
+const LERRORS: Record<string, string> = {
+  noline: "ยังไม่ได้ผูกบัญชี LINE",
+  send: "ส่งข้อความไม่สำเร็จ — อาจเผลอบล็อกบัญชีทางการของร้านไว้",
+};
+
 const GERRORS: Record<string, string> = {
   notconfigured: "ระบบยังไม่ได้ตั้งค่า Google OAuth — ต้องใส่ตัวแปร env ก่อน",
   denied: "คุณไม่ได้อนุญาตให้เข้าถึงปฏิทิน",
@@ -64,15 +123,22 @@ export default async function AccountPage({
     error?: string;
     gok?: string;
     gerror?: string;
+    lok?: string;
+    lerror?: string;
   }>;
 }) {
-  const { ok, error, gok, gerror } = await searchParams;
+  const { ok, error, gok, gerror, lok, lerror } = await searchParams;
   const session = await auth();
 
   const me = session?.user?.email
     ? await prisma.adminUser.findUnique({ where: { email: session.user.email } })
     : null;
   const calendarReady = Boolean(me?.googleRefreshToken && me?.googleCalendarId);
+
+  // รหัสผูก LINE ที่ยังไม่หมดอายุ
+  const codeLeftMs = (me?.lineLinkExpiresAt?.getTime() ?? 0) - Date.now();
+  const codeValid = Boolean(me?.lineLinkCode) && codeLeftMs > 0;
+  const codeMinutesLeft = Math.max(1, Math.ceil(codeLeftMs / 60000));
 
   return (
     <div className="max-w-lg">
@@ -104,6 +170,70 @@ export default async function AccountPage({
           {GERRORS[gerror]}
         </div>
       )}
+
+      {lok && LOK[lok] && (
+        <div className="mb-5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl">
+          {LOK[lok]}
+        </div>
+      )}
+      {lerror && LERRORS[lerror] && (
+        <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+          {LERRORS[lerror]}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
+        <h2 className="font-semibold text-slate-900">แจ้งเตือนทาง LINE</h2>
+        <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+          ผูกบัญชี LINE ของคุณกับระบบ เพื่อรับงานรับ-ส่งรถที่ได้รับมอบหมาย
+          และการแจ้งเตือนเมื่อมีสลิปรอตรวจ
+        </p>
+
+        {me?.lineUserId ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+              🔔 ผูกบัญชี LINE เรียบร้อยแล้ว
+            </span>
+            <form action={testLineAction}>
+              <button className="text-sm font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl transition-colors">
+                ส่งข้อความทดสอบ
+              </button>
+            </form>
+            <form action={unlinkLineAction} className="sm:ml-auto">
+              <button className="text-sm font-semibold bg-white border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl transition-colors">
+                ยกเลิกการผูก
+              </button>
+            </form>
+          </div>
+        ) : codeValid ? (
+          <div className="rounded-xl bg-blue-50 border border-blue-100 px-5 py-4">
+            <p className="text-sm text-blue-900 mb-2">
+              พิมพ์รหัสนี้ส่งในแชท LINE ของร้าน (หมดอายุใน {codeMinutesLeft} นาที)
+            </p>
+            <p className="text-4xl font-bold tracking-[0.3em] text-blue-900 font-mono">
+              {me?.lineLinkCode}
+            </p>
+            <form action={createLinkCodeAction} className="mt-3">
+              <button className="text-sm font-medium text-blue-700 hover:text-blue-900">
+                ขอรหัสใหม่
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div>
+            <ol className="text-sm text-slate-600 leading-relaxed list-decimal list-inside mb-4 flex flex-col gap-1">
+              <li>เพิ่มเพื่อน LINE Official Account ของร้าน</li>
+              <li>กดปุ่มด้านล่างเพื่อขอรหัส 6 หลัก</li>
+              <li>พิมพ์รหัสส่งในแชท ระบบจะผูกให้อัตโนมัติ</li>
+            </ol>
+            <form action={createLinkCodeAction}>
+              <button className="text-sm font-semibold bg-[#06C755] hover:bg-[#05b34c] text-white px-5 py-2.5 rounded-xl transition-colors">
+                🔗 ขอรหัสผูก LINE
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
         <h2 className="font-semibold text-slate-900">ปฏิทิน Google</h2>
