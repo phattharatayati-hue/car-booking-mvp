@@ -1,5 +1,5 @@
 import {
-  assignAction,
+  assignBothAction,
   unassignAction,
   resyncAction,
 } from "@/app/admin/assignments/actions";
@@ -51,10 +51,15 @@ export default function AssignmentBox({
     <div className="mt-5 pt-5 border-t border-slate-100">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="text-sm font-semibold text-slate-900">ใครไปส่ง ใครไปรับ</h3>
-        <span className="text-xs text-slate-400">มอบหมายได้หลายคนต่องาน</span>
+        <span className="text-xs text-slate-400">กรอกทั้งสองงาน แล้วกดมอบหมายครั้งเดียว</span>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      {/* ฟอร์มเดียวครอบทั้งงานส่งและงานรับคืน — ปุ่มมอบหมายอยู่ล่างสุดปุ่มเดียว
+          ปุ่มถอน/ซิงก์ใหม่ใช้ formAction ของตัวเอง จึงไม่ต้องซ้อนฟอร์ม (HTML ห้ามซ้อน) */}
+      <form action={assignBothAction}>
+        <input type="hidden" name="bookingId" value={booking.id} />
+
+        <div className="grid sm:grid-cols-2 gap-3">
         {HANDOFF_KINDS.map((kind) => {
           const rows = assignments.filter((a) => a.kind === kind);
           const fallbackAt = defaultMeetAt(booking, kind as HandoffKind);
@@ -105,19 +110,25 @@ export default function AssignmentBox({
                         </span>
                         <span className="flex items-center gap-2 shrink-0">
                           {a.syncError && (
-                            <form action={resyncAction}>
-                              <input type="hidden" name="assignmentId" value={a.id} />
-                              <button className="text-xs text-blue-700 hover:underline">
-                                ลองซิงก์ใหม่
-                              </button>
-                            </form>
-                          )}
-                          <form action={unassignAction}>
-                            <input type="hidden" name="assignmentId" value={a.id} />
-                            <button className="text-xs text-slate-400 hover:text-red-600 transition-colors">
-                              ถอน
+                            <button
+                              type="submit"
+                              formAction={resyncAction}
+                              name="assignmentId"
+                              value={a.id}
+                              className="text-xs text-blue-700 hover:underline"
+                            >
+                              ลองซิงก์ใหม่
                             </button>
-                          </form>
+                          )}
+                          <button
+                            type="submit"
+                            formAction={unassignAction}
+                            name="assignmentId"
+                            value={a.id}
+                            className="text-xs text-slate-400 hover:text-red-600 transition-colors"
+                          >
+                            ถอน
+                          </button>
                         </span>
                       </li>
                     );
@@ -125,20 +136,14 @@ export default function AssignmentBox({
                 </ul>
               )}
 
-              {/* เพิ่มคน */}
-              <form action={assignAction} className="flex flex-col gap-2">
-                <input type="hidden" name="bookingId" value={booking.id} />
-                <input type="hidden" name="kind" value={kind} />
-
+              {/* เพิ่มคน — ชื่อฟิลด์ขึ้นต้นด้วยชนิดงาน เพื่อให้ฟอร์มเดียวส่งได้ทั้งสองงาน */}
+              <div className="flex flex-col gap-2">
                 <select
-                  name="adminUserId"
-                  required
+                  name={`${kind}_adminUserId`}
                   defaultValue=""
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm bg-white"
                 >
-                  <option value="" disabled>
-                    เลือกแอดมิน...
-                  </option>
+                  <option value="">— ไม่มอบหมายงานนี้ —</option>
                   {admins.map((ad) => (
                     <option key={ad.id} value={ad.id}>
                       {ad.name}
@@ -149,13 +154,13 @@ export default function AssignmentBox({
 
                 <div className="grid grid-cols-2 gap-2">
                   <input
-                    name="meetDate"
+                    name={`${kind}_meetDate`}
                     type="date"
                     defaultValue={bangkokDateStr(fallbackAt)}
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs bg-white"
                   />
                   <input
-                    name="meetTime"
+                    name={`${kind}_meetTime`}
                     type="text"
                     inputMode="numeric"
                     placeholder="09:00"
@@ -168,7 +173,7 @@ export default function AssignmentBox({
 
                 {/* เติมจุดนัดจากที่ลูกค้าเลือกไว้ตอนจองให้เลย แก้ทับได้ถ้าตกลงกันใหม่ */}
                 <input
-                  name="place"
+                  name={`${kind}_place`}
                   defaultValue={fallbackPlace ?? ""}
                   placeholder="จุดนัด"
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
@@ -179,23 +184,25 @@ export default function AssignmentBox({
                   </p>
                 )}
                 <input
-                  name="note"
+                  name={`${kind}_note`}
                   placeholder="หมายเหตุ เช่น ลูกค้าขอให้โทรก่อน"
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
                 />
 
-                <button className="w-full py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors">
-                  มอบหมายและแจ้งทาง LINE
-                </button>
-              </form>
+              </div>
             </div>
           );
         })}
-      </div>
+        </div>
 
-      <p className="text-xs text-slate-400 mt-2.5">
-        ปฏิทินจะกันเวลาเดินทางให้ 30 นาที — นัด 09:00 น. จะลงปฏิทินเป็น 08:30-09:30 น.
-      </p>
+        <button className="w-full mt-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
+          มอบหมายและแจ้งทาง LINE
+        </button>
+        <p className="text-xs text-slate-400 mt-2 text-center">
+          เลือกเฉพาะงานที่ต้องการมอบหมายก็ได้ · ปฏิทินจะกันเวลาเดินทางให้ 30 นาที
+          — นัด 09:00 น. จะลงปฏิทินเป็น 08:30-09:30 น.
+        </p>
+      </form>
     </div>
   );
 }

@@ -50,51 +50,78 @@ async function notifyAssignee(assignmentId: string) {
   }
 }
 
-/** มอบหมายงานให้แอดมินหนึ่งคน — เรียกซ้ำเพื่อเพิ่มคนที่สองได้ */
-export async function assignAction(formData: FormData) {
+/**
+ * มอบหมายงานหนึ่งชิ้น — ใช้ร่วมกันทั้งฟอร์มเดี่ยวและฟอร์มรวม
+ * คืนค่า true ถ้าบันทึกจริง (false = ไม่ได้เลือกคน จึงข้ามไป)
+ */
+async function assignOne(
+  booking: {
+    id: string;
+    startDate: Date;
+    endDate: Date;
+    pickupPlace: string | null;
+    returnPlace: string | null;
+  },
+  kind: HandoffKind,
+  input: { adminUserId: string; meetDate: string; meetTime: string; place: string; note: string }
+): Promise<boolean> {
+  const adminUserId = input.adminUserId.trim();
+  if (!adminUserId) return false;
+
+  // ถ้าแอดมินไม่ได้แก้เวลา ใช้เวลารับ/คืนรถของการจองนั้น
+  const meetAt =
+    input.meetDate && input.meetTime
+      ? toBangkokDate(input.meetDate, input.meetTime)
+      : defaultMeetAt(booking, kind);
+
+  if (Number.isNaN(meetAt.getTime())) return false;
+
+  const place = input.place.trim() || defaultPlace(booking, kind);
+  const note = input.note.trim() || null;
+
+  const saved = await prisma.bookingAssignment.upsert({
+    where: { bookingId_kind_adminUserId: { bookingId: booking.id, kind, adminUserId } },
+    create: { bookingId: booking.id, kind, adminUserId, meetAt, place, note },
+    update: { meetAt, place, note },
+  });
+
+  await notifyAssignee(saved.id);
+  await syncAssignment(saved.id);
+  return true;
+}
+
+/** อ่านค่าจากฟอร์มรวม ที่ตั้งชื่อฟิลด์แยกตามชนิดงาน */
+function readFields(formData: FormData, prefix: string) {
+  const get = (k: string) => String(formData.get(`${prefix}_${k}`) ?? "");
+  return {
+    adminUserId: get("adminUserId"),
+    meetDate: get("meetDate"),
+    meetTime: get("meetTime"),
+    place: get("place"),
+    note: get("note"),
+  };
+}
+
+/**
+ * มอบหมายทั้งงานส่งรถและงานรับรถคืนในครั้งเดียว
+ * เลือกแค่ฝั่งเดียวก็ได้ อีกฝั่งที่ไม่ได้เลือกคนจะถูกข้ามไปเฉย ๆ
+ */
+export async function assignBothAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   const bookingId = String(formData.get("bookingId") ?? "");
-  const kind = String(formData.get("kind") ?? "") as HandoffKind;
-  const adminUserId = String(formData.get("adminUserId") ?? "");
-  const meetDate = String(formData.get("meetDate") ?? "").trim();
-  const meetTime = String(formData.get("meetTime") ?? "").trim();
-  const place = String(formData.get("place") ?? "").trim();
-  const note = String(formData.get("note") ?? "").trim();
-
-  if (!bookingId || !adminUserId || (kind !== "DELIVERY" && kind !== "PICKUP")) {
-    redirect("/admin/bookings?error=assign");
-  }
+  if (!bookingId) redirect("/admin/bookings?error=assign");
 
   const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) redirect("/admin/bookings?error=notfound");
 
-  // ถ้าแอดมินไม่ได้แก้เวลา ใช้เวลารับ/คืนรถของการจองนั้น
-  const meetAt =
-    meetDate && meetTime ? toBangkokDate(meetDate, meetTime) : defaultMeetAt(booking, kind);
+  const delivered = await assignOne(booking, "DELIVERY", readFields(formData, "DELIVERY"));
+  const picked = await assignOne(booking, "PICKUP", readFields(formData, "PICKUP"));
 
-  if (Number.isNaN(meetAt.getTime())) redirect("/admin/bookings?error=time");
-
-  const created = await prisma.bookingAssignment.upsert({
-    where: { bookingId_kind_adminUserId: { bookingId, kind, adminUserId } },
-    create: {
-      bookingId,
-      kind,
-      adminUserId,
-      meetAt,
-      place: place || defaultPlace(booking, kind),
-      note: note || null,
-    },
-    update: {
-      meetAt,
-      place: place || defaultPlace(booking, kind),
-      note: note || null,
-    },
-  });
-
-  await notifyAssignee(created.id);
-  await syncAssignment(created.id);
+  if (!delivered && !picked) {
+    redirect("/admin/bookings?error=nobody");
+  }
 
   revalidatePath("/admin/bookings");
   revalidatePath("/admin");

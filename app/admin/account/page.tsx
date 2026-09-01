@@ -5,9 +5,6 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { oauthConfigured, CALENDAR_NAME } from "@/lib/google-calendar";
-import { pushMessage } from "@/lib/line";
-import { createLinkCode } from "@/lib/line-link";
-import { revalidatePath } from "next/cache";
 import { formatBangkokDateTime } from "@/lib/settings";
 
 async function changePasswordAction(formData: FormData) {
@@ -39,62 +36,6 @@ async function changePasswordAction(formData: FormData) {
   redirect("/admin/account?ok=1");
 }
 
-/** แอดมินที่ล็อกอินอยู่ — ใช้ในทุก action ของหน้านี้ */
-async function requireMe() {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) redirect("/login");
-  const me = await prisma.adminUser.findUnique({ where: { email } });
-  if (!me) redirect("/login");
-  return me;
-}
-
-async function createLinkCodeAction() {
-  "use server";
-  const me = await requireMe();
-  await createLinkCode(me.id);
-  revalidatePath("/admin/account");
-  redirect("/admin/account?lok=code");
-}
-
-async function unlinkLineAction() {
-  "use server";
-  const me = await requireMe();
-  await prisma.adminUser.update({
-    where: { id: me.id },
-    data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
-  });
-  revalidatePath("/admin/account");
-  redirect("/admin/account?lok=unlinked");
-}
-
-async function testLineAction() {
-  "use server";
-  const me = await requireMe();
-  if (!me.lineUserId) redirect("/admin/account?lerror=noline");
-  try {
-    await pushMessage(
-      me.lineUserId,
-      "🔔 ทดสอบการแจ้งเตือนจากระบบจองรถ\n\nถ้าคุณเห็นข้อความนี้ แปลว่าตั้งค่าถูกต้องแล้ว"
-    );
-  } catch (err) {
-    console.error("test line failed:", err);
-    redirect("/admin/account?lerror=send");
-  }
-  redirect("/admin/account?lok=test");
-}
-
-const LINE_OK: Record<string, string> = {
-  code: "สร้างรหัสผูกบัญชีแล้ว — พิมพ์รหัสส่งในแชท LINE ของร้านภายใน 10 นาที",
-  unlinked: "ยกเลิกการผูก LINE เรียบร้อยแล้ว",
-  test: "ส่งข้อความทดสอบแล้ว กรุณาเช็ค LINE",
-};
-
-const LINE_ERRORS: Record<string, string> = {
-  noline: "ยังไม่ได้ผูก LINE",
-  send: "ส่งข้อความไม่สำเร็จ — ตรวจว่ายังเป็นเพื่อนกับ LINE OA ของร้านอยู่",
-};
-
 const GERRORS: Record<string, string> = {
   notconfigured: "ระบบยังไม่ได้ตั้งค่า Google OAuth — ต้องใส่ตัวแปร env ก่อน",
   denied: "คุณไม่ได้อนุญาตให้เข้าถึงปฏิทิน",
@@ -123,23 +64,15 @@ export default async function AccountPage({
     error?: string;
     gok?: string;
     gerror?: string;
-    lok?: string;
-    lerror?: string;
   }>;
 }) {
-  const { ok, error, gok, gerror, lok, lerror } = await searchParams;
+  const { ok, error, gok, gerror } = await searchParams;
   const session = await auth();
 
   const me = session?.user?.email
     ? await prisma.adminUser.findUnique({ where: { email: session.user.email } })
     : null;
   const calendarReady = Boolean(me?.googleRefreshToken && me?.googleCalendarId);
-
-  // สถานะรหัสผูก LINE
-  const linkExpires = me?.lineLinkExpiresAt?.getTime() ?? 0;
-  const codeRemaining = linkExpires - Date.now();
-  const codeIsValid = Boolean(me?.lineLinkCode) && codeRemaining > 0;
-  const codeMinutesLeft = Math.max(1, Math.ceil(codeRemaining / 60000));
 
   return (
     <div className="max-w-lg">
@@ -172,81 +105,6 @@ export default async function AccountPage({
         </div>
       )}
 
-      {lok && LINE_OK[lok] && (
-        <div className="mb-5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl">
-          {LINE_OK[lok]}
-        </div>
-      )}
-      {lerror && LINE_ERRORS[lerror] && (
-        <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
-          {LINE_ERRORS[lerror]}
-        </div>
-      )}
-
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="font-semibold text-slate-900">แจ้งเตือนทาง LINE</h2>
-          <span
-            className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-              me?.lineUserId
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-slate-100 text-slate-500 border-slate-200"
-            }`}
-          >
-            {me?.lineUserId ? "🔔 ผูกแล้ว" : "ยังไม่ผูก"}
-          </span>
-        </div>
-        <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
-          ผูกแล้วจะได้รับแจ้งเตือนทาง LINE เมื่อมีการจองใหม่ ลูกค้าส่งสลิป เอกสารครบ
-          และเมื่อคุณได้รับมอบหมายงานรับ-ส่งรถ
-        </p>
-
-        {me?.lineUserId ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-emerald-900 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-2.5">
-              ผูกบัญชี LINE เรียบร้อยแล้ว
-            </span>
-            <form action={testLineAction}>
-              <button className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                ส่งข้อความทดสอบ
-              </button>
-            </form>
-            <form action={unlinkLineAction} className="sm:ml-auto">
-              <button className="text-sm font-medium text-slate-500 hover:text-red-600 transition-colors">
-                ยกเลิกการผูก
-              </button>
-            </form>
-          </div>
-        ) : codeIsValid ? (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4">
-            <p className="text-sm text-blue-900 mb-2">
-              พิมพ์รหัสนี้ส่งในแชท LINE ของร้าน (หมดอายุใน {codeMinutesLeft} นาที)
-            </p>
-            <p className="text-4xl font-bold tracking-[0.3em] text-blue-900 font-mono">
-              {me?.lineLinkCode}
-            </p>
-            <form action={createLinkCodeAction} className="mt-3">
-              <button className="text-sm font-medium text-blue-700 hover:text-blue-900">
-                ขอรหัสใหม่
-              </button>
-            </form>
-          </div>
-        ) : (
-          <>
-            <ol className="text-sm text-slate-600 leading-relaxed list-decimal list-inside space-y-1 mb-4">
-              <li>เพิ่มเพื่อน LINE Official Account ของร้าน</li>
-              <li>กดปุ่มด้านล่างเพื่อขอรหัส 6 หลัก</li>
-              <li>พิมพ์รหัสนั้นส่งในแชท — ระบบจะผูกให้อัตโนมัติ</li>
-            </ol>
-            <form action={createLinkCodeAction}>
-              <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
-                🔗 สร้างรหัสผูก LINE
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
         <h2 className="font-semibold text-slate-900">ปฏิทิน Google</h2>
         <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
@@ -276,6 +134,41 @@ export default async function AccountPage({
                 ยกเลิกการเชื่อม
               </button>
             </form>
+          </div>
+        ) : null}
+
+        {calendarReady ? (
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <p className="text-sm font-medium text-slate-900 mb-1">ไม่เห็นงานในปฏิทิน</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-3">
+              ระบบลงงานในปฏิทินแยกชื่อ “{CALENDAR_NAME}” ซึ่งแอปมือถือ
+              <strong>ไม่เปิดแสดงให้อัตโนมัติ</strong> ต้องเปิดเองครั้งแรกครั้งเดียว
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(
+                  me?.googleCalendarId ?? ""
+                )}&mode=AGENDA`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-colors"
+              >
+                เปิดดูปฏิทินงานรับส่งรถ
+              </a>
+              <a
+                href="https://calendar.google.com/calendar/syncselect"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl transition-colors"
+              >
+                ตั้งค่าซิงก์ลงมือถือ
+              </a>
+            </div>
+            <p className="text-xs text-slate-400 mt-2.5 leading-relaxed">
+              ปุ่มแรกเปิดเฉพาะปฏิทินนี้ ใช้เช็คว่ามีงานอยู่จริงไหม ·
+              ปุ่มที่สองคือหน้าตั้งค่าของ Google ที่ต้องติ๊กชื่อปฏิทินแล้วกดบันทึก
+              เพื่อให้ขึ้นบนแอปมือถือ (จำเป็นสำหรับ iPhone)
+            </p>
           </div>
         ) : (
           <a

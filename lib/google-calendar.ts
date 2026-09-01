@@ -7,7 +7,15 @@ import { decryptSecret } from "@/lib/crypto";
  * — สร้างปฏิทินของแอปเองได้ และจัดการ event ในปฏิทินนั้นได้เท่านั้น
  * เข้าไม่ถึงปฏิทินอื่นของแอดมินเลย (least privilege)
  */
-export const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
+/** สิทธิ์ปฏิทิน — เขียนได้เฉพาะปฏิทินที่แอปสร้างเอง */
+export const GOOGLE_CALENDAR_SCOPE =
+  "https://www.googleapis.com/auth/calendar.app.created";
+
+/**
+ * ขอ openid email ด้วย เพื่อให้รู้ว่าผู้ใช้เชื่อมด้วยบัญชี Google ไหน
+ * เป็น scope แบบไม่ sensitive ไม่ต้องยื่นตรวจสอบเพิ่ม
+ */
+export const GOOGLE_SCOPE = `${GOOGLE_CALENDAR_SCOPE} openid email`;
 export const CALENDAR_NAME = "งานรับส่งรถ · CM Car Rent";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Bangkok";
