@@ -12,7 +12,7 @@ import {
   isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
-import { BANK_ACCOUNT } from "@/lib/contact";
+import { BANK } from "@/lib/contact";
 
 import type { Liff } from "@/lib/liff-types";
 
@@ -323,11 +323,13 @@ export default function LiffBooking({
             <p className="text-2xl font-bold text-blue-900">
               {result.deposit.toLocaleString()} ฿
             </p>
-            <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-              {BANK_ACCOUNT}
-              <br />
-              โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย
-            </p>
+            <div className="text-xs text-blue-800/80 mt-2 leading-relaxed">
+              <p>
+                {BANK.name} <span className="font-semibold">{BANK.number}</span>
+              </p>
+              <p>ชื่อบัญชี {BANK.accountName}</p>
+              <p className="mt-1.5">โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย</p>
+            </div>
           </div>
         )}
 

@@ -166,11 +166,18 @@ export default function AssignmentBox({
                   />
                 </div>
 
+                {/* เติมจุดนัดจากที่ลูกค้าเลือกไว้ตอนจองให้เลย แก้ทับได้ถ้าตกลงกันใหม่ */}
                 <input
                   name="place"
-                  placeholder={fallbackPlace ?? "จุดนัด"}
+                  defaultValue={fallbackPlace ?? ""}
+                  placeholder="จุดนัด"
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"
                 />
+                {fallbackPlace && (
+                  <p className="-mt-1 text-[11px] text-slate-400">
+                    จุดที่ลูกค้าเลือกไว้ตอนจอง — แก้ได้ถ้าตกลงกันใหม่
+                  </p>
+                )}
                 <input
                   name="note"
                   placeholder="หมายเหตุ เช่น ลูกค้าขอให้โทรก่อน"

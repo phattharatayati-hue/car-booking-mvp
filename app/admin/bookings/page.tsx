@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
 import { pushMessage, siteUrl } from "@/lib/line";
-import { feeSummaryText } from "@/lib/fees";
+import { notifyBookingProgress } from "@/lib/booking-notify";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 import {
   DOCUMENT_KINDS,
@@ -91,22 +91,8 @@ async function confirmDepositAction(formData: FormData) {
     }),
   ]);
 
-  await notifyCustomer(
-    bookingId,
-    [
-      "✅ ยืนยันการจองเรียบร้อยแล้ว",
-      "",
-      "เราตรวจสอบสลิปค่าจองของคุณเรียบร้อยแล้ว",
-      `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
-      "",
-      "แล้วพบกันวันรับรถครับ 🚗",
-      `${siteUrl()}/booking/${bookingId}`,
-    ].join("\n")
-  );
-
-  // แจ้งค่าปรับตอนนี้ทีเดียว — ลูกค้าผูกพันแล้วและยังจำได้
-  // ส่งเป็นข้อความแยกเพื่อให้ลูกค้าเก็บไว้อ่านย้อนหลังได้ง่าย
-  await notifyCustomer(bookingId, feeSummaryText(siteUrl()));
+  // แจ้งลูกค้าครั้งเดียวเมื่อครบทั้งสลิปและเอกสาร — ตรรกะอยู่ที่ lib/booking-notify.ts
+  await notifyBookingProgress(bookingId);
 
   revalidatePath("/admin/bookings");
 }
@@ -139,17 +125,8 @@ async function approveDocumentAction(formData: FormData) {
     all.every((d: { status: string }) => d.status === "APPROVED");
 
   if (allApproved) {
-    await notifyCustomer(
-      doc.bookingId,
-      [
-        "✅ เอกสารผ่านการตรวจสอบครบแล้ว",
-        "",
-        `รหัสจอง: ${doc.bookingId.slice(0, 8).toUpperCase()}`,
-        "",
-        "วันรับรถไม่ต้องเตรียมเอกสารเพิ่มแล้วครับ",
-        `${siteUrl()}/booking/${doc.bookingId}`,
-      ].join("\n")
-    );
+    // เอกสารครบแล้ว — จะส่งจริงก็ต่อเมื่อสลิปผ่านด้วย
+    await notifyBookingProgress(doc.bookingId);
   }
 
   revalidatePath("/admin/bookings");

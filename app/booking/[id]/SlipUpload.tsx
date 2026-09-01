@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/image-resize";
-import { BANK_ACCOUNT } from "@/lib/contact";
+import { BANK } from "@/lib/contact";
 
 export default function SlipUpload({
   bookingId,
@@ -76,9 +76,12 @@ export default function SlipUpload({
         <p className="text-2xl font-bold text-blue-900">
           {suggestedAmount.toLocaleString()} ฿
         </p>
-        <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-          โอนเข้าบัญชี {BANK_ACCOUNT}
-        </p>
+        <div className="text-xs text-blue-800/80 mt-2 leading-relaxed">
+          <p>
+            โอนเข้า {BANK.name} <span className="font-semibold">{BANK.number}</span>
+          </p>
+          <p>ชื่อบัญชี {BANK.accountName}</p>
+        </div>
         {securityDeposit > 0 && (
           <p className="text-xs text-blue-800/80 mt-2 leading-relaxed border-t border-blue-200/70 pt-2">
             เงินประกันรถอีก {securityDeposit.toLocaleString()} บาท

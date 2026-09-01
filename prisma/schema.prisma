@@ -159,6 +159,10 @@ model Booking {
   note        String?
   adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
+  /// แจ้งลูกค้าว่ายืนยันสลิปแล้วแต่เอกสารยังไม่ครบ — ส่งได้ครั้งเดียว
+  depositNotifiedAt    DateTime?
+  /// แจ้งลูกค้าว่าพร้อมรับรถ (สลิปผ่าน + เอกสารครบ) — ส่งได้ครั้งเดียว
+  readyNotifiedAt      DateTime?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?

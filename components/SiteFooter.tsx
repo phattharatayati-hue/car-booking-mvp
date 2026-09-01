@@ -33,6 +33,8 @@ export default function SiteFooter() {
               <li><Link href="/cars" className="hover:text-blue-700">รถทั้งหมด</Link></li>
               <li><Link href="/how-to-book" className="hover:text-blue-700">คู่มือการจอง</Link></li>
               <li><Link href="/fees" className="hover:text-blue-700">ค่าปรับและค่าบริการ</Link></li>
+              <li><Link href="/terms" className="hover:text-blue-700">ข้อกำหนดการใช้บริการ</Link></li>
+              <li><Link href="/privacy" className="hover:text-blue-700">นโยบายความเป็นส่วนตัว</Link></li>
               <li><Link href="/my" className="hover:text-blue-700">ประวัติการจอง</Link></li>
               <li><Link href="/line/connect" className="hover:text-blue-700">เชื่อมต่อ LINE</Link></li>
               <li><Link href="/contact" className="hover:text-blue-700">ติดต่อเรา</Link></li>
