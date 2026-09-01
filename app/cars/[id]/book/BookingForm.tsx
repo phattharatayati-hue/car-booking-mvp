@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
+import Link from "next/link";
+import Image from "next/image";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
+import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 import {
   feeForTime,
   rateRangeLabel,
@@ -55,6 +58,8 @@ export default function BookingForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** ติ๊กรับทราบค่าปรับก่อนยืนยัน */
+  const [ack, setAck] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
@@ -136,6 +141,12 @@ export default function BookingForm({
 
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!ack) {
+      setError("กรุณาติ๊กรับทราบค่าปรับและค่าบริการเพิ่มเติมก่อนยืนยัน");
       setSubmitting(false);
       return;
     }
@@ -429,9 +440,73 @@ export default function BookingForm({
         </div>
       </section>
 
+      {/* ค่าปรับที่พบบ่อย — แจ้งก่อนกดยืนยัน ไม่ใช่ไปเจอตอนคืนรถ */}
+      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-amber-900 text-sm">
+              ค่าปรับที่พบบ่อย — อ่านก่อนยืนยัน
+            </h2>
+            <p className="text-xs text-amber-900/80 mt-0.5">
+              เกิดขึ้นเฉพาะเมื่อมีเหตุจริง คืนรถเรียบร้อยไม่มีค่าใช้จ่ายเหล่านี้
+            </p>
+          </div>
+          <Link
+            href="/fees"
+            target="_blank"
+            className="text-xs font-semibold text-amber-900 underline decoration-amber-400 hover:decoration-amber-700 shrink-0"
+          >
+            ดูรายการทั้งหมด
+          </Link>
+        </div>
+
+        <div className="mt-4 flex gap-4">
+          <a
+            href="/fees-poster.jpg"
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 w-24 rounded-xl overflow-hidden border border-amber-200 bg-white"
+          >
+            <Image
+              src="/fees-poster.jpg"
+              alt="ตารางค่าปรับและค่าบริการเพิ่มเติม"
+              width={1080}
+              height={1935}
+              className="w-full h-auto"
+            />
+          </a>
+          <ul className="flex-1 grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-amber-900">
+            {highlightFees().map((f) => (
+              <li key={f.title} className="flex justify-between gap-2">
+                <span className="truncate">{f.title}</span>
+                <span className="font-semibold tabular-nums shrink-0">{f.amount}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="mt-4 text-xs text-amber-900/90 leading-relaxed">
+          เงินประกันความเสียหาย {SECURITY_DEPOSIT.amount.toLocaleString()} บาท ชำระวันรับรถ
+          และได้คืนเต็มจำนวนเมื่อคืนรถเรียบร้อย เติมน้ำมันคืนตามระดับที่รับไป และไม่มีค่าปรับค้าง
+        </p>
+
+        <label className="mt-4 flex gap-3 items-start cursor-pointer bg-white rounded-xl border border-amber-200 p-4">
+          <input
+            type="checkbox"
+            checked={ack}
+            onChange={(e) => setAck(e.target.checked)}
+            className="mt-0.5 w-5 h-5 shrink-0 rounded accent-blue-600"
+          />
+          <span className="text-sm text-slate-700 leading-relaxed">
+            ข้าพเจ้ารับทราบ<b>ค่าปรับและค่าบริการเพิ่มเติม</b> รวมถึงเงื่อนไขเงินประกันความเสียหาย
+            และยอมรับเงื่อนไขการเช่ารถ
+          </span>
+        </label>
+      </section>
+
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || !ack}
         className={`w-full rounded-xl disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg transition-colors ${
           isRequest
             ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/25"
@@ -442,7 +517,7 @@ export default function BookingForm({
       </button>
 
       <p className="text-xs text-slate-500 text-center -mt-2">
-        การกดยืนยันถือว่าคุณยอมรับเงื่อนไขการเช่ารถของเรา
+        ต้องติ๊กรับทราบค่าปรับด้านบนก่อนจึงจะยืนยันได้
       </p>
     </form>
   );

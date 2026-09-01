@@ -16,9 +16,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        const email = credentials?.email as string | undefined;
+        const raw = credentials?.email as string | undefined;
         const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
+        if (!raw || !password) return null;
+
+        // ชื่อผู้ใช้เก็บเป็นตัวพิมพ์เล็กเสมอตอนสร้างบัญชี
+        // ตอนล็อกอินจึงต้องแปลงให้ตรงกัน ไม่งั้นพิมพ์ Sutimon แล้วหาไม่เจอ
+        const email = raw.trim().toLowerCase();
 
         const admin = await prisma.adminUser.findUnique({ where: { email } });
         if (!admin) return null;

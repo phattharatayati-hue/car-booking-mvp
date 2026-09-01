@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pushMessage, notifyAdmin, siteUrl } from "@/lib/line";
+import { SECURITY_DEPOSIT } from "@/lib/fees";
 import {
   getSettings,
   formatBangkokDateTime,
@@ -170,9 +171,14 @@ export async function GET(request: Request) {
       `กำหนดคืนรถ: ${formatBangkokDateTime(b.endDate)}`,
       `รหัสจอง: ${b.id.slice(0, 8).toUpperCase()}`,
       "",
-      "กรุณาเติมน้ำมันให้เท่าตอนรับรถ",
+      `เช็คก่อนคืนรถ เพื่อได้เงินประกัน ${SECURITY_DEPOSIT.amount.toLocaleString()} บาทคืนเต็มจำนวน`,
+      "• เติมน้ำมันให้เท่าระดับตอนรับรถ",
+      "• เก็บของส่วนตัวออกจากรถให้หมด",
+      "• กุญแจครบชุด และไม่มีคราบสกปรกในห้องโดยสาร",
+      "",
       "หากต้องการต่อระยะเวลาเช่า ติดต่อเราได้เลยครับ",
       "",
+      `รายละเอียดค่าปรับ: ${siteUrl()}/fees`,
       `${siteUrl()}/booking/${b.id}`,
     ].join("\n");
 

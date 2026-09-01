@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyLineSignature, replyMessage } from "@/lib/line";
+import { verifyLineSignature, replyMessage, siteUrl } from "@/lib/line";
+import { feeSummaryText } from "@/lib/fees";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
 import { contactMessage } from "@/lib/contact";
@@ -141,6 +142,17 @@ async function handleEvent(event: LineEvent) {
   // เริ่มจองรถในแชท
   if (text.includes("จองรถ") || lower === "book") {
     await startBooking(replyToken, userId);
+    return;
+  }
+
+  // ค่าปรับและค่าบริการเพิ่มเติม — ให้ลูกค้าเปิดดูเองได้ ไม่ต้องรอแอดมิน
+  if (
+    text.includes("ค่าปรับ") ||
+    text.includes("ค่าเสียหาย") ||
+    text.includes("เงินประกัน") ||
+    lower === "fees"
+  ) {
+    await replyMessage(replyToken, feeSummaryText(siteUrl()));
     return;
   }
 

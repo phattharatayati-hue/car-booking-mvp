@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import { getSettings } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { BANK_ACCOUNT, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
+import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 import {
   CustomerFlow,
   CalendarTapDiagram,
@@ -29,6 +31,7 @@ const SECTIONS = [
   { id: "documents", t: "เอกสารที่ต้องเตรียม" },
   { id: "places", t: "จุดรับ-ส่งรถ" },
   { id: "handover", t: "วันรับรถและวันคืนรถ" },
+  { id: "fees", t: "ค่าปรับที่ควรรู้" },
   { id: "faq", t: "คำถามที่พบบ่อย" },
 ];
 
@@ -370,6 +373,53 @@ export default async function HowToBookPage() {
                 "ถ้าจะคืนช้ากว่านัด โทรแจ้งล่วงหน้า ระบบคิดค่าเช่าตามวันจริง",
               ]}
             />
+          </Section>
+
+          <Section
+            id="fees"
+            title="ค่าปรับที่ควรรู้"
+            lead="เกิดขึ้นเฉพาะเมื่อมีเหตุจริง — คืนรถเรียบร้อยจะไม่มีค่าใช้จ่ายเหล่านี้เลย"
+          >
+            <a
+              href="/fees-poster.jpg"
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-2xl overflow-hidden border border-slate-200 bg-white hover:border-slate-300 transition-colors"
+            >
+              <Image
+                src="/fees-poster.jpg"
+                alt="ตารางค่าปรับและค่าบริการเพิ่มเติม รถเช่า"
+                width={1080}
+                height={1935}
+                className="w-full h-auto"
+              />
+            </a>
+            <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              {highlightFees().map((f) => (
+                <li key={f.title} className="flex justify-between gap-3 border-b border-slate-100 pb-1.5">
+                  <span className="text-slate-700">{f.title}</span>
+                  <span className="font-semibold text-slate-900 tabular-nums shrink-0">
+                    {f.amount}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Tips
+              items={[
+                `เงินประกัน ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนเมื่อคืนรถเรียบร้อย เติมน้ำมันคืนตามระดับที่รับ และไม่มีค่าปรับค้าง`,
+                "ถ้ามีค่าปรับ ทางร้านหักจากเงินประกันก่อน แล้วคืนส่วนที่เหลือพร้อมแจ้งหลักฐาน",
+                "ค่าปรับข้างต้นเป็นอัตราเริ่มต้น อาจต่างกันตามรุ่นรถและระดับความเสียหาย",
+              ]}
+              tone="warn"
+            />
+            <div>
+              <Link
+                href="/fees"
+                className="inline-block px-6 py-3 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-sm font-semibold transition-colors"
+              >
+                ดูรายการค่าปรับทั้งหมด
+              </Link>
+            </div>
           </Section>
 
           <Section id="faq" title="คำถามที่พบบ่อย">

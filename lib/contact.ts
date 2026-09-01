@@ -32,4 +32,5 @@ export function contactMessage(siteUrl: string): string {
 }
 
 /** บัญชีรับโอนค่าจอง — แก้ที่นี่แล้วเปลี่ยนทุกที่ (เว็บ, LIFF, แชท LINE) */
-export const BANK_ACCOUNT = "ธ.กสิกรไทย 123-4-56789-0 ชื่อบัญชี CM Car Rent";
+export const BANK_ACCOUNT =
+  "ธ.กสิกรไทย 230-3-22465-6 ชื่อบัญชี บจก.ภูพิงค์ คอร์เปอเรชั่น";

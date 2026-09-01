@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
 import { pushMessage, siteUrl } from "@/lib/line";
+import { feeSummaryText } from "@/lib/fees";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 import {
   DOCUMENT_KINDS,
@@ -102,6 +103,10 @@ async function confirmDepositAction(formData: FormData) {
       `${siteUrl()}/booking/${bookingId}`,
     ].join("\n")
   );
+
+  // แจ้งค่าปรับตอนนี้ทีเดียว — ลูกค้าผูกพันแล้วและยังจำได้
+  // ส่งเป็นข้อความแยกเพื่อให้ลูกค้าเก็บไว้อ่านย้อนหลังได้ง่าย
+  await notifyCustomer(bookingId, feeSummaryText(siteUrl()));
 
   revalidatePath("/admin/bookings");
 }
