@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { requireDev } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revokeToken } from "@/lib/google-calendar";
 import AddAdminForm from "@/components/AddAdminForm";
 
@@ -45,8 +46,17 @@ async function addAdminAction(formData: FormData) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.adminUser.create({
+  const created = await prisma.adminUser.create({
     data: { email, name, passwordHash, role },
+  });
+
+  await audit({
+    action: "user.create",
+    summary: `สร้างบัญชี ${name} (${email}) เป็น ${
+      role === "DRIVER" ? "คนรับ-ส่งรถ" : "แอดมิน"
+    }`,
+    entity: "adminUser",
+    entityId: created.id,
   });
 
   revalidatePath("/admin/users");
@@ -64,8 +74,19 @@ async function resetPasswordAction(formData: FormData) {
     redirect("/admin/users?error=weakpassword");
   }
 
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) redirect("/admin/users?error=notfound");
+
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.adminUser.update({ where: { id }, data: { passwordHash } });
+
+  // เก็บแค่ว่าเปลี่ยนให้ใคร ไม่เก็บรหัสผ่าน
+  await audit({
+    action: "user.password_reset",
+    summary: `ตั้งรหัสผ่านใหม่ให้ ${target.name} (${target.email})`,
+    entity: "adminUser",
+    entityId: id,
+  });
 
   revalidatePath("/admin/users");
   redirect("/admin/users?ok=password");
@@ -84,6 +105,13 @@ async function unlinkLineAction(formData: FormData) {
   await prisma.adminUser.update({
     where: { id },
     data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
+  });
+
+  await audit({
+    action: "user.line_unlink",
+    summary: `ตัดการผูก LINE ของ ${target.name} (${target.email})`,
+    entity: "adminUser",
+    entityId: id,
   });
 
   revalidatePath("/admin/users");
@@ -123,8 +151,59 @@ async function disconnectCalendarAction(formData: FormData) {
     data: { googleEventId: null, syncedAt: null, syncError: null },
   });
 
+  await audit({
+    action: "user.calendar_disconnect",
+    summary: `ตัดการเชื่อม Google Calendar ของ ${target.name} (${target.email})`,
+    entity: "adminUser",
+    entityId: id,
+    detail: target.googleEmail ? `บัญชี Google: ${target.googleEmail}` : undefined,
+  });
+
   revalidatePath("/admin/users");
   redirect("/admin/users?ok=gdisconnected");
+}
+
+/** เปลี่ยนประเภทบัญชี ระหว่าง แอดมิน ↔ คนรับ-ส่งรถ (บัญชีผู้ดูแลระบบแตะไม่ได้) */
+async function changeRoleAction(formData: FormData) {
+  "use server";
+  const me = await requireDev();
+
+  const id = String(formData.get("id") ?? "");
+  const next = String(formData.get("role") ?? "");
+  if (next !== "ADMIN" && next !== "DRIVER") {
+    redirect("/admin/users?error=badrole");
+  }
+
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) redirect("/admin/users?error=notfound");
+
+  // กันเปลี่ยนสิทธิ์ตัวเอง — จะล็อกตัวเองออกจากหน้านี้
+  if (target.id === me.id) {
+    redirect("/admin/users?error=selfrole");
+  }
+  // บัญชีผู้ดูแลระบบเปลี่ยนจากหน้านี้ไม่ได้
+  if (target.role === "DEV") {
+    redirect("/admin/users?error=devrole");
+  }
+  if (target.role === next) {
+    redirect("/admin/users?ok=rolesame");
+  }
+
+  await prisma.adminUser.update({ where: { id }, data: { role: next } });
+
+  await audit({
+    action: "user.role_change",
+    summary: `เปลี่ยนประเภทบัญชีของ ${target.name} (${target.email})`,
+    entity: "adminUser",
+    entityId: id,
+    detail: `${target.role === "DRIVER" ? "คนรับ-ส่งรถ" : "แอดมิน"} → ${
+      next === "DRIVER" ? "คนรับ-ส่งรถ" : "แอดมิน"
+    }`,
+  });
+
+  // ลดสิทธิ์เป็นคนรับ-ส่งรถ = ไม่ควรมี event ปฏิทินฝั่งแอดมินค้าง แต่ยังรับงานได้ตามปกติ
+  revalidatePath("/admin/users");
+  redirect("/admin/users?ok=rolechanged");
 }
 
 async function deleteAdminAction(formData: FormData) {
@@ -151,6 +230,15 @@ async function deleteAdminAction(formData: FormData) {
   if (count <= 1) {
     redirect("/admin/users?error=last");
   }
+
+  // เขียนประวัติก่อนลบ เพราะหลังลบจะไม่มีชื่อให้อ้างอีก
+  await audit({
+    action: "user.delete",
+    summary: `ลบบัญชี ${target.name} (${target.email})`,
+    entity: "adminUser",
+    entityId: id,
+    detail: `ประเภท: ${target.role === "DRIVER" ? "คนรับ-ส่งรถ" : "แอดมิน"}`,
+  });
 
   await prisma.adminUser.delete({ where: { id } });
   revalidatePath("/admin/users");
@@ -180,6 +268,14 @@ const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
   last: { text: "ลบไม่ได้ ต้องเหลือแอดมินอย่างน้อย 1 คน", tone: "error" },
   notfound: { text: "ไม่พบบัญชีนี้", tone: "error" },
   dev: { text: "ลบบัญชีผู้ดูแลระบบไม่ได้", tone: "error" },
+  rolechanged: { text: "เปลี่ยนประเภทบัญชีเรียบร้อยแล้ว", tone: "ok" },
+  rolesame: { text: "บัญชีนี้เป็นประเภทนั้นอยู่แล้ว", tone: "ok" },
+  badrole: { text: "ประเภทบัญชีไม่ถูกต้อง", tone: "error" },
+  selfrole: {
+    text: "เปลี่ยนประเภทบัญชีตัวเองไม่ได้ — จะทำให้เข้าหน้านี้ไม่ได้อีก",
+    tone: "error",
+  },
+  devrole: { text: "เปลี่ยนประเภทบัญชีผู้ดูแลระบบไม่ได้", tone: "error" },
   noline: { text: "บัญชีนี้ยังไม่ได้ผูก LINE", tone: "error" },
   nogoogle: { text: "บัญชีนี้ยังไม่ได้เชื่อม Google Calendar", tone: "error" },
 };
@@ -302,6 +398,34 @@ export default async function AdminUsersPage({
                     </form>
                   )}
                 </div>
+              )}
+
+              {/* เปลี่ยนประเภทบัญชี — ทำได้เฉพาะบัญชีคนอื่นที่ไม่ใช่ผู้ดูแลระบบ */}
+              {!isSelf && admin.role !== "DEV" && (
+                <form
+                  action={changeRoleAction}
+                  className="mb-4 rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-3"
+                >
+                  <input type="hidden" name="id" value={admin.id} />
+                  <p className="text-xs font-medium text-slate-600 mb-2">ประเภทบัญชี</p>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select
+                      name="role"
+                      defaultValue={admin.role}
+                      className="rounded-xl bg-white border border-slate-200 px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                    >
+                      <option value="ADMIN">แอดมิน — เข้าหลังบ้านได้ทั้งหมด</option>
+                      <option value="DRIVER">คนรับ-ส่งรถ — เห็นแค่คิวงานใน LINE</option>
+                    </select>
+                    <button className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                      บันทึกประเภท
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                    เปลี่ยนเป็นคนรับ-ส่งรถแล้วจะเข้าหลังบ้านไม่ได้ทันที เหลือแค่หน้าบัญชีของฉัน ·
+                    การผูก LINE และปฏิทินยังอยู่เหมือนเดิม
+                  </p>
+                </form>
               )}
 
               <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2 items-end">

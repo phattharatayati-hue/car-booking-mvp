@@ -10,6 +10,12 @@ export type AppSettings = {
   bookingFee: number;
   securityDeposit: number;
   serviceNote: string;
+  /** ค่าคืนรถล่าช้าต่อชั่วโมง */
+  lateHourlyFee: number;
+  /** เลทตั้งแต่กี่ชั่วโมงจะปัดเป็นค่าเช่าอีก 1 วัน */
+  lateRoundUpHours: number;
+  /** ผ่อนปรนกี่นาทีก่อนเริ่มคิดค่าเลท */
+  lateGraceMinutes: number;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -19,6 +25,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   securityDeposit: 3000,
   serviceNote:
     "การเช่ารถขับเองในจังหวัดเชียงใหม่เท่านั้น หากออกต่างจังหวัดจะมีค่าใช้จ่ายเพิ่มเติมครับ",
+  lateHourlyFee: 200,
+  lateRoundUpHours: 4,
+  lateGraceMinutes: 0,
 };
 
 /** อ่านค่าตั้งค่า — ถ้ายังไม่มีแถวจะสร้างให้อัตโนมัติ */
@@ -35,6 +44,9 @@ export async function getSettings(): Promise<AppSettings> {
       bookingFee: row.bookingFee,
       securityDeposit: row.securityDeposit,
       serviceNote: row.serviceNote,
+      lateHourlyFee: row.lateHourlyFee,
+      lateRoundUpHours: row.lateRoundUpHours,
+      lateGraceMinutes: row.lateGraceMinutes,
     };
   } catch (err) {
     console.error("getSettings failed:", err);
@@ -131,4 +143,13 @@ export function formatMinutesBefore(total: number): string {
   if (hours) parts.push(`${hours} ชั่วโมง`);
   if (minutes) parts.push(`${minutes} นาที`);
   return parts.join(" ") || "0 นาที";
+}
+
+/** แปลงค่าตั้งค่าเป็นกติกาค่าเลทที่ lib/pricing.ts ใช้ */
+export function lateRuleFromSettings(s: AppSettings) {
+  return {
+    hourlyFee: s.lateHourlyFee,
+    roundUpHours: s.lateRoundUpHours,
+    graceMinutes: s.lateGraceMinutes,
+  };
 }

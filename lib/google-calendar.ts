@@ -16,7 +16,7 @@ export const GOOGLE_CALENDAR_SCOPE =
  * เป็น scope แบบไม่ sensitive ไม่ต้องยื่นตรวจสอบเพิ่ม
  */
 export const GOOGLE_SCOPE = `${GOOGLE_CALENDAR_SCOPE} openid email`;
-export const CALENDAR_NAME = "งานรับส่งรถ · CM Car Rent";
+export const CALENDAR_NAME = "งานรับส่งรถ · PHUPING CORPORATION";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Bangkok";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
-import { PHONES, OFFICE_HOURS, LOCATION, telHref } from "@/lib/contact";
+import { LINE_OA_ID, PHONES, OFFICE_HOURS, LOCATION, telHref } from "@/lib/contact";
 
 const CHANNELS = [
   {
@@ -20,7 +20,7 @@ const CHANNELS = [
   },
   {
     label: "LINE",
-    value: "@cmcarrent",
+    value: LINE_OA_ID,
     hint: "ตอบกลับเร็วที่สุด",
     icon: (
       <path

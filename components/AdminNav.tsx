@@ -170,6 +170,23 @@ const ITEMS = [
       </>
     ),
   },
+  {
+    href: "/admin/audit",
+    label: "ประวัติการใช้งาน",
+    devOnly: true,
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M12 7.5V12l3 2"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
 ];
 
 export default function AdminNav({

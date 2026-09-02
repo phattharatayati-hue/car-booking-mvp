@@ -4,10 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { toBangkokDate } from "@/lib/settings";
+import { toBangkokDate, formatBangkokDateTime } from "@/lib/settings";
 import { syncAssignment, removeAssignmentEvent } from "@/lib/calendar-sync";
 import { notifyJob } from "@/lib/driver-jobs";
-import { defaultMeetAt, defaultPlace, type HandoffKind } from "@/lib/assignments";
+import { audit } from "@/lib/audit";
+import {
+  HANDOFF_LABEL,
+  defaultMeetAt,
+  defaultPlace,
+  type HandoffKind,
+} from "@/lib/assignments";
 
 /**
  * มอบหมายงานหนึ่งชิ้น — ใช้ร่วมกันทั้งฟอร์มเดี่ยวและฟอร์มรวม
@@ -50,6 +56,21 @@ async function assignOne(
     where: key,
     create: { bookingId: booking.id, kind, adminUserId, meetAt, place, note },
     update: { meetAt, place, note },
+  });
+
+  const who = await prisma.adminUser.findUnique({
+    where: { id: adminUserId },
+    select: { name: true },
+  });
+
+  await audit({
+    action: "assignment.assign",
+    summary: `${existing ? "แก้ไข" : "มอบหมาย"}งาน${HANDOFF_LABEL[kind]} ของการจอง ${booking.id
+      .slice(0, 8)
+      .toUpperCase()} ให้ ${who?.name ?? adminUserId}`,
+    entity: "assignment",
+    entityId: saved.id,
+    detail: `นัด ${formatBangkokDateTime(meetAt)}${place ? ` · ${place}` : ""}`,
   });
 
   await notifyJob(saved.id, existing?.notifiedAt ? "updated" : "new");
@@ -103,6 +124,24 @@ export async function unassignAction(formData: FormData) {
   const id = String(formData.get("assignmentId") ?? "");
   if (!id) redirect("/admin/bookings?error=assign");
 
+  // อ่านก่อนลบ เพื่อบันทึกประวัติว่าถอนใครออกจากงานไหน
+  const target = await prisma.bookingAssignment.findUnique({
+    where: { id },
+    include: { admin: { select: { name: true } } },
+  });
+
+  if (target) {
+    await audit({
+      action: "assignment.unassign",
+      summary: `ถอน ${target.admin.name} ออกจากงาน${
+        HANDOFF_LABEL[target.kind as HandoffKind]
+      } ของการจอง ${target.bookingId.slice(0, 8).toUpperCase()}`,
+      entity: "assignment",
+      entityId: id,
+      detail: `เคยนัด ${formatBangkokDateTime(target.meetAt)}`,
+    });
+  }
+
   // บอกคนรับงานก่อนว่าไม่ต้องไปแล้ว แล้วจึงลบ event ในปฏิทินและลบแถว
   await notifyJob(id, "cancelled");
   await removeAssignmentEvent(id);
@@ -122,6 +161,13 @@ export async function resyncAction(formData: FormData) {
   if (!id) redirect("/admin/bookings?error=assign");
 
   await syncAssignment(id);
+
+  await audit({
+    action: "assignment.resync",
+    summary: "สั่งซิงก์งานรับ-ส่งรถลงปฏิทินใหม่",
+    entity: "assignment",
+    entityId: id,
+  });
 
   revalidatePath("/admin/bookings");
   redirect("/admin/bookings?ok=resynced");

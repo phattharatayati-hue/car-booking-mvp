@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -96,6 +97,13 @@ async function confirmDepositAction(formData: FormData) {
     }),
   ]);
 
+  await audit({
+    action: "booking.deposit_confirm",
+    summary: `ยืนยันค่าจองของการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+  });
+
   // แจ้งลูกค้าครั้งเดียวเมื่อครบทั้งสลิปและเอกสาร — ตรรกะอยู่ที่ lib/booking-notify.ts
   await notifyBookingProgress(bookingId);
 
@@ -118,6 +126,15 @@ async function approveDocumentAction(formData: FormData) {
       reviewedBy: session.user.email ?? null,
       reviewedAt: new Date(),
     },
+  });
+
+  await audit({
+    action: "booking.document_approve",
+    summary: `อนุมัติเอกสาร ${DOCUMENT_LABEL[doc.kind as DocumentKind]} ของการจอง ${doc.bookingId
+      .slice(0, 8)
+      .toUpperCase()}`,
+    entity: "booking",
+    entityId: doc.bookingId,
   });
 
   // แจ้งลูกค้าเฉพาะตอนเอกสารผ่านครบทุกใบ ไม่ใช่ทีละใบ
@@ -156,6 +173,16 @@ async function rejectDocumentAction(formData: FormData) {
     },
   });
 
+  await audit({
+    action: "booking.document_reject",
+    summary: `ปฏิเสธเอกสาร ${DOCUMENT_LABEL[doc.kind as DocumentKind]} ของการจอง ${doc.bookingId
+      .slice(0, 8)
+      .toUpperCase()}`,
+    entity: "booking",
+    entityId: doc.bookingId,
+    detail: `เหตุผล: ${doc.rejectReason}`,
+  });
+
   await notifyCustomer(
     doc.bookingId,
     [
@@ -178,6 +205,13 @@ async function rejectDepositAction(formData: FormData) {
   await prisma.deposit.update({
     where: { bookingId },
     data: { status: "REJECTED" },
+  });
+
+  await audit({
+    action: "booking.deposit_reject",
+    summary: `ปฏิเสธสลิปค่าจองของการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
   });
 
   await notifyCustomer(
@@ -205,6 +239,16 @@ async function approveRequestAction(formData: FormData) {
     where: { id: bookingId },
     data: { status: "PENDING_DEPOSIT", adminNote },
     include: { car: true },
+  });
+
+  await audit({
+    action: "booking.request_approve",
+    summary: `อนุมัติคำขอจอง ${bookingId.slice(0, 8).toUpperCase()} — ${booking.car.brand} ${
+      booking.car.name
+    }`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: adminNote ? `หมายเหตุ: ${adminNote}` : undefined,
   });
 
   await notifyCustomer(
@@ -239,6 +283,16 @@ async function rejectRequestAction(formData: FormData) {
     include: { car: true },
   });
 
+  await audit({
+    action: "booking.request_reject",
+    summary: `ปฏิเสธคำขอจอง ${bookingId.slice(0, 8).toUpperCase()} — ${booking.car.brand} ${
+      booking.car.name
+    }`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: adminNote ? `หมายเหตุ: ${adminNote}` : undefined,
+  });
+
   await notifyCustomer(
     bookingId,
     [
@@ -262,6 +316,14 @@ async function cancelBookingAction(formData: FormData) {
     where: { id: bookingId },
     data: { status: "CANCELLED" },
   });
+
+  await audit({
+    action: "booking.cancel",
+    summary: `ยกเลิกการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+  });
+
   revalidatePath("/admin/bookings");
 }
 

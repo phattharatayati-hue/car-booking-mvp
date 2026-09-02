@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import Brand from "@/components/Brand";
 
 const NAV = [
   { href: "/", label: "หน้าแรก" },
@@ -27,24 +28,8 @@ export default function SiteHeader() {
     <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="h-16 flex items-center justify-between gap-4">
-          {/* โลโก้ */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <span className="w-9 h-9 rounded-xl bg-blue-600 text-white grid place-items-center shadow-sm shadow-blue-600/30">
-              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
-                <path
-                  d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11m-14 0h14m-14 0a1 1 0 00-1 1v4h2m13-5a1 1 0 011 1v4h-2m0 0H7m12 0v1.5a1 1 0 01-1 1h-1a1 1 0 01-1-1V16m-9 0v1.5a1 1 0 01-1 1H6a1 1 0 01-1-1V16"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="leading-tight">
-              <span className="block font-bold text-slate-900">CM Car Rent</span>
-              <span className="block text-[11px] text-slate-500">เช่ารถเชียงใหม่</span>
-            </span>
-          </Link>
+          {/* ตราบริษัท — ใช้คอมโพเนนต์ Brand ร่วมกับหลังบ้าน */}
+          <Brand href="/" size="md" />
 
           {/* เมนูจอใหญ่ */}
           <nav className="hidden md:flex items-center gap-1">

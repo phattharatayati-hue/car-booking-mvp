@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { LINE_OA_ID } from "@/lib/contact";
 import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
 import DocumentUpload from "./DocumentUpload";
@@ -316,7 +317,7 @@ export default async function BookingStatusPage({
 
             {booking.deposit.status === "REJECTED" && (
               <div className="mt-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-xl p-4">
-                สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมินที่ LINE @cmcarrent
+                สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมินที่ LINE {LINE_OA_ID}
               </div>
             )}
           </div>

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
@@ -74,11 +75,23 @@ async function saveRateAction(formData: FormData) {
     pricePerDay,
   };
 
-  if (id) {
-    await prisma.carRate.update({ where: { id }, data });
-  } else {
-    await prisma.carRate.create({ data });
-  }
+  const saved = id
+    ? await prisma.carRate.update({ where: { id }, data })
+    : await prisma.carRate.create({ data });
+
+  const car = await prisma.car.findUnique({ where: { id: carId } });
+
+  await audit({
+    action: "car.rate_save",
+    summary: `${id ? "แก้ไข" : "เพิ่ม"}${
+      kind === "BLOCK" ? "ช่วงปิดรับจอง" : "ช่วงราคา"
+    } "${label}" ของรถ ${car ? `${car.brand} ${car.name} (${car.licensePlate})` : carId}`,
+    entity: "carRate",
+    entityId: saved.id,
+    detail: `${startDate} ถึง ${endDate}${
+      pricePerDay !== null ? ` · ${pricePerDay.toLocaleString()} บาท/วัน` : ""
+    }`,
+  });
 
   revalidatePath(`/admin/cars/${carId}/rates`);
   redirect(`/admin/cars/${carId}/rates?ok=${id ? "updated" : "added"}`);
@@ -91,7 +104,30 @@ async function deleteRateAction(formData: FormData) {
 
   const carId = String(formData.get("carId") ?? "");
   const id = String(formData.get("id") ?? "");
-  if (id) await prisma.carRate.delete({ where: { id } });
+
+  if (id) {
+    // อ่านก่อนลบ เพื่อบันทึกว่าลบช่วงไหนไป
+    const rate = await prisma.carRate.findUnique({
+      where: { id },
+      include: { car: true },
+    });
+
+    await prisma.carRate.delete({ where: { id } });
+
+    if (rate) {
+      await audit({
+        action: "car.rate_delete",
+        summary: `ลบ${rate.kind === "BLOCK" ? "ช่วงปิดรับจอง" : "ช่วงราคา"} "${
+          rate.label
+        }" ของรถ ${rate.car.brand} ${rate.car.name} (${rate.car.licensePlate})`,
+        entity: "carRate",
+        entityId: id,
+        detail: rate.pricePerDay
+          ? `${rate.pricePerDay.toLocaleString()} บาท/วัน`
+          : undefined,
+      });
+    }
+  }
 
   revalidatePath(`/admin/cars/${carId}/rates`);
   redirect(`/admin/cars/${carId}/rates?ok=deleted`);

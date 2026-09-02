@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -26,8 +27,16 @@ async function addPointAction(formData: FormData) {
   if (!name) redirect("/admin/pickup-points?error=name");
   if (!Number.isInteger(fee) || fee < 0) redirect("/admin/pickup-points?error=fee");
 
-  await prisma.pickupPoint.create({
+  const created = await prisma.pickupPoint.create({
     data: { name, fee, sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0 },
+  });
+
+  await audit({
+    action: "master.point_add",
+    summary: `เพิ่มจุดรับ-ส่งรถ ${name}`,
+    entity: "pickupPoint",
+    entityId: created.id,
+    detail: `ค่าบริการ ${fee.toLocaleString()} บาท`,
   });
 
   revalidatePath("/admin/pickup-points");
@@ -42,7 +51,18 @@ async function togglePointAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const isActive = formData.get("isActive") === "true";
 
-  await prisma.pickupPoint.update({ where: { id }, data: { isActive: !isActive } });
+  const updated = await prisma.pickupPoint.update({
+    where: { id },
+    data: { isActive: !isActive },
+  });
+
+  await audit({
+    action: "master.point_toggle",
+    summary: `${updated.isActive ? "เปิด" : "ปิด"}การใช้งานจุดรับ-ส่งรถ ${updated.name}`,
+    entity: "pickupPoint",
+    entityId: id,
+  });
+
   revalidatePath("/admin/pickup-points");
   redirect("/admin/pickup-points?ok=updated");
 }
@@ -53,7 +73,16 @@ async function deletePointAction(formData: FormData) {
   if (!session?.user) redirect("/login");
 
   const id = String(formData.get("id") ?? "");
+
+  const target = await prisma.pickupPoint.findUnique({ where: { id } });
   await prisma.pickupPoint.delete({ where: { id } });
+
+  await audit({
+    action: "master.point_delete",
+    summary: `ลบจุดรับ-ส่งรถ ${target?.name ?? id}`,
+    entity: "pickupPoint",
+    entityId: id,
+  });
 
   revalidatePath("/admin/pickup-points");
   redirect("/admin/pickup-points?ok=deleted");

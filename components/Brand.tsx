@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { COMPANY } from "@/lib/contact";
 
 /**
  * ตราและชื่อบริษัท — ใช้ชุดเดียวกันทั้งหัวเว็บ ท้ายเว็บ หลังบ้าน และหน้าล็อกอิน
@@ -8,7 +9,7 @@ import Link from "next/link";
 export default function Brand({
   href = "/",
   size = "md",
-  subtitle = "เช่ารถเชียงใหม่",
+  subtitle = COMPANY.nameBottom,
   tone = "navy",
   className = "",
 }: {
@@ -43,7 +44,7 @@ export default function Brand({
             tone === "white" ? "text-white" : "text-blue-700"
           } ${name}`}
         >
-          PHUPING
+          {COMPANY.nameTop}
         </span>
         {subtitle ? (
           <span
@@ -61,7 +62,7 @@ export default function Brand({
   if (!href) return inner;
 
   return (
-    <Link href={href} className="shrink-0" aria-label="ภูพิงค์ คอร์ปอเรชั่น หน้าแรก">
+    <Link href={href} className="shrink-0" aria-label={`${COMPANY.name} หน้าแรก`}>
       {inner}
     </Link>
   );

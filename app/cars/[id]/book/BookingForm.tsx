@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
-import Link from "next/link";
-import Image from "next/image";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
-import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 import {
   feeForTime,
   rateRangeLabel,
+  rentalDuration,
+  DEFAULT_LATE_RULE,
   type AfterHoursRate,
+  type LateRule,
 } from "@/lib/pricing";
 import {
   rentSegments,
@@ -22,7 +22,6 @@ import {
   timeChoicesFor,
   firstFreeTime,
   rangeBusy,
-  isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
 
@@ -40,6 +39,7 @@ export default function BookingForm({
   isRequest = false,
   availability,
   pickupPoints,
+  lateRule = DEFAULT_LATE_RULE,
 }: {
   carId: string;
   pricePerDay: number;
@@ -48,34 +48,29 @@ export default function BookingForm({
   busySpans?: BusySpan[];
   carRates?: CarRateView[];
   isRequest?: boolean;
+  /** กติกาค่าคืนรถล่าช้า — มาจากหน้าตั้งค่าระบบ */
+  lateRule?: LateRule;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
 }) {
   const router = useRouter();
-  /** วันนี้ตามเวลาไทย — ใช้กันไม่ให้เลือกวันย้อนหลัง */
-  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(
-    new Date()
-  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** ติ๊กรับทราบค่าปรับก่อนยืนยัน */
-  const [ack, setAck] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
   const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
 
-  const days =
+  // วันเต็ม + ชั่วโมงเลท ตามกติกาที่แอดมินตั้งไว้
+  const duration =
     startDate && endDate
-      ? Math.max(
-          1,
-          Math.ceil(
-            (new Date(`${endDate}T${endTime}`).getTime() -
-              new Date(`${startDate}T${startTime}`).getTime()) /
-              86400000
-          )
+      ? rentalDuration(
+          new Date(`${startDate}T${startTime}:00+07:00`),
+          new Date(`${endDate}T${endTime}:00+07:00`),
+          lateRule
         )
-      : 0;
+      : null;
+  const days = duration?.days ?? 0;
   // ตัวเลือกเวลา — ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
   const startChoices = timeChoicesFor(startDate, timeOptions, busySpans);
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
@@ -100,19 +95,6 @@ export default function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endDate]);
 
-  /** เช่าวันเดียว — เวลาคืนต้องหลังเวลารับ */
-  const sameDay = Boolean(startDate && endDate && startDate === endDate);
-  const sameDayInvalid = sameDay && endTime <= startTime;
-
-  // เลือกวันเดียวกันแล้วเวลาคืนยังไม่หลังเวลารับ — เลื่อนให้อัตโนมัติ
-  useEffect(() => {
-    if (!sameDay) return;
-    if (endTime > startTime) return;
-    const next = timeOptions.find((t) => t > startTime && !isTimeBusy(endDate, t, busySpans));
-    if (next) setEndTime(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sameDay, startTime, endDate]);
-
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
@@ -123,7 +105,18 @@ export default function BookingForm({
       ? rentSegments(new Date(`${startDate}T${startTime}:00+07:00`), days, pricePerDay, carRates)
       : [];
   const rentTotal = segments.reduce((sum, seg) => sum + seg.total, 0);
-  const total = rentTotal + afterHoursTotal;
+
+  // ค่าเลทไม่เกินค่าเช่าอีกหนึ่งวัน — ตรงกับที่ lib/pricing.ts คิดฝั่งเซิร์ฟเวอร์
+  const lateHours = duration?.lateHours ?? 0;
+  const lateFee =
+    lateHours > 0
+      ? Math.min(
+          lateHours * lateRule.hourlyFee,
+          segments.at(-1)?.pricePerDay ?? pricePerDay
+        )
+      : 0;
+
+  const total = rentTotal + afterHoursTotal + lateFee;
 
   // ช่วงที่แอดมินปิดรับจอง
   const blocked = blockingRates(startDate, endDate, carRates);
@@ -141,18 +134,6 @@ export default function BookingForm({
 
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
-      setSubmitting(false);
-      return;
-    }
-
-    if (!ack) {
-      setError("กรุณาติ๊กรับทราบค่าปรับและค่าบริการเพิ่มเติมก่อนยืนยัน");
-      setSubmitting(false);
-      return;
-    }
-
-    if (startDate === endDate && endTime <= startTime) {
-      setError("เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ กรุณาเลือกเวลาคืนใหม่");
       setSubmitting(false);
       return;
     }
@@ -236,38 +217,13 @@ export default function BookingForm({
         <input type="hidden" name="startDate" value={startDate} />
         <input type="hidden" name="endDate" value={endDate} />
 
-        {/* เลือกวันจากปฏิทินด้านบน หรือกรอกตรงนี้ก็ได้ — เช่าวันเดียวใส่วันเดียวกันได้เลย */}
-        <div className="grid sm:grid-cols-2 gap-4 mt-4">
-          <div>
-            <label className={labelClass} htmlFor="startDateInput">วันรับรถ</label>
-            <input
-              id="startDateInput"
-              type="date"
-              value={startDate}
-              min={todayStr}
-              onChange={(e) => {
-                const v = e.target.value;
-                setStartDate(v);
-                if (endDate && endDate < v) setEndDate("");
-              }}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="endDateInput">วันคืนรถ</label>
-            <input
-              id="endDateInput"
-              type="date"
-              value={endDate}
-              min={startDate || todayStr}
-              onChange={(e) => setEndDate(e.target.value)}
-              className={inputClass}
-            />
-            <p className="text-xs mt-1.5 text-slate-500">
-              เช่าวันเดียว ใส่วันเดียวกับวันรับรถได้เลย
-            </p>
-          </div>
-        </div>
+        <p className="mt-3 text-sm text-slate-500">
+          {!startDate
+            ? "กดเลือกวันรับรถบนปฏิทิน"
+            : !endDate
+            ? "กดเลือกวันคืนรถอีกครั้ง"
+            : `เลือกแล้ว ${startDate} ถึง ${endDate}`}
+        </p>
 
         <div className="grid sm:grid-cols-2 gap-4 mt-4">
           <div>
@@ -342,12 +298,6 @@ export default function BookingForm({
           </div>
         )}
 
-        {sameDayInvalid && (
-          <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
-            เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ — เลือกเวลาคืนให้ช้ากว่า {startTime} น.
-          </div>
-        )}
-
         {blocked.length > 0 && (
           <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
             รถคันนี้ปิดรับจองช่วง {formatRateRange(blocked[0])} ({blocked[0].label}) กรุณาเลือกวันอื่น
@@ -386,6 +336,16 @@ export default function BookingForm({
               {returnFee.fee > 0 && (
                 <span className="block text-xs text-amber-700 mt-0.5">
                   + คืนรถนอกเวลา {returnFee.fee.toLocaleString()} ฿
+                </span>
+              )}
+              {lateFee > 0 && (
+                <span className="block text-xs text-amber-700 mt-0.5">
+                  + คืนรถล่าช้า {lateHours} ชม. {lateFee.toLocaleString()} ฿
+                </span>
+              )}
+              {duration?.roundedUpToDay && (
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  คืนช้าเกิน {lateRule.roundUpHours} ชม. จึงคิดเป็นค่าเช่าอีก 1 วัน
                 </span>
               )}
             </div>
@@ -440,73 +400,9 @@ export default function BookingForm({
         </div>
       </section>
 
-      {/* ค่าปรับที่พบบ่อย — แจ้งก่อนกดยืนยัน ไม่ใช่ไปเจอตอนคืนรถ */}
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="font-semibold text-amber-900 text-sm">
-              ค่าปรับที่พบบ่อย — อ่านก่อนยืนยัน
-            </h2>
-            <p className="text-xs text-amber-900/80 mt-0.5">
-              เกิดขึ้นเฉพาะเมื่อมีเหตุจริง คืนรถเรียบร้อยไม่มีค่าใช้จ่ายเหล่านี้
-            </p>
-          </div>
-          <Link
-            href="/fees"
-            target="_blank"
-            className="text-xs font-semibold text-amber-900 underline decoration-amber-400 hover:decoration-amber-700 shrink-0"
-          >
-            ดูรายการทั้งหมด
-          </Link>
-        </div>
-
-        <div className="mt-4 flex gap-4">
-          <a
-            href="/fees-poster.jpg"
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 w-24 rounded-xl overflow-hidden border border-amber-200 bg-white"
-          >
-            <Image
-              src="/fees-poster.jpg"
-              alt="ตารางค่าปรับและค่าบริการเพิ่มเติม"
-              width={1080}
-              height={1935}
-              className="w-full h-auto"
-            />
-          </a>
-          <ul className="flex-1 grid sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-amber-900">
-            {highlightFees().map((f) => (
-              <li key={f.title} className="flex justify-between gap-2">
-                <span className="truncate">{f.title}</span>
-                <span className="font-semibold tabular-nums shrink-0">{f.amount}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="mt-4 text-xs text-amber-900/90 leading-relaxed">
-          เงินประกันความเสียหาย {SECURITY_DEPOSIT.amount.toLocaleString()} บาท ชำระวันรับรถ
-          และได้คืนเต็มจำนวนเมื่อคืนรถเรียบร้อย เติมน้ำมันคืนตามระดับที่รับไป และไม่มีค่าปรับค้าง
-        </p>
-
-        <label className="mt-4 flex gap-3 items-start cursor-pointer bg-white rounded-xl border border-amber-200 p-4">
-          <input
-            type="checkbox"
-            checked={ack}
-            onChange={(e) => setAck(e.target.checked)}
-            className="mt-0.5 w-5 h-5 shrink-0 rounded accent-blue-600"
-          />
-          <span className="text-sm text-slate-700 leading-relaxed">
-            ข้าพเจ้ารับทราบ<b>ค่าปรับและค่าบริการเพิ่มเติม</b> รวมถึงเงื่อนไขเงินประกันความเสียหาย
-            และยอมรับเงื่อนไขการเช่ารถ
-          </span>
-        </label>
-      </section>
-
       <button
         type="submit"
-        disabled={submitting || !ack}
+        disabled={submitting}
         className={`w-full rounded-xl disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 shadow-lg transition-colors ${
           isRequest
             ? "bg-violet-600 hover:bg-violet-700 shadow-violet-600/25"
@@ -517,7 +413,7 @@ export default function BookingForm({
       </button>
 
       <p className="text-xs text-slate-500 text-center -mt-2">
-        ต้องติ๊กรับทราบค่าปรับด้านบนก่อนจึงจะยืนยันได้
+        การกดยืนยันถือว่าคุณยอมรับเงื่อนไขการเช่ารถของเรา
       </p>
     </form>
   );

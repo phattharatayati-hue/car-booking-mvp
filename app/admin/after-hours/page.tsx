@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -51,11 +52,19 @@ async function saveRateAction(formData: FormData) {
 
   const data = { label, startMinute, endMinute, fee, isActive };
 
-  if (id) {
-    await prisma.afterHoursRate.update({ where: { id }, data });
-  } else {
-    await prisma.afterHoursRate.create({ data });
-  }
+  const saved = id
+    ? await prisma.afterHoursRate.update({ where: { id }, data })
+    : await prisma.afterHoursRate.create({ data });
+
+  await audit({
+    action: "master.after_hours_save",
+    summary: `${id ? "แก้ไข" : "เพิ่ม"}ค่าบริการนอกเวลา "${label}"`,
+    entity: "afterHoursRate",
+    entityId: saved.id,
+    detail: `${startTime}-${endTime} · ${fee.toLocaleString()} บาท · ${
+      isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"
+    }`,
+  });
 
   revalidatePath("/admin/after-hours");
   redirect("/admin/after-hours?ok=saved");
@@ -67,7 +76,19 @@ async function deleteRateAction(formData: FormData) {
   if (!session?.user) redirect("/login");
 
   const id = String(formData.get("id") ?? "");
-  if (id) await prisma.afterHoursRate.delete({ where: { id } });
+
+  if (id) {
+    const target = await prisma.afterHoursRate.findUnique({ where: { id } });
+    await prisma.afterHoursRate.delete({ where: { id } });
+
+    await audit({
+      action: "master.after_hours_delete",
+      summary: `ลบค่าบริการนอกเวลา "${target?.label ?? id}"`,
+      entity: "afterHoursRate",
+      entityId: id,
+      detail: target ? `${target.fee.toLocaleString()} บาท` : undefined,
+    });
+  }
 
   revalidatePath("/admin/after-hours");
   redirect("/admin/after-hours?ok=deleted");

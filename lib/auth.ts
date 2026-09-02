@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { auditAs } from "@/lib/audit";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -25,10 +26,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = raw.trim().toLowerCase();
 
         const admin = await prisma.adminUser.findUnique({ where: { email } });
-        if (!admin) return null;
+        if (!admin) {
+          await auditAs(
+            { id: null, name: email, role: null },
+            {
+              action: "auth.login_failed",
+              summary: `เข้าสู่ระบบไม่สำเร็จ — ไม่พบชื่อผู้ใช้ "${email}"`,
+              entity: "adminUser",
+            }
+          );
+          return null;
+        }
 
         const isValid = await bcrypt.compare(password, admin.passwordHash);
-        if (!isValid) return null;
+        if (!isValid) {
+          await auditAs(
+            { id: admin.id, name: admin.name, role: admin.role },
+            {
+              action: "auth.login_failed",
+              summary: `เข้าสู่ระบบไม่สำเร็จ — รหัสผ่านไม่ถูกต้อง (${admin.email})`,
+              entity: "adminUser",
+              entityId: admin.id,
+            }
+          );
+          return null;
+        }
+
+        await auditAs(
+          { id: admin.id, name: admin.name, role: admin.role },
+          {
+            action: "auth.login",
+            summary: `เข้าสู่ระบบสำเร็จ (${admin.email})`,
+            entity: "adminUser",
+            entityId: admin.id,
+          }
+        );
 
         return { id: admin.id, email: admin.email, name: admin.name };
       },

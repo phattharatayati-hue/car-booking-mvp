@@ -86,14 +86,103 @@ export function bangkokMinuteOfDay(d: Date): number {
   return toMinuteOfDay(s);
 }
 
+/**
+ * กติกาค่าคืนรถล่าช้า — ตั้งได้ที่หน้า "ตั้งค่าระบบ"
+ *
+ * ตัวอย่าง: รับรถ 08:00 คืน 10:00 วันรุ่งขึ้น = 1 วัน 2 ชม.
+ *   เลทต่ำกว่า roundUpHours → คิดค่าเลชั่วโมงละ hourlyFee (เศษนาทีปัดขึ้นเป็นชั่วโมง)
+ *   เลทตั้งแต่ roundUpHours ขึ้นไป → ปัดเป็นค่าเช่าอีก 1 วันเต็ม
+ *   เลทไม่เกิน graceMinutes → ไม่คิดเงิน
+ */
+export type LateRule = {
+  /** ค่าเลทต่อชั่วโมง */
+  hourlyFee: number;
+  /** เลทตั้งแต่กี่ชั่วโมงจะปัดเป็น 1 วัน */
+  roundUpHours: number;
+  /** ผ่อนปรนกี่นาทีก่อนเริ่มคิดค่าเลท */
+  graceMinutes: number;
+};
+
+export const DEFAULT_LATE_RULE: LateRule = {
+  hourlyFee: 200,
+  roundUpHours: 4,
+  graceMinutes: 0,
+};
+
+export type RentalDuration = {
+  /** จำนวนวันที่คิดค่าเช่า (อย่างน้อย 1) */
+  days: number;
+  /** ชั่วโมงเลทที่คิดเงิน — ปัดเศษนาทีขึ้นเป็นชั่วโมง (0 = ไม่คิด) */
+  lateHours: number;
+  /** นาทีที่เกินวันเต็มจริง ๆ ใช้แสดงผลให้ลูกค้าเห็น */
+  overMinutes: number;
+  /** เลทมากจนถูกปัดเป็นค่าเช่าอีก 1 วัน */
+  roundedUpToDay: boolean;
+};
+
+/**
+ * แยกระยะเวลาเช่าเป็น "วันเต็ม + ชั่วโมงเลท" ตามกติกาที่ตั้งไว้
+ * ไม่คิดเงินในนี้ — แค่บอกว่ากี่วันกี่ชั่วโมง
+ */
+export function rentalDuration(
+  start: Date,
+  end: Date,
+  rule: LateRule = DEFAULT_LATE_RULE
+): RentalDuration {
+  const totalMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+
+  const fullDays = Math.floor(totalMinutes / MINUTES_PER_DAY);
+  const overMinutes = totalMinutes - fullDays * MINUTES_PER_DAY;
+
+  // เช่าไม่ถึง 24 ชั่วโมง = 1 วัน ไม่มีค่าเลท (overMinutes = 0 เพราะไม่ได้เกินวันเต็ม)
+  if (fullDays === 0) {
+    return { days: 1, lateHours: 0, overMinutes: 0, roundedUpToDay: false };
+  }
+
+  // คืนตรงเวลา หรือเลทไม่เกินช่วงผ่อนปรน
+  if (overMinutes <= Math.max(0, rule.graceMinutes)) {
+    return { days: fullDays, lateHours: 0, overMinutes, roundedUpToDay: false };
+  }
+
+  const roundUpMinutes = Math.max(1, rule.roundUpHours) * 60;
+
+  // เลทมาก — ปัดเป็นค่าเช่าอีก 1 วัน
+  if (overMinutes >= roundUpMinutes) {
+    return { days: fullDays + 1, lateHours: 0, overMinutes, roundedUpToDay: true };
+  }
+
+  return {
+    days: fullDays,
+    lateHours: Math.ceil(overMinutes / 60),
+    overMinutes,
+    roundedUpToDay: false,
+  };
+}
+
+/** ข้อความอ่านง่ายของระยะเวลา เช่น "1 วัน 2 ชม." */
+export function durationLabel(d: RentalDuration): string {
+  const hours = Math.floor(d.overMinutes / 60);
+  const mins = d.overMinutes % 60;
+  if (d.roundedUpToDay || d.overMinutes === 0) return `${d.days} วัน`;
+  return `${d.days} วัน ${hours > 0 ? `${hours} ชม.` : ""}${
+    mins > 0 ? ` ${mins} นาที` : ""
+  }`.trim();
+}
+
 export type QuoteLine = {
-  kind: "rent" | "pickup" | "return";
+  kind: "rent" | "pickup" | "return" | "late";
   label: string;
   amount: number;
 };
 
 export type Quote = {
   days: number;
+  /** ชั่วโมงเลทที่คิดเงิน */
+  lateHours: number;
+  /** ค่าคืนรถล่าช้ารวม */
+  lateFee: number;
+  /** รายละเอียดระยะเวลา ใช้แสดง "1 วัน 2 ชม." */
+  duration: RentalDuration;
   rentTotal: number;
   /** ค่าเช่าแยกตามช่วงราคา — วันที่ราคาเท่ากันและติดกันจะถูกยุบเป็นช่วงเดียว */
   segments: RentSegment[];
@@ -104,9 +193,12 @@ export type Quote = {
   lines: QuoteLine[];
 };
 
-/** จำนวนวันเช่า — เศษวันปัดขึ้น อย่างน้อย 1 วัน */
-export function rentalDays(start: Date, end: Date): number {
-  return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+/**
+ * จำนวนวันที่คิดค่าเช่า — ตามกติกาค่าเลท
+ * (เลทน้อยจะไม่ปัดเป็นวันอีกแล้ว แต่ไปคิดเป็นค่าเลทรายชั่วโมงแทน)
+ */
+export function rentalDays(start: Date, end: Date, rule: LateRule = DEFAULT_LATE_RULE): number {
+  return rentalDuration(start, end, rule).days;
 }
 
 /**
@@ -120,9 +212,20 @@ export function quoteBooking(params: {
   rates: AfterHoursRate[];
   /** ช่วงราคาตามวันของรถคันนั้น — ไม่ส่งมาก็ใช้ราคาปกติทุกวัน */
   carRates?: CarRateView[];
+  /** กติกาค่าคืนรถล่าช้า — ไม่ส่งมาก็ใช้ค่าตั้งต้น */
+  lateRule?: LateRule;
 }): Quote {
-  const { start, end, pricePerDay, rates, carRates = [] } = params;
-  const days = rentalDays(start, end);
+  const {
+    start,
+    end,
+    pricePerDay,
+    rates,
+    carRates = [],
+    lateRule = DEFAULT_LATE_RULE,
+  } = params;
+
+  const duration = rentalDuration(start, end, lateRule);
+  const days = duration.days;
 
   // คิดราคาทีละวัน แล้วยุบวันที่ราคาเท่ากันและติดกันเข้าด้วยกัน
   const segments = rentSegments(start, days, pricePerDay, carRates);
@@ -154,16 +257,34 @@ export function quoteBooking(params: {
     });
   }
 
+  // ค่าเลทไม่ควรแพงกว่าค่าเช่าอีกหนึ่งวัน ไม่งั้นลูกค้าเสียเปรียบกว่าปัดเป็นวันเลย
+  const lastDayPrice = segments.at(-1)?.pricePerDay ?? pricePerDay;
+  const lateFee =
+    duration.lateHours > 0
+      ? Math.min(duration.lateHours * lateRule.hourlyFee, lastDayPrice)
+      : 0;
+
+  if (lateFee > 0) {
+    lines.push({
+      kind: "late",
+      label: `คืนรถล่าช้า ${duration.lateHours} ชม. × ${lateRule.hourlyFee.toLocaleString()} บาท`,
+      amount: lateFee,
+    });
+  }
+
   const afterHoursTotal = pickup.fee + ret.fee;
 
   return {
     days,
+    lateHours: duration.lateHours,
+    lateFee,
+    duration,
     rentTotal,
     segments,
     pickupFee: pickup.fee,
     returnFee: ret.fee,
     afterHoursTotal,
-    total: rentTotal + afterHoursTotal,
+    total: rentTotal + afterHoursTotal + lateFee,
     lines,
   };
 }

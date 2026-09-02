@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { requireDev } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import {
   getSettings,
   SETTINGS_ID,
@@ -24,6 +25,9 @@ async function saveSettingsAction(formData: FormData) {
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
   const bookingFee = Number(formData.get("bookingFee"));
   const securityDeposit = Number(formData.get("securityDeposit"));
+  const lateHourlyFee = Number(formData.get("lateHourlyFee"));
+  const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
+  const lateGraceMinutes = Number(formData.get("lateGraceMinutes"));
 
   if (
     !Number.isInteger(leadHours) ||
@@ -49,6 +53,23 @@ async function saveSettingsAction(formData: FormData) {
   ) {
     redirect("/admin/settings?error=money");
   }
+  if (
+    !Number.isInteger(lateHourlyFee) ||
+    lateHourlyFee < 0 ||
+    lateHourlyFee > 100000 ||
+    !Number.isInteger(lateGraceMinutes) ||
+    lateGraceMinutes < 0 ||
+    lateGraceMinutes > 720
+  ) {
+    redirect("/admin/settings?error=late");
+  }
+  if (!Number.isInteger(lateRoundUpHours) || lateRoundUpHours < 1 || lateRoundUpHours > 24) {
+    redirect("/admin/settings?error=lateHours");
+  }
+  // ผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลทเลย
+  if (lateGraceMinutes >= lateRoundUpHours * 60) {
+    redirect("/admin/settings?error=lateGrace");
+  }
 
   const data = {
     returnReminderOn: on,
@@ -56,12 +77,61 @@ async function saveSettingsAction(formData: FormData) {
     bookingFee,
     securityDeposit,
     serviceNote,
+    lateHourlyFee,
+    lateRoundUpHours,
+    lateGraceMinutes,
   };
+
+  const before = await prisma.settings.findUnique({ where: { id: SETTINGS_ID } });
 
   await prisma.settings.upsert({
     where: { id: SETTINGS_ID },
     create: { id: SETTINGS_ID, ...data },
     update: data,
+  });
+
+  // เก็บเฉพาะช่องที่ค่าเปลี่ยนจริง จะได้อ่านย้อนหลังง่าย
+  const changes: string[] = [];
+  if (before) {
+    if (before.returnReminderOn !== on) {
+      changes.push(`แจ้งเตือนคืนรถ: ${before.returnReminderOn ? "เปิด" : "ปิด"} → ${on ? "เปิด" : "ปิด"}`);
+    }
+    if (before.returnReminderMinutesBefore !== minutesBefore) {
+      changes.push(`ล่วงหน้า: ${before.returnReminderMinutesBefore} → ${minutesBefore} นาที`);
+    }
+    if (before.bookingFee !== bookingFee) {
+      changes.push(`ค่าจอง: ${before.bookingFee} → ${bookingFee} บาท`);
+    }
+    if (before.securityDeposit !== securityDeposit) {
+      changes.push(`เงินประกัน: ${before.securityDeposit} → ${securityDeposit} บาท`);
+    }
+    if ((before.serviceNote ?? "") !== serviceNote) {
+      changes.push("แก้เงื่อนไขการให้บริการ");
+    }
+    if (before.lateHourlyFee !== lateHourlyFee) {
+      changes.push(`ค่าเลทต่อชั่วโมง: ${before.lateHourlyFee} → ${lateHourlyFee} บาท`);
+    }
+    if (before.lateRoundUpHours !== lateRoundUpHours) {
+      changes.push(
+        `ปัดเป็นวันเมื่อเลทถึง: ${before.lateRoundUpHours} → ${lateRoundUpHours} ชม.`
+      );
+    }
+    if (before.lateGraceMinutes !== lateGraceMinutes) {
+      changes.push(`ผ่อนปรน: ${before.lateGraceMinutes} → ${lateGraceMinutes} นาที`);
+    }
+  } else {
+    changes.push("สร้างค่าตั้งต้นของระบบ");
+  }
+
+  await audit({
+    action: "settings.save",
+    summary:
+      changes.length > 0
+        ? `บันทึกตั้งค่าระบบ — ${changes.length} รายการ`
+        : "บันทึกตั้งค่าระบบ (ไม่มีค่าเปลี่ยน)",
+    entity: "settings",
+    entityId: SETTINGS_ID,
+    detail: changes.join(" · ") || undefined,
   });
 
   revalidatePath("/admin/settings");
@@ -73,6 +143,9 @@ const ERRORS: Record<string, string> = {
   leadRange: "เวลาแจ้งเตือนล่วงหน้าต้องอยู่ระหว่าง 5 นาที ถึง 7 วัน",
   note: "เงื่อนไขการให้บริการยาวเกิน 500 ตัวอักษร",
   money: "ค่าจองและเงินประกันต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
+  late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
+  lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
+  lateGrace: "ช่วงผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลท",
 };
 
 const inputClass =
@@ -162,6 +235,87 @@ export default async function SettingsPage({
                 className={inputClass}
               />
             </div>
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">ค่าคืนรถล่าช้า</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+            ระบบเทียบเวลาคืนรถกับเวลารับรถ นับเป็นวันเต็มก่อน แล้วเศษที่เหลือคือ “เลท”
+            <br />
+            เลทน้อยกว่าจุดที่ตั้งไว้ → คิดเป็นรายชั่วโมง (เศษนาทีปัดขึ้นเป็นชั่วโมง) ·
+            เลทตั้งแต่จุดนั้นขึ้นไป → คิดเป็นค่าเช่าอีก 1 วันเต็ม
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="lateHourlyFee">
+                ค่าเลทต่อชั่วโมง (บาท)
+              </label>
+              <input
+                id="lateHourlyFee"
+                name="lateHourlyFee"
+                type="number"
+                min="0"
+                required
+                defaultValue={settings.lateHourlyFee}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lateRoundUpHours">
+                ปัดเป็นวันเมื่อเลทถึง (ชม.)
+              </label>
+              <input
+                id="lateRoundUpHours"
+                name="lateRoundUpHours"
+                type="number"
+                min="1"
+                max="24"
+                required
+                defaultValue={settings.lateRoundUpHours}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="lateGraceMinutes">
+                ผ่อนปรน (นาที)
+              </label>
+              <input
+                id="lateGraceMinutes"
+                name="lateGraceMinutes"
+                type="number"
+                min="0"
+                max="720"
+                required
+                defaultValue={settings.lateGraceMinutes}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3.5">
+            <p className="text-xs font-medium text-slate-600 mb-1.5">
+              ตัวอย่างด้วยค่าที่ตั้งอยู่ตอนนี้ — รับรถ 08:00 น.
+            </p>
+            <ul className="text-xs text-slate-500 leading-relaxed flex flex-col gap-0.5">
+              <li>
+                คืน 08:00 น. วันรุ่งขึ้น = 1 วัน · ไม่มีค่าเลท
+              </li>
+              <li>
+                คืน 10:00 น. วันรุ่งขึ้น = 1 วัน 2 ชม. · ค่าเลท{" "}
+                {(2 * settings.lateHourlyFee).toLocaleString()} บาท
+              </li>
+              <li>
+                คืน{" "}
+                {String(8 + settings.lateRoundUpHours).padStart(2, "0")}:00 น. วันรุ่งขึ้น
+                (เลท {settings.lateRoundUpHours} ชม.) = ปัดเป็น 2 วัน · ไม่คิดค่าเลทรายชั่วโมง
+              </li>
+            </ul>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              ค่าเลทรายชั่วโมงถูกจำกัดไม่ให้เกินค่าเช่า 1 วันของรถคันนั้น
+              เพื่อไม่ให้ลูกค้าจ่ายแพงกว่ากรณีปัดเป็นวัน
+            </p>
           </div>
         </div>
 

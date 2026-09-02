@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -38,7 +39,14 @@ async function addPartnerAction(formData: FormData) {
 
   if (!name || !phone) redirect("/admin/partners?error=invalid");
 
-  await prisma.partner.create({ data: { name, phone, lineId, note } });
+  const created = await prisma.partner.create({ data: { name, phone, lineId, note } });
+
+  await audit({
+    action: "master.partner_add",
+    summary: `เพิ่มพาร์ตเนอร์ ${name} (${phone})`,
+    entity: "partner",
+    entityId: created.id,
+  });
 
   revalidatePath("/admin/partners");
   redirect("/admin/partners?ok=added");
@@ -52,7 +60,18 @@ async function togglePartnerAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const isActive = formData.get("isActive") === "true";
 
-  await prisma.partner.update({ where: { id }, data: { isActive: !isActive } });
+  const updated = await prisma.partner.update({
+    where: { id },
+    data: { isActive: !isActive },
+  });
+
+  await audit({
+    action: "master.partner_toggle",
+    summary: `${updated.isActive ? "เปิด" : "ปิด"}การใช้งานพาร์ตเนอร์ ${updated.name}`,
+    entity: "partner",
+    entityId: id,
+  });
+
   revalidatePath("/admin/partners");
   redirect("/admin/partners?ok=updated");
 }
@@ -67,7 +86,16 @@ async function deletePartnerAction(formData: FormData) {
   const carCount = await prisma.car.count({ where: { partnerId: id } });
   if (carCount > 0) redirect("/admin/partners?error=hascars");
 
+  const target = await prisma.partner.findUnique({ where: { id } });
   await prisma.partner.delete({ where: { id } });
+
+  await audit({
+    action: "master.partner_delete",
+    summary: `ลบพาร์ตเนอร์ ${target ? `${target.name} (${target.phone})` : id}`,
+    entity: "partner",
+    entityId: id,
+  });
+
   revalidatePath("/admin/partners");
   redirect("/admin/partners?ok=deleted");
 }

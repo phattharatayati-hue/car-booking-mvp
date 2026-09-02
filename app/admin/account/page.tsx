@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { oauthConfigured, CALENDAR_NAME } from "@/lib/google-calendar";
 import { formatBangkokDateTime } from "@/lib/settings";
 import { createLinkCode } from "@/lib/line-link";
+import { auditAs } from "@/lib/audit";
 import { pushMessage } from "@/lib/line";
 
 async function changePasswordAction(formData: FormData) {
@@ -35,6 +36,17 @@ async function changePasswordAction(formData: FormData) {
   const passwordHash = await bcrypt.hash(next, 10);
   await prisma.adminUser.update({ where: { id: admin.id }, data: { passwordHash } });
 
+  // เก็บแค่ว่าเปลี่ยนแล้ว ไม่เก็บรหัสผ่าน
+  await auditAs(
+    { id: admin.id, name: admin.name, role: admin.role },
+    {
+      action: "user.password_change",
+      summary: "เปลี่ยนรหัสผ่านของตัวเอง",
+      entity: "adminUser",
+      entityId: admin.id,
+    }
+  );
+
   redirect("/admin/account?ok=1");
 }
 
@@ -53,6 +65,17 @@ async function createLinkCodeAction() {
   "use server";
   const me = await requireMe();
   await createLinkCode(me.id);
+
+  await auditAs(
+    { id: me.id, name: me.name, role: me.role },
+    {
+      action: "user.line_link_code",
+      summary: "ขอรหัสผูกบัญชี LINE ของตัวเอง",
+      entity: "adminUser",
+      entityId: me.id,
+    }
+  );
+
   redirect("/admin/account?lok=code");
 }
 
@@ -64,6 +87,17 @@ async function unlinkLineAction() {
     where: { id: me.id },
     data: { lineUserId: null, lineLinkCode: null, lineLinkExpiresAt: null },
   });
+
+  await auditAs(
+    { id: me.id, name: me.name, role: me.role },
+    {
+      action: "user.line_unlink",
+      summary: "ยกเลิกการผูก LINE ของตัวเอง",
+      entity: "adminUser",
+      entityId: me.id,
+    }
+  );
+
   redirect("/admin/account?lok=unlinked");
 }
 

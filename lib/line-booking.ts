@@ -14,6 +14,7 @@ import { carCarousel, bookingSummary, datePicker, bookingDone, FlexCar } from "@
 
 import {
   getSettings,
+  lateRuleFromSettings,
   toBangkokDate,
   formatBangkokDateTime,
 } from "@/lib/settings";
@@ -199,7 +200,14 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
   }
 
   const rates = await getAfterHoursRates();
-  const quote = quoteBooking({ start, end, pricePerDay: car.pricePerDay, rates, carRates });
+  const quote = quoteBooking({
+    start,
+    end,
+    pricePerDay: car.pricePerDay,
+    rates,
+    carRates,
+    lateRule: lateRuleFromSettings(await getSettings()),
+  });
   const days = quote.days;
   const total = quote.total;
   const note = afterHoursNote(start, end, rates);
@@ -293,6 +301,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     pricePerDay: car.pricePerDay,
     rates,
     carRates: await getCarRates(car.id),
+    lateRule: lateRuleFromSettings(await getSettings()),
   });
   const total = quote.total;
   const name = (await getProfileName(lineUserId)) ?? "ลูกค้า LINE";

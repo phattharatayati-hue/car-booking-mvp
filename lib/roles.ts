@@ -23,7 +23,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 export const DRIVER_ALLOWED_PATHS = ["/admin/account"];
 
 /** เส้นทางที่เฉพาะ DEV เท่านั้นที่เข้าได้ */
-export const DEV_ONLY_PATHS = ["/admin/users", "/admin/settings"];
+export const DEV_ONLY_PATHS = ["/admin/users", "/admin/settings", "/admin/audit"];
 
 /** ผู้ใช้ที่ล็อกอินอยู่ (อ่านจากฐานข้อมูล เพราะ session เก็บแค่อีเมล) */
 export async function currentAdmin() {

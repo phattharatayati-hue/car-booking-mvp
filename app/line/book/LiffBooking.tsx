@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
-import { feeForTime, rateRangeLabel, type AfterHoursRate } from "@/lib/pricing";
+import {
+  feeForTime,
+  rateRangeLabel,
+  rentalDuration,
+  DEFAULT_LATE_RULE,
+  type AfterHoursRate,
+  type LateRule,
+} from "@/lib/pricing";
 import {
   timeChoicesFor,
   firstFreeTime,
@@ -12,7 +19,7 @@ import {
   isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
-import { BANK } from "@/lib/contact";
+import { BANK_ACCOUNT } from "@/lib/contact";
 
 import type { Liff } from "@/lib/liff-types";
 
@@ -63,6 +70,7 @@ export default function LiffBooking({
   busySpans = [],
   liffId,
   pickupPoints,
+  lateRule = DEFAULT_LATE_RULE,
 }: {
   car: LiffCar;
   availability: Record<string, DayStatus>;
@@ -70,6 +78,8 @@ export default function LiffBooking({
   afterHoursRates: AfterHoursRate[];
   busySpans?: BusySpan[];
   liffId: string;
+  /** กติกาค่าคืนรถล่าช้า — มาจากหน้าตั้งค่าระบบ */
+  lateRule?: LateRule;
   pickupPoints: PickupOption[];
 }) {
   const [ready, setReady] = useState(false);
@@ -148,17 +158,16 @@ export default function LiffBooking({
     new Date()
   );
 
-  const days =
+  // วันเต็ม + ชั่วโมงเลท ตามกติกาที่แอดมินตั้งไว้
+  const duration =
     startDate && endDate
-      ? Math.max(
-          1,
-          Math.ceil(
-            (new Date(`${endDate}T${endTime}`).getTime() -
-              new Date(`${startDate}T${startTime}`).getTime()) /
-              86400000
-          )
+      ? rentalDuration(
+          new Date(`${startDate}T${startTime}:00+07:00`),
+          new Date(`${endDate}T${endTime}:00+07:00`),
+          lateRule
         )
-      : 0;
+      : null;
+  const days = duration?.days ?? 0;
   // ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
   const startChoices = timeChoicesFor(startDate, timeOptions, busySpans);
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
@@ -197,7 +206,10 @@ export default function LiffBooking({
   const pickupFee = feeForTime(startTime, afterHoursRates);
   const returnFee = feeForTime(endTime, afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
-  const total = days * car.pricePerDay + afterHoursTotal;
+  const lateHours = duration?.lateHours ?? 0;
+  const lateFee =
+    lateHours > 0 ? Math.min(lateHours * lateRule.hourlyFee, car.pricePerDay) : 0;
+  const total = days * car.pricePerDay + afterHoursTotal + lateFee;
 
   async function handleSubmit() {
     if (!startDate || !endDate) {
@@ -323,13 +335,11 @@ export default function LiffBooking({
             <p className="text-2xl font-bold text-blue-900">
               {result.deposit.toLocaleString()} ฿
             </p>
-            <div className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-              <p>
-                {BANK.name} <span className="font-semibold">{BANK.number}</span>
-              </p>
-              <p>ชื่อบัญชี {BANK.accountName}</p>
-              <p className="mt-1.5">โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย</p>
-            </div>
+            <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
+              {BANK_ACCOUNT}
+              <br />
+              โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย
+            </p>
           </div>
         )}
 
@@ -561,6 +571,16 @@ export default function LiffBooking({
             {afterHoursTotal > 0 && (
               <span className="block text-xs text-amber-700 mt-0.5">
                 + ค่ารับ-คืนนอกเวลา {afterHoursTotal.toLocaleString()} ฿
+              </span>
+            )}
+            {lateFee > 0 && (
+              <span className="block text-xs text-amber-700 mt-0.5">
+                + คืนรถล่าช้า {lateHours} ชม. {lateFee.toLocaleString()} ฿
+              </span>
+            )}
+            {duration?.roundedUpToDay && (
+              <span className="block text-xs text-slate-500 mt-0.5">
+                คืนช้าเกิน {lateRule.roundUpHours} ชม. จึงคิดเป็นค่าเช่าอีก 1 วัน
               </span>
             )}
           </div>

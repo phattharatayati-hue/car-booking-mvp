@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
@@ -22,10 +23,22 @@ async function toggleStatusAction(formData: FormData) {
   "use server";
   const id = formData.get("id") as string;
   const currentStatus = formData.get("currentStatus") as string;
-  await prisma.car.update({
+  const next = currentStatus === "AVAILABLE" ? "UNAVAILABLE" : "AVAILABLE";
+
+  const car = await prisma.car.update({
     where: { id },
-    data: { status: currentStatus === "AVAILABLE" ? "UNAVAILABLE" : "AVAILABLE" },
+    data: { status: next },
   });
+
+  await audit({
+    action: "car.status_toggle",
+    summary: `เปลี่ยนสถานะรถ ${car.brand} ${car.name} (${car.licensePlate}) เป็น ${
+      next === "AVAILABLE" ? "พร้อมให้เช่า" : "ปิดให้เช่า"
+    }`,
+    entity: "car",
+    entityId: id,
+  });
+
   revalidatePath("/admin/cars");
 }
 

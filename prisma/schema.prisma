@@ -203,6 +203,13 @@ model Settings {
   /// เงื่อนไขพื้นที่ให้บริการ — แสดงบนเว็บและใน LINE
   serviceNote         String   @default("การเช่ารถขับเองในจังหวัดเชียงใหม่เท่านั้น หากออกต่างจังหวัดจะมีค่าใช้จ่ายเพิ่มเติมครับ")
   updatedAt           DateTime @updatedAt
+
+  /// ค่าคืนรถล่าช้าต่อชั่วโมง
+  lateHourlyFee      Int      @default(200)
+  /// เลทตั้งแต่กี่ชั่วโมงจะปัดเป็นค่าเช่าอีก 1 วัน
+  lateRoundUpHours   Int      @default(4)
+  /// ผ่อนปรนกี่นาทีก่อนเริ่มคิดค่าเลท (0 = ไม่ผ่อนปรน)
+  lateGraceMinutes   Int      @default(0)
 }
 
 /// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)
@@ -318,4 +325,37 @@ model HandoffPhoto {
   createdAt    DateTime          @default(now())
 
   @@index([assignmentId])
+}
+
+/**
+ * บันทึกประวัติการใช้งานหลังบ้าน — ใครทำอะไร เมื่อไหร่
+ *
+ * ไม่ผูก relation กับ AdminUser เพราะถ้าลบบัญชีทิ้ง ประวัติต้องยังอยู่
+ * จึงเก็บชื่อและสิทธิ์ของคนทำ ณ เวลานั้นซ้ำลงมาในแถวนี้เลย
+ */
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// null = ยังไม่ล็อกอิน (เช่น ล็อกอินไม่ผ่าน) หรือระบบทำเอง
+  actorId   String?
+  /// ชื่อคนทำ ณ เวลานั้น — ถ้าล็อกอินไม่ผ่านจะเก็บชื่อผู้ใช้ที่พิมพ์เข้ามา
+  actorName String
+  actorRole String?
+
+  /// รหัสการกระทำ เช่น booking.deposit_confirm, user.role_change
+  action    String
+  /// ชนิดข้อมูลที่ถูกแก้ เช่น booking, car, adminUser
+  entity    String?
+  entityId  String?
+
+  /// ข้อความไทยอ่านง่าย ใช้แสดงในหน้าประวัติ
+  summary   String
+  /// รายละเอียดเพิ่ม เช่น ค่าก่อน → หลัง
+  detail    String?
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entity, entityId])
 }
