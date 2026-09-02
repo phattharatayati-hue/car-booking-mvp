@@ -94,7 +94,7 @@ export const FEE_ITEMS: FeeItem[] = [
   {
     icon: "collision",
     title: "ค่าเสียหายส่วนแรก",
-    amount: "เริ่มต้น 1,000 บาท",
+    amount: "3,000 บาท",
     note: "กรณีเป็นฝ่ายผิด หรือไม่มีคู่กรณี",
     highlight: true,
   },
