@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { list } from "@vercel/blob";
+import { requireStaff } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -68,6 +69,8 @@ async function loadAllBlobs() {
 }
 
 export default async function StoragePage() {
+  await requireStaff();
+
   const session = await auth();
   if (!session?.user) redirect("/login");
 

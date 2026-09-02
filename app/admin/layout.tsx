@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "@/lib/auth";
-import { isDev } from "@/lib/roles";
+import { currentAdmin } from "@/lib/roles";
 import AdminNav from "@/components/AdminNav";
 import Brand from "@/components/Brand";
 
@@ -12,7 +12,9 @@ export default async function AdminLayout({
   const session = await auth();
   const email = session?.user?.email ?? "";
   const initial = email.slice(0, 1).toUpperCase() || "A";
-  const dev = await isDev();
+  const me = await currentAdmin();
+  const dev = me?.role === "DEV";
+  const driver = me?.role === "DRIVER";
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
@@ -22,7 +24,7 @@ export default async function AdminLayout({
         </div>
 
         <div className="px-3 py-4 flex-1">
-          <AdminNav isDev={dev} />
+          <AdminNav isDev={dev} isDriver={driver} />
         </div>
 
         <div className="px-3 pb-4 hidden md:block">
@@ -50,7 +52,7 @@ export default async function AdminLayout({
           </span>
           <Link href="/admin/account" className="min-w-0 flex-1 group">
             <p className="text-xs text-slate-500 group-hover:text-blue-700">
-              {dev ? "บัญชีของฉัน · ผู้ดูแลระบบ" : "บัญชีของฉัน"}
+              {dev ? "บัญชีของฉัน · ผู้ดูแลระบบ" : driver ? "บัญชีของฉัน · คนรับ-ส่งรถ" : "บัญชีของฉัน"}
             </p>
             <p className="text-sm font-medium text-slate-900 truncate group-hover:text-blue-700">
               {email}

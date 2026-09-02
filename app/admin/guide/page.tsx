@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { requireStaff } from "@/lib/roles";
 import {
   StatusFlow,
   DailyFlow,
@@ -86,7 +87,9 @@ function Note({
   );
 }
 
-export default function AdminGuidePage() {
+export default async function AdminGuidePage() {
+  await requireStaff();
+
   return (
     <div className="max-w-3xl">
       <div className="mb-6">

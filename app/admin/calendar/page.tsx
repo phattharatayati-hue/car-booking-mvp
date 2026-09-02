@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import Link from "next/link";
 import { formatBangkokDateTime } from "@/lib/settings";
 
@@ -26,6 +27,8 @@ function buildDays() {
 }
 
 export default async function CalendarPage() {
+  await requireStaff();
+
   const days = buildDays();
   const rangeStart = days[0];
   const rangeEnd = new Date(days[days.length - 1].getTime() + DAY_MS);

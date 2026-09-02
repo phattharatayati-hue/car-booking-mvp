@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyLineSignature, replyMessage, siteUrl } from "@/lib/line";
+import { verifyLineSignature, replyMessage, replyRaw, siteUrl } from "@/lib/line";
+import {
+  myJobsFlex,
+  closeJob,
+  saveJobPhoto,
+  saveJobReading,
+  driverHelpText,
+} from "@/lib/driver-jobs";
 import { feeSummaryText } from "@/lib/fees";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
@@ -41,6 +48,17 @@ const HELP_TEXT = [
   "หรือกดปุ่มจากเมนูด้านล่างได้เลยครับ",
 ].join("\n");
 
+/** คำที่คนรับ-ส่งรถใช้เรียกดูคิวงานของตัวเอง */
+function isMyJobsKeyword(text: string, lower: string): boolean {
+  return (
+    text.includes("งานของฉัน") ||
+    text.includes("งานของผม") ||
+    text.includes("คิวงาน") ||
+    lower === "myjobs" ||
+    lower === "jobs"
+  );
+}
+
 export async function POST(request: Request) {
   const raw = await request.text();
   const signature = request.headers.get("x-line-signature");
@@ -71,6 +89,16 @@ async function handleEvent(event: LineEvent) {
   const userId = event.source?.userId;
   if (!replyToken) return;
 
+  // ปุ่มปิดงานของคนรับ-ส่งรถ
+  if (event.type === "postback" && event.postback && userId) {
+    const params = new URLSearchParams(event.postback.data);
+    if (params.get("action") === "job_done") {
+      const id = params.get("id") ?? "";
+      await replyMessage(replyToken, await closeJob(id, userId));
+      return;
+    }
+  }
+
   // ปุ่มต่างๆ ในแชท (เลือกรถ / เลือกวัน / ยืนยัน)
   if (event.type === "postback" && event.postback && userId) {
     await handlePostback(
@@ -90,8 +118,15 @@ async function handleEvent(event: LineEvent) {
 
   if (event.type !== "message" || !userId) return;
 
-  // ลูกค้าส่งรูปสลิปเข้ามา
+  // รูปจากคนรับ-ส่งรถ = รูปสภาพรถ ต้องเช็คก่อนรูปสลิปลูกค้า
   if (event.message?.type === "image" && event.message.id) {
+    const handoff = await saveJobPhoto(userId, event.message.id);
+    if (handoff) {
+      await replyMessage(replyToken, handoff);
+      return;
+    }
+
+    // ไม่ใช่พนักงาน — ถือเป็นสลิปค่าจองของลูกค้า
     await handleSlipImage(replyToken, userId, event.message.id);
     return;
   }
@@ -128,6 +163,23 @@ async function handleEvent(event: LineEvent) {
       return;
     }
     // ไม่ใช่รหัสผูก — อาจเป็นเบอร์โทรหรืออย่างอื่น ปล่อยให้ตรวจต่อด้านล่าง
+  }
+
+  // คิวงานของคนรับ-ส่งรถ
+  if (isMyJobsKeyword(text, lower)) {
+    const jobs = await myJobsFlex(userId);
+    if (jobs) {
+      await replyRaw(replyToken, jobs);
+      return;
+    }
+    // ไม่ใช่พนักงาน — ตอบตามปกติต่อไป
+  }
+
+  // คนรับ-ส่งรถพิมพ์เลขไมล์/ระดับน้ำมันเข้ามา
+  const reading = await saveJobReading(userId, text);
+  if (reading) {
+    await replyMessage(replyToken, reading);
+    return;
   }
 
   // ยกเลิกการจองที่ทำค้างไว้
@@ -216,7 +268,9 @@ async function handleEvent(event: LineEvent) {
     return;
   }
 
-  await replyMessage(replyToken, HELP_TEXT);
+  // คนรับ-ส่งรถได้คำแนะนำของพนักงาน ไม่ใช่เมนูลูกค้า
+  const staffHelp = await driverHelpText(userId);
+  await replyMessage(replyToken, staffHelp ?? HELP_TEXT);
 }
 
 type BookingForDisplay = {

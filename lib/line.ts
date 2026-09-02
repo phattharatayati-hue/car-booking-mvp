@@ -143,6 +143,29 @@ export async function pushMessage(to: string, text: string) {
 }
 
 /**
+ * ส่งข้อความรูปแบบอิสระ (Flex / ปุ่ม) หาผู้ใช้ — คิดโควตาเหมือน pushMessage
+ */
+export async function pushRaw(to: string, messages: any[]) {
+  if (!token() || !to) return;
+
+  try {
+    const res = await fetch(`${LINE_API}/message/push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token()}`,
+      },
+      body: JSON.stringify({ to, messages: messages.slice(0, 5) }),
+    });
+    if (!res.ok) {
+      console.error("LINE pushRaw failed:", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("LINE pushRaw error:", err);
+  }
+}
+
+/**
  * LINE ID จาก environment variable (ใช้เป็นตัวสำรอง)
  *
  * LINE_ADMIN_USER_ID รองรับหลายคน คั่นด้วยจุลภาค เช่น

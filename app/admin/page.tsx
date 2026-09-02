@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { bangkokDayRange, bangkokDateStr, formatBangkokTime } from "@/lib/settings";
@@ -8,6 +9,8 @@ import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 
 export default async function AdminDashboard() {
+  await requireStaff();
+
   const [pendingCount, confirmedCount, carsCount, totalBookings, revenueAgg, recent] =
     await Promise.all([
       prisma.booking.count({ where: { status: "PENDING_DEPOSIT" } }),

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -52,6 +53,10 @@ type BookingRow = {
     note: string | null;
     googleEventId: string | null;
     syncError: string | null;
+    doneAt: Date | null;
+    odometer: number | null;
+    fuelLevel: string | null;
+    photos: { id: string; fileUrl: string }[];
     admin: { name: string };
   }[];
   documents: {
@@ -274,6 +279,8 @@ export default async function AdminBookingsPage({
 }: {
   searchParams: Promise<{ status?: string }>;
 }) {
+  await requireStaff();
+
   const { status } = await searchParams;
   const active = status && status !== "all" ? status : null;
 
@@ -285,7 +292,13 @@ export default async function AdminBookingsPage({
       customer: true,
       deposit: true,
       documents: true,
-      assignments: { include: { admin: true }, orderBy: { createdAt: "asc" } },
+      assignments: {
+        include: {
+          admin: true,
+          photos: { orderBy: { createdAt: "asc" } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 

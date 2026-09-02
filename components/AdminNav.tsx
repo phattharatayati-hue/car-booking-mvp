@@ -172,9 +172,28 @@ const ITEMS = [
   },
 ];
 
-export default function AdminNav({ isDev = false }: { isDev?: boolean }) {
+export default function AdminNav({
+  isDev = false,
+  isDriver = false,
+}: {
+  isDev?: boolean;
+  isDriver?: boolean;
+}) {
   const pathname = usePathname();
-  const items = ITEMS.filter((item) => isDev || !("devOnly" in item && item.devOnly));
+
+  // คนรับ-ส่งรถไม่มีเมนูหลังบ้าน งานทั้งหมดอยู่ในแชท LINE
+  const items = isDriver
+    ? []
+    : ITEMS.filter((item) => isDev || !("devOnly" in item && item.devOnly));
+
+  if (isDriver) {
+    return (
+      <div className="rounded-xl bg-blue-50 border border-blue-100 px-3.5 py-3 text-xs text-blue-900 leading-relaxed">
+        <p className="font-semibold mb-1">งานของคุณอยู่ในแชท LINE</p>
+        ระบบจะส่งคิวงานรับ-ส่งรถให้คุณทางแชท พิมพ์ <b>งานของฉัน</b> ในแชทเพื่อดูคิวได้ตลอด
+      </div>
+    );
+  }
 
   return (
     <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">

@@ -7,8 +7,9 @@ datasource db {
 }
 
 enum UserRole {
-  ADMIN
-  DEV
+  ADMIN  // พนักงานหลังบ้านทั่วไป
+  DEV    // ผู้ดูแลระบบ เห็นหน้าตั้งค่าและจัดการแอดมิน
+  DRIVER // คนรับ-ส่งรถ ใช้งานผ่านแชท LINE เท่านั้น เข้าหลังบ้านไม่ได้
 }
 
 enum CarSource {
@@ -289,10 +290,32 @@ model BookingAssignment {
 
   /// กันแจ้งเตือนซ้ำ
   notifiedAt  DateTime?
+
+  /// คนรับงานกดปิดงานจากแชท LINE เมื่อไหร่
+  doneAt      DateTime?
+  /// เลขไมล์ตอนส่งมอบ/รับคืน — คนรับงานพิมพ์เข้ามาในแชท
+  odometer    Int?
+  /// ระดับน้ำมันตอนส่งมอบ/รับคืน เช่น "เต็มถัง", "ครึ่งถัง"
+  fuelLevel   String?
+  photos      HandoffPhoto[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   /// คนเดิมรับงานเดิมซ้ำไม่ได้
   @@unique([bookingId, kind, adminUserId])
   @@index([adminUserId, meetAt])
+}
+
+/**
+ * รูปสภาพรถที่คนรับ-ส่งรถถ่ายส่งเข้าแชท LINE
+ * เก็บใน Vercel Blob แบบไม่เปิดสาธารณะ เข้าถึงผ่าน /api/file
+ */
+model HandoffPhoto {
+  id           String            @id @default(cuid())
+  assignment   BookingAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  fileUrl      String
+  createdAt    DateTime          @default(now())
+
+  @@index([assignmentId])
 }

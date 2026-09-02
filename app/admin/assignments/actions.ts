@@ -4,51 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { pushMessage, siteUrl } from "@/lib/line";
-import { toBangkokDate, formatBangkokDateTime } from "@/lib/settings";
+import { toBangkokDate } from "@/lib/settings";
 import { syncAssignment, removeAssignmentEvent } from "@/lib/calendar-sync";
-import {
-  HANDOFF_LABEL,
-  defaultMeetAt,
-  defaultPlace,
-  type HandoffKind,
-} from "@/lib/assignments";
-
-/** แจ้งคนที่รับงานทาง LINE — ล้มเหลวไม่ทำให้การมอบหมายล้ม */
-async function notifyAssignee(assignmentId: string) {
-  try {
-    const a = await prisma.bookingAssignment.findUnique({
-      where: { id: assignmentId },
-      include: {
-        admin: true,
-        booking: { include: { car: true, customer: true } },
-      },
-    });
-    if (!a?.admin.lineUserId) return;
-
-    const text = [
-      `🚗 คุณได้รับงาน${HANDOFF_LABEL[a.kind as HandoffKind]}`,
-      "",
-      `รถ: ${a.booking.car.brand} ${a.booking.car.name}`,
-      `ทะเบียน: ${a.booking.car.licensePlate}`,
-      `ลูกค้า: ${a.booking.customer.fullName} (${a.booking.customer.phone})`,
-      `เวลานัด: ${formatBangkokDateTime(a.meetAt)}`,
-      ...(a.place ? [`จุดนัด: ${a.place}`] : []),
-      ...(a.note ? [`หมายเหตุ: ${a.note}`] : []),
-      `รหัสจอง: ${a.bookingId.slice(0, 8).toUpperCase()}`,
-      "",
-      `${siteUrl()}/admin/bookings`,
-    ].join("\n");
-
-    await pushMessage(a.admin.lineUserId, text);
-    await prisma.bookingAssignment.update({
-      where: { id: assignmentId },
-      data: { notifiedAt: new Date() },
-    });
-  } catch (err) {
-    console.error("notifyAssignee failed:", err);
-  }
-}
+import { notifyJob } from "@/lib/driver-jobs";
+import { defaultMeetAt, defaultPlace, type HandoffKind } from "@/lib/assignments";
 
 /**
  * มอบหมายงานหนึ่งชิ้น — ใช้ร่วมกันทั้งฟอร์มเดี่ยวและฟอร์มรวม
@@ -79,13 +38,21 @@ async function assignOne(
   const place = input.place.trim() || defaultPlace(booking, kind);
   const note = input.note.trim() || null;
 
+  const key = { bookingId_kind_adminUserId: { bookingId: booking.id, kind, adminUserId } };
+
+  // เคยมอบหมายไว้แล้วหรือยัง — ใช้เลือกข้อความแจ้งเตือน (งานใหม่ / งานแก้ไข)
+  const existing = await prisma.bookingAssignment.findUnique({
+    where: key,
+    select: { id: true, notifiedAt: true },
+  });
+
   const saved = await prisma.bookingAssignment.upsert({
-    where: { bookingId_kind_adminUserId: { bookingId: booking.id, kind, adminUserId } },
+    where: key,
     create: { bookingId: booking.id, kind, adminUserId, meetAt, place, note },
     update: { meetAt, place, note },
   });
 
-  await notifyAssignee(saved.id);
+  await notifyJob(saved.id, existing?.notifiedAt ? "updated" : "new");
   await syncAssignment(saved.id);
   return true;
 }
@@ -136,7 +103,8 @@ export async function unassignAction(formData: FormData) {
   const id = String(formData.get("assignmentId") ?? "");
   if (!id) redirect("/admin/bookings?error=assign");
 
-  // ลบ event ในปฏิทินก่อน แล้วจึงลบแถว
+  // บอกคนรับงานก่อนว่าไม่ต้องไปแล้ว แล้วจึงลบ event ในปฏิทินและลบแถว
+  await notifyJob(id, "cancelled");
   await removeAssignmentEvent(id);
   await prisma.bookingAssignment.delete({ where: { id } });
 

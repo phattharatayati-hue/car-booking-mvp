@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
@@ -209,6 +210,8 @@ export default async function CarRatesPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ ok?: string; error?: string; with?: string; edit?: string }>;
 }) {
+  await requireStaff();
+
   const session = await auth();
   if (!session?.user) redirect("/login");
 

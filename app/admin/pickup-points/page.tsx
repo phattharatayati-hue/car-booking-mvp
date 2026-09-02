@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -72,6 +73,8 @@ export default async function PickupPointsPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
+  await requireStaff();
+
   const { ok, error } = await searchParams;
 
   const points: PointRow[] = await prisma.pickupPoint.findMany({

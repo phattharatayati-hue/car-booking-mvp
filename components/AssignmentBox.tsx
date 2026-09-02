@@ -3,7 +3,7 @@ import {
   unassignAction,
   resyncAction,
 } from "@/app/admin/assignments/actions";
-import { formatBangkokTime, bangkokDateStr } from "@/lib/settings";
+import { formatBangkokTime, formatBangkokDateTime, bangkokDateStr } from "@/lib/settings";
 import {
   HANDOFF_KINDS,
   HANDOFF_LABEL,
@@ -25,6 +25,10 @@ type AssignmentRow = {
   note: string | null;
   googleEventId: string | null;
   syncError: string | null;
+  doneAt: Date | null;
+  odometer: number | null;
+  fuelLevel: string | null;
+  photos: { id: string; fileUrl: string }[];
   admin: { name: string };
 };
 
@@ -90,7 +94,7 @@ export default function AssignmentBox({
                     return (
                       <li
                         key={a.id}
-                        className="flex items-center gap-2 text-sm bg-slate-50 rounded-lg px-2.5 py-1.5"
+                        className="flex items-start gap-2 text-sm bg-slate-50 rounded-lg px-2.5 py-1.5"
                       >
                         <span className="flex-1 min-w-0">
                           <span className="text-slate-900 font-medium">{a.admin.name}</span>
@@ -107,6 +111,46 @@ export default function AssignmentBox({
                               </span>
                             )}
                           </span>
+
+                          {/* คนรับ-ส่งรถกดปิดงานและส่งข้อมูลกลับมาจากแชท LINE */}
+                          {a.doneAt && (
+                            <span className="block text-[11px] text-emerald-700 font-medium">
+                              ✓ ปิดงานแล้ว {formatBangkokDateTime(a.doneAt)}
+                            </span>
+                          )}
+                          {(a.odometer !== null || a.fuelLevel) && (
+                            <span className="block text-[11px] text-slate-500">
+                              {[
+                                a.odometer !== null
+                                  ? `เลขไมล์ ${a.odometer.toLocaleString()} กม.`
+                                  : null,
+                                a.fuelLevel ? `น้ำมัน ${a.fuelLevel}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
+                          {a.photos.length > 0 && (
+                            <span className="flex flex-wrap gap-1.5 mt-1.5">
+                              {a.photos.map((ph) => (
+                                <a
+                                  key={ph.id}
+                                  href={ph.fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="รูปสภาพรถจากคนรับ-ส่งรถ"
+                                  className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={ph.fileUrl}
+                                    alt="สภาพรถ"
+                                    className="w-full h-full object-cover"
+                                  />
+                                </a>
+                              ))}
+                            </span>
+                          )}
                         </span>
                         <span className="flex items-center gap-2 shrink-0">
                           {a.syncError && (

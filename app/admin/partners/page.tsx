@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -84,6 +85,8 @@ export default async function PartnersPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
+  await requireStaff();
+
   const { ok, error } = await searchParams;
 
   const partners = await prisma.partner.findMany({

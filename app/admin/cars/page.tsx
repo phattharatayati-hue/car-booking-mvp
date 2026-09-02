@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
@@ -29,6 +30,8 @@ async function toggleStatusAction(formData: FormData) {
 }
 
 export default async function AdminCarsPage() {
+  await requireStaff();
+
   const cars = await prisma.car.findMany({ orderBy: { createdAt: "desc" } });
 
   return (

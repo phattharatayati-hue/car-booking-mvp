@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditCarForm from "@/components/EditCarForm";
@@ -10,6 +11,8 @@ export default async function EditCarPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireStaff();
+
   const { id } = await params;
 
   const car = await prisma.car.findUnique({ where: { id } });

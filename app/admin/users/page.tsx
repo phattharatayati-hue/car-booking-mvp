@@ -12,7 +12,7 @@ type AdminRow = {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "DEV";
+  role: "ADMIN" | "DEV" | "DRIVER";
   lineUserId: string | null;
   googleEmail: string | null;
   googleRefreshToken: string | null;
@@ -29,6 +29,8 @@ async function addAdminAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  // สร้างได้แค่ 2 ประเภท — บัญชีผู้ดูแลระบบ (DEV) ต้องสร้างจาก seed เท่านั้น
+  const role = String(formData.get("role") ?? "ADMIN") === "DRIVER" ? "DRIVER" : "ADMIN";
 
   if (!email || !name || password.length < 8) {
     redirect("/admin/users?error=invalid");
@@ -44,7 +46,7 @@ async function addAdminAction(formData: FormData) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.adminUser.create({
-    data: { email, name, passwordHash },
+    data: { email, name, passwordHash, role },
   });
 
   revalidatePath("/admin/users");
@@ -204,7 +206,8 @@ export default async function AdminUsersPage({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">จัดการแอดมิน</h1>
           <p className="text-slate-500 text-sm mt-1">
-            มีแอดมิน {visible.length} คน · สร้างบัญชี ตั้งรหัสผ่านใหม่ และตัดการเชื่อม LINE/ปฏิทินได้ที่นี่
+            มีผู้ใช้ {visible.length} คน · สร้างบัญชีแอดมินหรือคนรับ-ส่งรถ ตั้งรหัสผ่านใหม่ และตัดการเชื่อม
+            LINE/ปฏิทินได้ที่นี่
           </p>
         </div>
         <AddAdminForm action={addAdminAction} />
@@ -245,6 +248,11 @@ export default async function AdminUsersPage({
                     {admin.role === "DEV" && (
                       <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-900 text-white border border-slate-900">
                         ผู้ดูแลระบบ
+                      </span>
+                    )}
+                    {admin.role === "DRIVER" && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                        คนรับ-ส่งรถ
                       </span>
                     )}
                   </p>

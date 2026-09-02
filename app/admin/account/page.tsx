@@ -125,9 +125,10 @@ export default async function AccountPage({
     gerror?: string;
     lok?: string;
     lerror?: string;
+    driver?: string;
   }>;
 }) {
-  const { ok, error, gok, gerror, lok, lerror } = await searchParams;
+  const { ok, error, gok, gerror, lok, lerror, driver } = await searchParams;
   const session = await auth();
 
   const me = session?.user?.email
@@ -168,6 +169,17 @@ export default async function AccountPage({
       {gerror && GERRORS[gerror] && (
         <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
           {GERRORS[gerror]}
+        </div>
+      )}
+
+      {(driver || me?.role === "DRIVER") && (
+        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3.5 text-sm text-blue-900 leading-relaxed">
+          <p className="font-semibold">คิวงานรับ-ส่งรถอยู่ในแชท LINE</p>
+          <p className="mt-1">
+            ผูกบัญชี LINE ที่การ์ดด้านล่างให้เรียบร้อย ระบบจะส่งการ์ดงานไปให้ทันทีที่ได้รับมอบหมาย ·
+            พิมพ์ <span className="font-semibold">งานของฉัน</span> ในแชทเพื่อดูคิวงานได้ตลอด ·
+            เชื่อมปฏิทิน Google เพิ่มไว้ จะได้แจ้งเตือนก่อนถึงเวลานัด
+          </p>
         </div>
       )}
 
