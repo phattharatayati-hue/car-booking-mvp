@@ -54,6 +54,7 @@ type BookingRow = {
     note: string | null;
     googleEventId: string | null;
     syncError: string | null;
+    ackedAt: Date | null;
     doneAt: Date | null;
     odometer: number | null;
     fuelLevel: string | null;

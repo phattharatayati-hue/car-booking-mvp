@@ -28,6 +28,7 @@ const SECTIONS = [
   { id: "step4", t: "4. รอยืนยันและติดตามสถานะ" },
   { id: "money", t: "เรื่องเงิน จ่ายอะไรบ้าง" },
   { id: "afterhours", t: "รับ-คืนรถนอกเวลา" },
+  { id: "late", t: "คืนรถช้ากว่ากำหนด" },
   { id: "documents", t: "เอกสารที่ต้องเตรียม" },
   { id: "places", t: "จุดรับ-ส่งรถ" },
   { id: "handover", t: "วันรับรถและวันคืนรถ" },
@@ -302,6 +303,65 @@ export default async function HowToBookPage() {
                 "ค่าบริการคิดทั้งตอนรับและตอนคืน แล้วบวกกัน — รับตี 5 คืน 3 ทุ่ม โดนสองครั้ง",
                 "ระบบเตือนให้เห็นทันทีตอนเลือกเวลา ไม่ใช่ไปโผล่ตอนสรุปยอด",
                 "อยากประหยัด เลือกรับ-คืนในช่วงที่ไม่มีค่าบริการ",
+              ]}
+            />
+          </Section>
+
+          <Section
+            id="late"
+            title="คืนรถช้ากว่ากำหนด"
+            lead="คืนช้าไม่กี่ชั่วโมงคิดเป็นรายชั่วโมง ช้ามากถึงคิดเป็นอีกหนึ่งวัน"
+          >
+            <p>
+              ระบบเทียบ<b>เวลาคืน</b>กับ<b>เวลารับรถ</b> ไม่ได้ดูแค่วันที่ — รับรถ 08:00
+              ก็ต้องคืน 08:00 ของวันสุดท้าย ถ้าเลยจากนั้นถือว่าคืนช้า
+            </p>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                    <th className="px-4 sm:px-5 py-3 font-medium">รับรถ 08:00 · คืนตอน</th>
+                    <th className="px-4 sm:px-5 py-3 font-medium">คิดเป็น</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["08:00 ของวันคืน", "ตรงเวลา ไม่มีค่าใช้จ่ายเพิ่ม"],
+                    [
+                      "10:00 (ช้า 2 ชม.)",
+                      `ค่าเช่าเท่าเดิม + ค่าล่าช้า ${(
+                        2 * settings.lateHourlyFee
+                      ).toLocaleString()} บาท`,
+                    ],
+                    [
+                      `ช้าตั้งแต่ ${settings.lateRoundUpHours} ชม. ขึ้นไป`,
+                      "คิดเป็นค่าเช่าเพิ่มอีก 1 วันเต็ม",
+                    ],
+                  ].map(([a, b]) => (
+                    <tr key={a} className="border-b border-slate-50 last:border-0">
+                      <td className="px-4 sm:px-5 py-3 text-slate-900">{a}</td>
+                      <td className="px-4 sm:px-5 py-3 text-slate-600">{b}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Tips
+              items={[
+                `ค่าล่าช้าชั่วโมงละ ${settings.lateHourlyFee.toLocaleString()} บาท เศษนาทีปัดขึ้นเป็นชั่วโมง`,
+                `ช้าตั้งแต่ ${settings.lateRoundUpHours} ชั่วโมงขึ้นไป เปลี่ยนไปคิดเป็นค่าเช่าอีก 1 วันแทน`,
+                "ค่าล่าช้าไม่เกินค่าเช่า 1 วันของรถคันนั้น",
+                "หน้าจองแสดงยอดนี้ให้เห็นตั้งแต่ตอนเลือกวันเวลา ไม่มีบวกเพิ่มทีหลัง",
+              ]}
+            />
+
+            <Tips
+              tone="warn"
+              items={[
+                "ถ้ารู้ว่าจะคืนไม่ทัน โทรบอกล่วงหน้าดีที่สุด บางครั้งมีลูกค้าคิวถัดไปรออยู่",
+                "อยากใช้รถถึงเย็น ให้เลือกเวลาคืนเป็นเย็นตั้งแต่ตอนจอง จะถูกกว่าคืนช้าแล้วโดนค่าล่าช้า",
               ]}
             />
           </Section>

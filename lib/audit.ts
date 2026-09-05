@@ -49,6 +49,7 @@ export const AUDIT_LABEL: Record<string, string> = {
   "booking.request_approve": "อนุมัติคำขอ",
   "booking.request_reject": "ปฏิเสธคำขอ",
   "booking.cancel": "ยกเลิกการจอง",
+  "booking.document_view": "เปิดดูเอกสารลูกค้า",
 
   "assignment.assign": "มอบหมายงานรับ-ส่งรถ",
   "assignment.unassign": "ถอนคนออกจากงาน",

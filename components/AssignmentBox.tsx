@@ -25,6 +25,7 @@ type AssignmentRow = {
   note: string | null;
   googleEventId: string | null;
   syncError: string | null;
+  ackedAt: Date | null;
   doneAt: Date | null;
   odometer: number | null;
   fuelLevel: string | null;
@@ -111,6 +112,17 @@ export default function AssignmentBox({
                               </span>
                             )}
                           </span>
+
+                          {/* คนรับ-ส่งรถกดปุ่มรับทราบในแชท LINE แล้วหรือยัง */}
+                          {a.ackedAt ? (
+                            <span className="block text-[11px] text-emerald-700">
+                              ✓ รับทราบแล้ว {formatBangkokDateTime(a.ackedAt)}
+                            </span>
+                          ) : (
+                            <span className="block text-[11px] text-amber-700">
+                              ⏳ ยังไม่กดรับทราบ
+                            </span>
+                          )}
 
                           {/* คนรับ-ส่งรถกดปิดงานและส่งข้อมูลกลับมาจากแชท LINE */}
                           {a.doneAt && (

@@ -4,6 +4,7 @@ import { verifyLineSignature, replyMessage, replyRaw, siteUrl } from "@/lib/line
 import {
   myJobsFlex,
   closeJob,
+  ackJob,
   saveJobPhoto,
   saveJobReading,
   driverHelpText,
@@ -92,9 +93,15 @@ async function handleEvent(event: LineEvent) {
   // ปุ่มปิดงานของคนรับ-ส่งรถ
   if (event.type === "postback" && event.postback && userId) {
     const params = new URLSearchParams(event.postback.data);
-    if (params.get("action") === "job_done") {
-      const id = params.get("id") ?? "";
-      await replyMessage(replyToken, await closeJob(id, userId));
+    const jobAction = params.get("action");
+    const jobId = params.get("id") ?? "";
+
+    if (jobAction === "job_ack") {
+      await replyMessage(replyToken, await ackJob(jobId, userId));
+      return;
+    }
+    if (jobAction === "job_done") {
+      await replyMessage(replyToken, await closeJob(jobId, userId));
       return;
     }
   }

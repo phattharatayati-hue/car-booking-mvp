@@ -1,7 +1,8 @@
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { put } from "@vercel/blob";
-import { pushMessage, pushRaw, getMessageContent } from "@/lib/line";
+import { pushMessage, pushRaw, getMessageContent, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
 
@@ -71,6 +72,32 @@ export async function jobText(job: Job): Promise<string> {
   ].join("\n");
 }
 
+
+/**
+ * ช่วงเวลาที่คนรับงานเปิดดูเอกสารลูกค้าได้
+ *
+ * เปิดได้ตลอดตั้งแต่ได้รับมอบหมาย (เตรียมงานล่วงหน้าได้)
+ * แล้วปิดถาวรเมื่อพ้นเวลานัดไป 1 วัน — ไม่ปล่อยให้ลิงก์บัตรประชาชนและใบขับขี่
+ * ของลูกค้าค้างเปิดได้ตลอดไปหลังจบงาน
+ */
+export const JOB_VIEW_AFTER_MS = 24 * 3600 * 1000;
+
+export function jobViewOpen(meetAt: Date, now: Date = new Date()): boolean {
+  return now.getTime() <= meetAt.getTime() + JOB_VIEW_AFTER_MS;
+}
+
+/** กุญแจเปิดหน้าเอกสารของงานนี้ — สร้างครั้งแรกครั้งเดียวแล้วใช้ซ้ำ */
+async function viewTokenFor(job: Job): Promise<string> {
+  if (job.viewToken) return job.viewToken;
+
+  const token = crypto.randomBytes(24).toString("base64url");
+  await prisma.bookingAssignment.update({
+    where: { id: job.id },
+    data: { viewToken: token },
+  });
+  return token;
+}
+
 const NAVY = "#26456E";
 const GOLD = "#8A6E12";
 const MUTED = "#647388";
@@ -93,6 +120,7 @@ async function jobFlex(job: Job, headline?: string) {
   const money = await moneyDue(job);
   const car = job.booking.car;
   const alt = await jobText(job);
+  const token = await viewTokenFor(job);
 
   return {
     type: "flex",
@@ -188,16 +216,45 @@ async function jobFlex(job: Job, headline?: string) {
         layout: "vertical",
         spacing: "sm",
         contents: [
-          ...(job.place
-            ? [
-                {
-                  type: "button",
-                  style: "primary",
-                  color: NAVY,
-                  action: { type: "uri", label: "นำทางไปจุดนัด", uri: mapsLink(job.place) },
+          // เปิดหน้าเอกสารลูกค้าของงานนี้ — ใช้เทียบกับตัวจริงหน้างาน
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: {
+              type: "uri",
+              label: "ดูเอกสารลูกค้า",
+              uri: `${siteUrl()}/job/${token}`,
+            },
+          },
+          // ปุ่มรับทราบ — บอกออฟฟิศว่าเห็นงานแล้ว (แทนปุ่มนำทางเดิม)
+          job.ackedAt
+            ? {
+                type: "box",
+                layout: "vertical",
+                paddingAll: "8px",
+                contents: [
+                  {
+                    type: "text",
+                    text: `✓ รับทราบแล้ว ${formatBangkokTime(job.ackedAt)} น.`,
+                    size: "sm",
+                    color: "#2E7D5B",
+                    weight: "bold",
+                    align: "center",
+                  },
+                ],
+              }
+            : {
+                type: "button",
+                style: "primary",
+                color: NAVY,
+                action: {
+                  type: "postback",
+                  label: "รับทราบ",
+                  data: `action=job_ack&id=${job.id}`,
+                  displayText: "รับทราบ",
                 },
-              ]
-            : []),
+              },
           {
             type: "button",
             style: "secondary",
@@ -288,6 +345,36 @@ export async function myJobsFlex(lineUserId: string) {
   return Promise.all(jobs.map((j) => jobFlex(j)));
 }
 
+/** คนรับงานกดปุ่ม "รับทราบ" — ออฟฟิศจะเห็นว่างานถึงมือแล้ว */
+export async function ackJob(assignmentId: string, lineUserId: string): Promise<string> {
+  const job = await prisma.bookingAssignment.findUnique({
+    where: { id: assignmentId },
+    include: jobInclude,
+  });
+
+  if (!job) return "ไม่พบงานนี้ในระบบครับ";
+  if (job.admin.lineUserId !== lineUserId) return "งานนี้ไม่ใช่งานของคุณครับ";
+  if (job.ackedAt) {
+    return `รับทราบงานนี้ไปแล้วเมื่อ ${formatBangkokDateTime(job.ackedAt)} ครับ`;
+  }
+
+  await prisma.bookingAssignment.update({
+    where: { id: job.id },
+    data: { ackedAt: new Date() },
+  });
+
+  return [
+    `✅ รับทราบงาน${HANDOFF_LABEL[job.kind as HandoffKind]}แล้ว`,
+    "",
+    `นัด ${formatBangkokDateTime(job.meetAt)}`,
+    `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น.`,
+    `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
+    ...(job.place ? ["", `จุดนัด: ${job.place}`, `🗺 ${mapsLink(job.place)}`] : []),
+    "",
+    "เมื่อทำงานเสร็จ กดปุ่มปิดงานที่การ์ดได้เลยครับ",
+  ].join("\n");
+}
+
 /** คนรับงานกดปุ่มปิดงานจากการ์ด */
 export async function closeJob(
   assignmentId: string,
@@ -306,7 +393,8 @@ export async function closeJob(
 
   await prisma.bookingAssignment.update({
     where: { id: job.id },
-    data: { doneAt: new Date() },
+    // ปิดงานได้แปลว่าเห็นงานแน่นอน ถ้ายังไม่เคยกดรับทราบก็ถือว่ารับทราบตอนนี้
+    data: { doneAt: new Date(), ackedAt: job.ackedAt ?? new Date() },
   });
 
   // งานรับรถคืนเสร็จ = จบการเช่า ปิดสถานะการจองให้เลย
@@ -442,6 +530,7 @@ export async function driverHelpText(lineUserId: string): Promise<string | null>
     "",
     "คำสั่งที่ใช้ได้ในแชทนี้",
     "• งานของฉัน — ดูคิวงานรับ-ส่งรถ 2 วันนี้",
+    "• กดปุ่ม “รับทราบ” ที่การ์ดงาน เพื่อบอกออฟฟิศว่าเห็นงานแล้ว",
     "• ไมล์ 45120 — บันทึกเลขไมล์ของงานล่าสุด",
     "• น้ำมัน เต็มถัง — บันทึกระดับน้ำมัน",
     "• ส่งรูปเข้าแชท — เก็บเป็นรูปสภาพรถของงานนั้น",
