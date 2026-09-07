@@ -6,7 +6,11 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { bangkokDayRange, bangkokDateStr, formatBangkokTime } from "@/lib/settings";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
-import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
+import {
+  ACTIVE_BOOKING_STATUSES,
+  STATUS_LABEL,
+  STATUS_CLASS,
+} from "@/lib/booking-status";
 
 export default async function AdminDashboard() {
   await requireStaff();
@@ -158,12 +162,6 @@ export default async function AdminDashboard() {
     },
   ];
 
-  const statusLabel: Record<string, { text: string; cls: string }> = {
-    PENDING_DEPOSIT: { text: "รอตรวจสลิป", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-    CONFIRMED: { text: "ยืนยันแล้ว", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    CANCELLED: { text: "ยกเลิก", cls: "bg-red-50 text-red-700 border-red-200" },
-    COMPLETED: { text: "เสร็จสิ้น", cls: "bg-slate-100 text-slate-600 border-slate-200" },
-  };
 
   return (
     <div>
@@ -190,8 +188,9 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 mb-6 text-white">
-        <p className="text-blue-100 text-sm">รายได้จากการจองที่ยืนยันแล้ว</p>
+      {/* การ์ดรายได้ — พื้นเขียวเข้มตลอดทั้งสองโหมด จึงใช้สีชุดที่ไม่สลับ */}
+      <div className="bg-panel rounded-2xl p-6 mb-6 text-white">
+        <p className="text-white/75 text-sm">รายได้จากการจองที่ยืนยันแล้ว</p>
         <p className="text-4xl font-bold mt-1.5">{revenue.toLocaleString()} ฿</p>
       </div>
 
@@ -242,7 +241,11 @@ export default async function AdminDashboard() {
         {recent.length > 0 ? (
           <ul className="divide-y divide-slate-100">
             {recent.map((b: RecentBooking) => {
-              const st = statusLabel[b.status] ?? statusLabel.PENDING_DEPOSIT;
+              // ใช้ป้ายสถานะกลางจาก lib/booking-status
+              // เดิมหน้านี้เขียนตารางเองแล้วขาด REQUESTED กับ REJECTED
+              // การจองที่ "รอเช็คกับเจ้าของรถ" จึงแสดงว่า "รอตรวจสลิป" ผิดข้อเท็จจริง
+              const stText = STATUS_LABEL[b.status] ?? b.status;
+              const stCls = STATUS_CLASS[b.status] ?? STATUS_CLASS.COMPLETED;
               return (
                 <li key={b.id} className="flex items-center gap-4 px-6 py-4">
                   <div className="min-w-0 flex-1">
@@ -258,9 +261,9 @@ export default async function AdminDashboard() {
                       {b.totalPrice.toLocaleString()} ฿
                     </p>
                     <span
-                      className={`inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${st.cls}`}
+                      className={`inline-block mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${stCls}`}
                     >
-                      {st.text}
+                      {stText}
                     </span>
                   </div>
                 </li>

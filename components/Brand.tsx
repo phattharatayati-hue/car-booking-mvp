@@ -16,7 +16,7 @@ export default function Brand({
   /** ใส่ null ถ้าไม่อยากให้กดได้ */
   href?: string | null;
   size?: "sm" | "md" | "lg";
-  /** navy = บนพื้นอ่อน · white = บนพื้นเข้ม */
+  /** navy = บนพื้นอ่อน (เขียวมรกต) · white = บนพื้นเข้มหรือทับรูป */
   tone?: "navy" | "white";
   subtitle?: string | null;
   className?: string;
@@ -49,7 +49,7 @@ export default function Brand({
         {subtitle ? (
           <span
             className={`block text-[10px] font-mono tracking-[0.18em] uppercase ${
-              tone === "white" ? "text-amber-300" : "text-amber-700"
+              tone === "white" ? "text-gold-fixed" : "text-amber-700"
             }`}
           >
             {subtitle}

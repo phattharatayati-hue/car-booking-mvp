@@ -3,72 +3,103 @@
 /**
  * ระบบสีของ PHUPING CORPORATION
  *
- * โทนอ่อน มุมมน กรมท่าคู่ทอง
- * เราตั้งค่าทับสเกลสีของ Tailwind (blue / slate / amber / emerald / red) ไปเลย
- * คลาสเดิมทั้งเว็บจึงเปลี่ยนหน้าตาตามทันที โดยไม่ต้องไล่แก้ทีละไฟล์
- *   blue    = กรมท่า (สีหลัก ปุ่ม ลิงก์)
- *   amber   = ทอง (สิ่งที่ต้องมอง ค่าบริการนอกเวลา ราคาช่วงพิเศษ)
- *   emerald = สำเร็จ · red = ยกเลิก/ผิดพลาด · slate = พื้นและตัวอักษร
+ * โทนเขียวมรกตคู่ทองโบราณ พื้นครีม มุมมน
+ * ค่าสีอ้างอิงจาก BRAND-COLORS.md (บริษัทส่งมา 6 ก.ย. 2569)
+ *   Deep Emerald #1e5841 · Antique Gold #b08d57
+ *   Ivory Cream  #f5f0e1 · Pale Gold    #d9c29b
+ *
+ * วิธีทำงาน — สำคัญ อ่านก่อนแก้
+ *   เราตั้งค่าทับสเกลสีของ Tailwind (blue / slate / amber / emerald / red) ไปเลย
+ *   คลาสเดิมทั้งเว็บจึงเปลี่ยนหน้าตาตามทันที โดยไม่ต้องไล่แก้ 269 จุดในโค้ด
+ *     blue    = เขียวมรกต (สีหลัก ปุ่ม ลิงก์)
+ *     amber   = ทองโบราณ (สิ่งที่ต้องมอง ค่าบริการนอกเวลา ราคาช่วงพิเศษ)
+ *     emerald = สำเร็จ · red = ยกเลิก/ผิดพลาด · slate = พื้นและตัวอักษร
+ *
+ *   เขียว "แบรนด์" กับเขียว "สำเร็จ" ตั้งใจให้ไม่เหมือนกัน
+ *   แบรนด์เป็นเขียวเข้มหม่น ส่วนสำเร็จเป็นเขียวสดกว่า เพื่อให้ยังแยกออกจากกัน
+ *
+ * กฎการอ่านสเกล (ใช้ทั้งสองโหมด)
+ *   เฉดต่ำ 50-200  = พื้นอ่อนและเส้นขอบ
+ *   เฉดกลาง 500-600 = สีเต็ม เช่น พื้นปุ่ม (ใช้คู่กับตัวอักษรขาว)
+ *   เฉดสูง 700-900  = สีตัวอักษร
+ *   โหมดมืดจึงสลับ "บทบาท" ไม่ใช่สลับตัวเลข — เฉดต่ำกลายเป็นพื้นเข้ม
+ *   เฉดสูงกลายเป็นตัวอักษรสว่าง ส่วนเฉดกลางยังเป็นพื้นปุ่มที่ตัวอักษรขาวอ่านได้
+ *
+ * ห้ามใช้ @theme inline กับสีเหล่านี้
+ *   inline จะฝังค่าลงใน utility ตรงๆ ทำให้สลับโหมดมืดตอนใช้งานไม่ได้
+ *   ต้องเป็น @theme ธรรมดาเพื่อให้ utility อ้าง var() แล้วค่าจึงเปลี่ยนตามได้
  */
 
+/* dark: ให้ดูที่ data-theme บน <html> ไม่ใช่การตั้งค่าเครื่อง
+   เพราะผู้ใช้ต้องกดสลับเองได้ (สคริปต์อยู่ที่ lib/theme.ts) */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
-  --background: #f5f8fc;
-  --foreground: #1b2b41;
+  --background: #f7f3e8;
+  --foreground: #15352a;
+  --surface: #ffffff;
+  color-scheme: light;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* พื้นการ์ด — โหมดสว่างเป็นขาว โหมดมืดเป็นเขียวอมเทาเข้ม
+     แยกจาก white เพราะ text-white ต้องขาวจริงตลอด (ตัวอักษรบนปุ่ม) */
+  --color-surface: var(--surface);
 
   /* ฟอนต์ฝังมากับโปรเจกต์ ประกาศไว้ที่ app/layout.tsx */
   --font-sans: "IBM Plex Sans Thai", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Anuphan", "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* กรมท่า — สีหลัก */
-  --color-blue-50: #eaf1fa;
-  --color-blue-100: #d8e4f2;
-  --color-blue-200: #c3d6ec;
-  --color-blue-300: #9cbadd;
-  --color-blue-400: #5b87b8;
-  --color-blue-500: #35608f;
-  --color-blue-600: #26456e;
-  --color-blue-700: #1b3455;
-  --color-blue-800: #152943;
-  --color-blue-900: #101f34;
+  /* เขียวมรกต — สีหลัก */
+  --color-blue-50: #e9f2ed;
+  --color-blue-100: #d5e7de;
+  --color-blue-200: #b9d7c9;
+  --color-blue-300: #8bbca6;
+  --color-blue-400: #4f9377;
+  --color-blue-500: #2f7a5c;
+  --color-blue-600: #1e5841;
+  --color-blue-700: #17452f;
+  --color-blue-800: #123a28;
+  --color-blue-900: #0d2b1f;
 
-  /* เทาอมน้ำเงิน — พื้นและตัวอักษร */
-  --color-slate-50: #f5f8fc;
-  --color-slate-100: #edf2f8;
-  --color-slate-200: #e1e9f2;
-  --color-slate-300: #cfdae7;
-  --color-slate-400: #94a2b4;
-  --color-slate-500: #647388;
-  --color-slate-600: #52627a;
-  --color-slate-700: #3c4e67;
-  --color-slate-800: #29394f;
-  --color-slate-900: #1b2b41;
+  /* เทาอมเขียวโทนอุ่น — พื้นและตัวอักษร */
+  --color-slate-50: #f7f3e8;
+  --color-slate-100: #f0ebdd;
+  --color-slate-200: #e3dbc7;
+  --color-slate-300: #cfc3a6;
+  --color-slate-400: #86928a;
+  --color-slate-500: #64726a;
+  --color-slate-600: #55645c;
+  --color-slate-700: #414e47;
+  --color-slate-800: #2c3833;
+  --color-slate-900: #15352a;
 
-  /* ทอง — สิ่งที่ต้องมอง */
-  --color-amber-50: #fcf2e0;
-  --color-amber-100: #f8e9cc;
-  --color-amber-200: #f0dfbe;
-  --color-amber-300: #e6cf9c;
-  --color-amber-400: #d3b25c;
-  --color-amber-500: #c9a227;
-  --color-amber-600: #b08f1e;
-  --color-amber-700: #a87526;
-  --color-amber-800: #8a6e12;
-  --color-amber-900: #6b5310;
+  /* ทองโบราณ — สิ่งที่ต้องมอง
+     amber-500 คือทองแบรนด์ ใช้เป็นพื้น เส้น ไอคอนเท่านั้น
+     ถ้าต้องการตัวหนังสือสีทองให้ใช้ amber-700 ซึ่งเข้มพอจะอ่านได้ */
+  --color-amber-50: #faf3e4;
+  --color-amber-100: #f5e9d2;
+  --color-amber-200: #ecdcbb;
+  --color-amber-300: #d9c29b;
+  --color-amber-400: #c9a978;
+  --color-amber-500: #b08d57;
+  --color-amber-600: #9a7a48;
+  --color-amber-700: #7a5f2e;
+  --color-amber-800: #634d26;
+  --color-amber-900: #4a3a1d;
 
-  /* สำเร็จ */
-  --color-emerald-50: #e6f4ee;
-  --color-emerald-100: #d7ede3;
-  --color-emerald-200: #cde8dd;
-  --color-emerald-500: #3d9878;
-  --color-emerald-600: #2f8567;
-  --color-emerald-700: #27795c;
-  --color-emerald-800: #1f6349;
+  /* สำเร็จ — เขียวสดกว่าแบรนด์ ตั้งใจให้แยกออกจากกัน */
+  --color-emerald-50: #e3f5eb;
+  --color-emerald-100: #cdeddd;
+  --color-emerald-200: #a9dcc2;
+  --color-emerald-500: #10a05f;
+  --color-emerald-600: #067a4c;
+  --color-emerald-700: #05663f;
+  --color-emerald-800: #044f31;
 
   /* ยกเลิก / ผิดพลาด */
   --color-red-50: #fbebe9;
@@ -79,6 +110,26 @@
   --color-red-700: #9c3a2f;
   --color-red-800: #86322a;
 
+  /* ---- สีชุด "ไม่สลับตามโหมด" ----
+     ใช้กับพื้นที่ที่เข้มตลอดทั้งสองโหมด เช่น รูปใหญ่หน้าแรก
+     แผงเขียว "ทำไมต้องเรา" แถบปิดหน้า และท้ายเว็บ
+
+     ทำไมต้องมีชุดนี้
+       สเกล blue กับ amber ปกติจะสลับบทบาทในโหมดมืด
+       เฉดสูงกลายเป็นสีตัวอักษรสว่าง เพื่อให้ตัวหนังสือบนพื้นมืดอ่านออก
+       แต่แผงที่เข้มอยู่แล้วไม่ต้องการการสลับนั้น
+       ถ้าใช้ bg-blue-700 แผงจะกลายเป็นเขียวมิ้นต์สว่างในโหมดมืด
+     ชุดนี้จึงประกาศครั้งเดียวและ "ห้าม" ไปทับค่าในบล็อกโหมดมืด */
+  --color-panel: #1e5841;      /* พื้นแผงเขียวเข้ม */
+  --color-panel-deep: #123a28; /* พื้นท้ายเว็บ เข้มกว่าแผง */
+  --color-gold-fixed: #d9c29b; /* ตัวอักษรและไอคอนสีทองบนพื้นเข้ม */
+  --color-ink: #0d2b1f;        /* ตัวอักษรบนปุ่มสีทอง */
+  --color-paper: #ffffff;      /* ปุ่มขาวบนพื้นเข้ม — ไม่ให้สะพาน bg-white ไปเปลี่ยน */
+
+  /* เงาการ์ด — โทนเขียวอมเทา ไม่ใช่ดำสนิท จะดูนุ่มกว่า */
+  --shadow-card: 0 18px 40px -28px rgba(21, 53, 42, 0.38);
+  --shadow-pop: 0 26px 50px -24px rgba(21, 53, 42, 0.45);
+
   /* มุมมนขึ้นทั้งระบบ */
   --radius-md: 0.7rem;
   --radius-lg: 0.9rem;
@@ -87,11 +138,113 @@
   --radius-3xl: 2rem;
 }
 
+/* ================= โหมดมืด =================
+   ใช้ html[data-theme] ให้ค่า specificity ชนะ :root ที่ Tailwind สร้าง
+   ไม่ว่าลำดับในไฟล์ผลลัพธ์จะออกมาเป็นแบบไหน */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #121614;
+  --foreground: #f2f5f3;
+  --surface: #1c2320;
+
+  /* เขียวมรกต — เฉดกลางยังเป็นพื้นปุ่ม (ตัวอักษรขาวได้ 5.3:1)
+     เฉดสูงกลายเป็นตัวอักษรสว่าง */
+  --color-blue-50: #16241d;
+  --color-blue-100: #1b2e25;
+  --color-blue-200: #233d31;
+  --color-blue-300: #2c5343;
+  --color-blue-400: #2a8f68;
+  --color-blue-500: #1a6349;  /* พื้นปุ่มตอน hover — เข้มลงเล็กน้อย */
+  --color-blue-600: #23795a;  /* พื้นปุ่มปกติ */
+  --color-blue-700: #7fd3ae;  /* ตัวอักษรและลิงก์ */
+  --color-blue-800: #a3e2c6;
+  --color-blue-900: #c4eedd;
+
+  /* เทาอุ่น — สลับหัวท้ายของสเกล พื้นกลายเป็นเข้ม ตัวอักษรกลายเป็นสว่าง */
+  --color-slate-50: #121614;
+  --color-slate-100: #171d1a;
+  --color-slate-200: #2e3833;
+  --color-slate-300: #415048;
+  --color-slate-400: #72817a;
+  --color-slate-500: #9aa8a1;
+  --color-slate-600: #b3bfb8;
+  --color-slate-700: #c9d3ce;
+  --color-slate-800: #dfe6e2;
+  --color-slate-900: #f2f5f3;
+
+  /* ทอง — บนพื้นมืดใช้ทองอ่อนเป็นตัวอักษรได้ ไม่ต้องกดให้เข้ม */
+  --color-amber-50: #241f14;
+  --color-amber-100: #2c2618;
+  --color-amber-200: #3d3421;
+  --color-amber-300: #6b5a38;
+  --color-amber-400: #a68a5c;
+  --color-amber-500: #c9a978;
+  --color-amber-600: #d7bc92;
+  --color-amber-700: #e2cca5;
+  --color-amber-800: #ead9bd;
+  --color-amber-900: #f2e7d4;
+
+  --color-emerald-50: #10241b;
+  --color-emerald-100: #163024;
+  --color-emerald-200: #1e4433;
+  --color-emerald-500: #34b97b;
+  --color-emerald-600: #2aa76d;
+  --color-emerald-700: #6fdba8;
+  --color-emerald-800: #9ee9c5;
+
+  --color-red-50: #2a1614;
+  --color-red-100: #351d1a;
+  --color-red-200: #4a2723;
+  --color-red-500: #d96a5c;
+  --color-red-600: #c9584c;
+  --color-red-700: #f2a49b;
+  --color-red-800: #f7c4be;
+
+  /* แผงเขียวในโหมดมืด — ยกให้สว่างกว่าพื้นหน้าเล็กน้อยเพื่อให้เห็นเป็นแผง
+     แต่ยังเข้มกว่าโหมดสว่าง ไม่ให้จ้าตัดกับหน้าที่มืดอยู่ */
+  --color-panel: #17402f;
+  --color-panel-deep: #0f2a1f;
+
+  --shadow-card: 0 18px 40px -28px rgba(0, 0, 0, 0.75);
+  --shadow-pop: 0 26px 50px -24px rgba(0, 0, 0, 0.85);
+}
+
+/* --- สะพานชั่วคราวระหว่างไล่ปรับหน้าเว็บทีละส่วน ---
+   ในโค้ดยังมี bg-white อยู่ 142 จุด และ hover:bg-blue-700 อยู่ 27 จุด
+   สองอย่างนี้ทำโหมดมืดพังถ้าไม่จัดการ
+     bg-white          → การ์ดจะเป็นสีขาวโพลนบนพื้นดำ
+     hover:bg-blue-700 → 700 คือสีตัวอักษรสว่าง ปุ่มจะสว่างจนตัวอักษรขาวหาย
+   จึงเปลี่ยนเป้าหมายของสองคลาสนี้เฉพาะโหมดมืด
+   ทำที่นี่ที่เดียวได้ผลทั้งระบบ และ text-white ยังขาวจริงตามเดิม
+
+   เมื่อไล่แก้หน้าเว็บครบทุกหน้าแล้ว (bg-white → bg-surface,
+   hover:bg-blue-700 → hover:bg-blue-500) ให้ลบบล็อกนี้ออก */
+html[data-theme="dark"] .bg-white {
+  background-color: var(--surface);
+}
+html[data-theme="dark"] .hover\:bg-blue-700:hover {
+  background-color: var(--color-blue-500);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* สีค่อยๆ เปลี่ยนตอนสลับโหมด แต่ต้องไม่ไล่สีตอนเปิดหน้าครั้งแรก
+   คลาส theme-ready ใส่โดยสคริปต์ใน lib/theme.ts หลังตั้งค่าเสร็จ */
+html.theme-ready body,
+html.theme-ready body * {
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  html.theme-ready body,
+  html.theme-ready body * {
+    transition: none;
+  }
 }
 
 /* หัวข้อใช้ฟอนต์ Anuphan ให้ต่างจากเนื้อความ */
@@ -117,19 +270,82 @@ input:not([type="checkbox"]):not([type="radio"]) {
   min-height: 2.75rem;
 }
 
+/* ลิงก์ที่ทำหน้าที่เป็นปุ่ม — <a> กับ <Link> ไม่เข้าเงื่อนไขข้างบน
+   จึงเหลือความสูงตาม padding ซึ่งมักได้ราว 26-40px ต่ำกว่าเกณฑ์นิ้วโป้ง 44px
+   ติดคลาส btn ให้ลิงก์เหล่านั้นแล้วได้ความสูงเท่าปุ่มจริงทั้งระบบ */
+.btn {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ทำให้ปฏิทินของ input[type=date] กดง่ายขึ้น */
-input[type="date"]::-webkit-calendar-picker-indicator {
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
 }
-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+/* ไอคอนปฏิทินเป็นสีดำ มองไม่เห็นบนพื้นมืด */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+/* รูปถ่ายในโหมดมืดจ้าเกินไป ลดความสว่างลงเล็กน้อยให้เข้ากับพื้น
+   ใส่ data-no-dim ถ้าไม่ต้องการ เช่น รูปสลิปที่แอดมินต้องตรวจ */
+html[data-theme="dark"] img:not([data-no-dim]) {
+  filter: brightness(0.94) saturate(0.97);
 }
 
 /* โฟกัสด้วยคีย์บอร์ดต้องเห็นชัด */
 :focus-visible {
   outline: 2px solid var(--color-blue-600);
   outline-offset: 2px;
+}
+html[data-theme="dark"] :focus-visible {
+  outline-color: var(--color-blue-700);
+}
+
+/* ---- ผ้าคลุมรูปใหญ่หน้าแรก ----
+   ค่าไล่สียกมาจากไฟล์ตัวอย่างที่บริษัทอนุมัติ (phuping-theme-preview)
+   ทำหน้าที่สองอย่าง
+     ชั้นแรก  ไล่จากเขียวเข้มทึบด้านซ้ายไปโปร่งด้านขวา ให้ตัวอักษรซ้ายอ่านออก
+              และยังเห็นตัวรถทางขวา
+     ชั้นสอง  กดหัวและท้ายภาพให้เข้มลง หัวเว็บโปร่งใสจึงยังอ่านออก
+   โหมดมืดใช้ค่าที่เข้มกว่า ให้ภาพไม่จ้ากว่าหน้าอื่น */
+.hero-veil {
+  background: linear-gradient(
+    100deg,
+    rgba(15, 43, 32, 0.96) 0%,
+    rgba(17, 48, 36, 0.9) 34%,
+    rgba(20, 61, 45, 0.55) 56%,
+    rgba(20, 61, 45, 0.18) 78%,
+    rgba(20, 61, 45, 0.28) 100%
+  );
+}
+html[data-theme="dark"] .hero-veil {
+  background: linear-gradient(
+    100deg,
+    rgba(8, 10, 9, 0.97) 0%,
+    rgba(10, 13, 12, 0.92) 34%,
+    rgba(12, 16, 14, 0.65) 56%,
+    rgba(12, 16, 14, 0.3) 78%,
+    rgba(12, 16, 14, 0.42) 100%
+  );
+}
+.hero-veil-2 {
+  background: linear-gradient(
+    180deg,
+    rgba(10, 30, 22, 0.5) 0%,
+    transparent 26%,
+    transparent 62%,
+    rgba(10, 30, 22, 0.55) 100%
+  );
 }
 
 @keyframes fade-up {

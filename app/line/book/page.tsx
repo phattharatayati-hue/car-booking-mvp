@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import LiffBooking from "./LiffBooking";
-import { getAvailability } from "@/lib/availability";
+import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr, getSettings, lateRuleFromSettings, timeOptions } from "@/lib/settings";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import ServiceNote from "@/components/ServiceNote";
@@ -118,6 +118,12 @@ export default async function LineBookPage({
   const fromStr = bangkokDateStr(new Date());
   const map = await getAvailability([car.id], fromStr, 90);
 
+  // ช่วงเวลาที่รถไม่ว่างจริง (ระดับชั่วโมง ไม่ใช่ระดับวัน)
+  // ต้องส่งให้ LiffBooking ไม่งั้นระบบกันจองซ้อนในหน้านี้เป็นโค้ดตายทั้งชุด
+  // เพราะ prop นี้มีค่าเริ่มต้นเป็น [] จึงไม่มี error ให้เห็น
+  // หน้าเว็บปกติ (app/cars/[id]/book/page.tsx) ส่งอยู่แล้ว ต้องให้สองช่องทางกันเหมือนกัน
+  const busySpans = await getBusySpans(car.id, 120);
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-5">
       <div className="max-w-md mx-auto">
@@ -132,6 +138,7 @@ export default async function LineBookPage({
             isRequest: needsApproval(car),
           }}
           availability={map.get(car.id) ?? {}}
+          busySpans={busySpans}
           timeOptions={times}
           afterHoursRates={afterHoursRates}
           liffId={liffId}

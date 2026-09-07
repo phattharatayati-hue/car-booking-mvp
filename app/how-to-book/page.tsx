@@ -498,7 +498,7 @@ export default async function HowToBookPage() {
 
         <div className="mt-12 rounded-3xl bg-blue-600 text-white p-8 text-center">
           <h2 className="text-2xl font-bold">พร้อมจองแล้วใช่ไหม</h2>
-          <p className="mt-2 text-blue-100 text-sm">
+          <p className="mt-2 text-white/80 text-sm">
             ยังไม่แน่ใจ โทรถามได้เลย {OFFICE_HOURS[0]}
           </p>
           <div className="mt-6 flex flex-wrap gap-3 justify-center">

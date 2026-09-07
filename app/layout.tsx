@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { getLang } from "@/lib/locale-server";
 
 /**
  * ฟอนต์ทั้งหมดฝังมากับโปรเจกต์ (@fontsource) ไม่ดึงจาก Google Fonts ตอน build
@@ -27,10 +30,35 @@ export const metadata: Metadata = {
     "ภูพิงค์ คอร์ปอเรชั่น — บริการเช่ารถคุณภาพในเชียงใหม่ จองออนไลน์ได้ 24 ชม. รถสะอาด ราคาชัดเจน ไม่มีค่าใช้จ่ายแอบแฝง",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // ภาษามาจากคุกกี้ (lib/locale.ts) ต้องใส่ลง <html lang> ให้ตรง
+  // เพื่อให้โปรแกรมอ่านหน้าจอและการตัดคำของเบราว์เซอร์ทำงานถูกภาษา
+  const lang = await getLang();
+
   return (
-    <html lang="th" className="h-full antialiased">
+    <html
+      lang={lang}
+      data-theme="light"
+      suppressHydrationWarning
+      className="h-full antialiased"
+    >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+        {/*
+          ตั้งโหมดสว่าง/มืดก่อนหน้าเว็บวาดครั้งแรก
+          ไม่งั้นคนที่เลือกโหมดมืดไว้จะเห็นหน้าขาวแวบทุกครั้งที่เปลี่ยนหน้า
+
+          ต้องใช้ next/script strategy="beforeInteractive" ไม่ใช่ <script> ธรรมดา
+          เพราะ React 19 ไม่รัน <script> ที่เขียนเป็น JSX ตอน render ฝั่งเบราว์เซอร์
+          และจะเตือน "Encountered a script tag while rendering React component"
+          next/script จะฝังสคริปต์ลง HTML ชุดแรกให้เอง นอกต้นไม้ของ React
+
+          เนื้อสคริปต์เป็นข้อความคงที่ในโค้ดเราเอง ไม่มีข้อมูลจากผู้ใช้ปนเข้าไป
+        */}
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
         {children}
       </body>
     </html>

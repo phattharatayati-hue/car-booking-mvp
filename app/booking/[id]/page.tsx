@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { LINE_OA_ID } from "@/lib/contact";
+import { lineAddFriendUrl } from "@/lib/line-public";
 import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
 import DocumentUpload from "./DocumentUpload";
@@ -283,7 +283,12 @@ export default async function BookingStatusPage({
           </div>
         )}
 
-        {!booking.deposit && booking.status === "PENDING_DEPOSIT" && (
+        {/* เปิดให้อัปโหลดเมื่อยังไม่เคยส่งสลิป หรือส่งแล้วแต่ไม่ผ่าน
+            เดิมเช็คแค่ !booking.deposit ทำให้พอแอดมินกดปฏิเสธ (ซึ่งสร้างแถว deposit แล้ว)
+            การ์ดอัปโหลดหายไปทั้งใบ ลูกค้าที่โอนเงินแล้วแต่ถ่ายสลิปไม่ชัดจึงไปต่อไม่ได้
+            ฝั่ง API รองรับอยู่แล้ว (upsert + รีเซ็ตสถานะเป็น PENDING) */}
+        {(!booking.deposit || booking.deposit.status === "REJECTED") &&
+          booking.status === "PENDING_DEPOSIT" && (
           <SlipUpload
             bookingId={booking.id}
             suggestedAmount={settings.bookingFee}
@@ -317,7 +322,19 @@ export default async function BookingStatusPage({
 
             {booking.deposit.status === "REJECTED" && (
               <div className="mt-4 bg-red-50 border border-red-200 text-red-800 text-sm rounded-xl p-4">
-                สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมินที่ LINE {LINE_OA_ID}
+                <p className="font-medium">สลิปไม่ผ่านการตรวจสอบ</p>
+                <p className="mt-1 text-red-700">
+                  แนบสลิปใหม่ได้ที่การ์ดด้านล่าง หรือทักแอดมินให้ช่วยตรวจให้
+                </p>
+                {/* ปุ่มกดได้จริง ไม่ใช่แค่ข้อความรหัส LINE ที่ลูกค้าต้องไปค้นเอง */}
+                <a
+                  href={lineAddFriendUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn inline-flex mt-3 px-4 py-2 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition-colors"
+                >
+                  ทักแอดมินทาง LINE
+                </a>
               </div>
             )}
           </div>
