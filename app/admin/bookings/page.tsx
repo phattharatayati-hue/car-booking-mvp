@@ -59,7 +59,7 @@ type BookingRow = {
     odometer: number | null;
     fuelLevel: string | null;
     photos: { id: string; fileUrl: string }[];
-    admin: { name: string };
+    admin: { name: string; lineUserId: string | null };
   }[];
   documents: {
     id: string;
@@ -337,14 +337,42 @@ const FILTERS = [
   { key: "CANCELLED", label: "ยกเลิก" },
 ];
 
+/** ข้อความยืนยันหลังกดปุ่มในการ์ดการจอง — เดิมไม่มี ทำให้ไม่รู้ว่ากดติดหรือไม่ */
+const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
+  assigned: {
+    text: "มอบหมายงานเรียบร้อยแล้ว — ส่งการ์ดงานเข้าแชท LINE และลงปฏิทินให้แล้ว",
+    tone: "ok",
+  },
+  unassigned: { text: "ถอนคนออกจากงานแล้ว และแจ้งเจ้าตัวทาง LINE เรียบร้อย", tone: "ok" },
+  resynced: { text: "สั่งซิงก์ปฏิทินใหม่แล้ว", tone: "ok" },
+  assigned_noline: {
+    text: "บันทึกงานแล้ว แต่ส่ง LINE ไม่ได้ — มีคนที่ยังไม่ผูกบัญชี LINE ให้เขาไปผูกที่หน้าบัญชีของฉัน แล้วกดปุ่มส่งซ้ำ",
+    tone: "error",
+  },
+  assigned_sendfail: {
+    text: "บันทึกงานแล้ว แต่ส่ง LINE ไม่สำเร็จ — กดปุ่มส่งซ้ำที่การ์ดของคนนั้นอีกครั้ง",
+    tone: "error",
+  },
+  resent: { text: "ส่งการ์ดงานเข้าแชท LINE ซ้ำเรียบร้อยแล้ว", tone: "ok" },
+  resend_noline: {
+    text: "ส่งไม่ได้ — คนนี้ยังไม่ได้ผูกบัญชี LINE",
+    tone: "error",
+  },
+  resend_failed: { text: "ส่งซ้ำไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", tone: "error" },
+  nobody: { text: "ยังไม่ได้เลือกคน — เลือกอย่างน้อยหนึ่งงานก่อนกดมอบหมาย", tone: "error" },
+  notfound: { text: "ไม่พบการจองนี้", tone: "error" },
+  assign: { text: "ข้อมูลไม่ครบ กรุณาลองใหม่", tone: "error" },
+};
+
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; ok?: string; error?: string }>;
 }) {
   await requireStaff();
 
-  const { status } = await searchParams;
+  const { status, ok, error } = await searchParams;
+  const flash = FLASH[ok ?? ""] ?? FLASH[error ?? ""];
   const active = status && status !== "all" ? status : null;
 
   const bookings = await prisma.booking.findMany({
@@ -405,6 +433,19 @@ export default async function AdminBookingsPage({
           );
         })}
       </div>
+
+      {flash && (
+        <div
+          className={`mb-5 text-sm px-4 py-3 rounded-xl border flex items-start gap-2.5 ${
+            flash.tone === "ok"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          <span className="shrink-0 mt-0.5">{flash.tone === "ok" ? "✓" : "!"}</span>
+          <span>{flash.text}</span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4">
         {bookings.map((b: BookingRow) => {

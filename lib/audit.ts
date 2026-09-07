@@ -54,6 +54,7 @@ export const AUDIT_LABEL: Record<string, string> = {
   "assignment.assign": "มอบหมายงานรับ-ส่งรถ",
   "assignment.unassign": "ถอนคนออกจากงาน",
   "assignment.resync": "ซิงก์ปฏิทินใหม่",
+  "assignment.resend": "ส่งแจ้งเตือนงานซ้ำ",
 
   "car.status_toggle": "เปลี่ยนสถานะรถ",
   "car.rate_save": "บันทึกเรทราคาตามช่วงวัน",

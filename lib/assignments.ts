@@ -48,6 +48,28 @@ export function defaultPlace(
 }
 
 /** สถานะการซิงก์ปฏิทิน แปลงเป็นป้ายสั้นๆ */
+/**
+ * แปลข้อความผิดพลาดของ Google เป็นภาษาไทยที่แอดมินอ่านแล้วรู้ว่าต้องทำอะไร
+ * ข้อความดิบเป็นภาษาอังกฤษและไม่บอกวิธีแก้ เช่น "Token has been expired or revoked."
+ */
+export function syncErrorText(raw: string): string {
+  const e = raw.toLowerCase();
+
+  if (e.includes("expired") || e.includes("revoked") || e.includes("invalid_grant")) {
+    return "สิทธิ์เชื่อมปฏิทินหมดอายุแล้ว — ให้เจ้าตัวเข้าหน้า “บัญชีของฉัน” กดตัดการเชื่อมแล้วเชื่อมใหม่";
+  }
+  if (e.includes("insufficient") || e.includes("permission") || e.includes("forbidden")) {
+    return "สิทธิ์ไม่พอ — ให้เจ้าตัวเชื่อมปฏิทินใหม่แล้วกดอนุญาตให้ครบทุกข้อ";
+  }
+  if (e.includes("not found") || e.includes("404")) {
+    return "ไม่พบปฏิทินของคนนี้ — อาจถูกลบไปแล้ว ให้เชื่อมใหม่";
+  }
+  if (e.includes("quota") || e.includes("rate") || e.includes("429")) {
+    return "Google จำกัดจำนวนครั้งชั่วคราว — รอสักครู่แล้วกดซิงก์ใหม่";
+  }
+  return `ซิงก์ปฏิทินไม่สำเร็จ — กดซิงก์ใหม่อีกครั้ง (${raw.slice(0, 60)})`;
+}
+
 export function syncBadge(a: {
   googleEventId?: string | null;
   syncError?: string | null;

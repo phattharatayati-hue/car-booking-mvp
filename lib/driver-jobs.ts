@@ -130,18 +130,30 @@ async function jobFlex(job: Job, headline?: string) {
       header: {
         type: "box",
         layout: "vertical",
-        backgroundColor: headline ? "#FBEBE9" : "#EAF1FA",
+        backgroundColor: !headline
+          ? "#EAF1FA"
+          : headline.startsWith("🔁")
+            ? "#F1F3F6"
+            : "#FBEBE9",
         paddingAll: "14px",
         contents: [
           ...(headline
-            ? [{ type: "text", text: headline, size: "sm", weight: "bold", color: "#B34438" }]
+            ? [
+                {
+                  type: "text",
+                  text: headline,
+                  size: "sm",
+                  weight: "bold",
+                  color: headline.startsWith("🔁") ? MUTED : "#B34438",
+                },
+              ]
             : []),
           {
             type: "text",
             text: HANDOFF_LABEL[kind],
             weight: "bold",
             size: "lg",
-            color: headline ? "#B34438" : NAVY,
+            color: headline && !headline.startsWith("🔁") ? "#B34438" : NAVY,
           },
           {
             type: "text",
@@ -277,16 +289,21 @@ async function jobFlex(job: Job, headline?: string) {
  *   updated   แก้เวลา/จุดนัด/หมายเหตุ
  *   cancelled ถอนออกจากงาน
  */
+export type NotifyResult = "sent" | "no-line" | "not-found" | "error";
+
 export async function notifyJob(
   assignmentId: string,
-  mode: "new" | "updated" | "cancelled" = "new"
-): Promise<void> {
+  mode: "new" | "updated" | "resend" | "cancelled" = "new"
+): Promise<NotifyResult> {
   try {
     const job = await prisma.bookingAssignment.findUnique({
       where: { id: assignmentId },
       include: jobInclude,
     });
-    if (!job?.admin.lineUserId) return;
+    if (!job) return "not-found";
+
+    // คนรับงานยังไม่ได้ผูก LINE — ส่งไม่ได้ ต้องบอกแอดมินให้รู้ ไม่ใช่เงียบไป
+    if (!job.admin.lineUserId) return "no-line";
 
     if (mode === "cancelled") {
       await pushMessage(
@@ -299,18 +316,26 @@ export async function notifyJob(
           `รหัสจอง: ${job.bookingId.slice(0, 8).toUpperCase()}`,
         ].join("\n")
       );
-      return;
+      return "sent";
     }
 
-    const headline = mode === "updated" ? "⚠️ งานนี้มีการเปลี่ยนแปลง" : undefined;
+    const headline =
+      mode === "updated"
+        ? "⚠️ งานนี้มีการเปลี่ยนแปลง"
+        : mode === "resend"
+          ? "🔁 ส่งซ้ำ — รายละเอียดเหมือนเดิม"
+          : undefined;
     await pushRaw(job.admin.lineUserId, [await jobFlex(job, headline)]);
 
     await prisma.bookingAssignment.update({
       where: { id: job.id },
       data: { notifiedAt: new Date() },
     });
+
+    return "sent";
   } catch (err) {
     console.error("notifyJob failed:", err);
+    return "error";
   }
 }
 

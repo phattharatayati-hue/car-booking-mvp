@@ -1,7 +1,9 @@
+import AssignSubmit from "@/components/AssignSubmit";
 import {
   assignBothAction,
   unassignAction,
   resyncAction,
+  resendAction,
 } from "@/app/admin/assignments/actions";
 import { formatBangkokTime, formatBangkokDateTime, bangkokDateStr } from "@/lib/settings";
 import {
@@ -11,6 +13,7 @@ import {
   defaultMeetAt,
   defaultPlace,
   syncBadge,
+  syncErrorText,
   type HandoffKind,
 } from "@/lib/assignments";
 
@@ -30,7 +33,7 @@ type AssignmentRow = {
   odometer: number | null;
   fuelLevel: string | null;
   photos: { id: string; fileUrl: string }[];
-  admin: { name: string };
+  admin: { name: string; lineUserId: string | null };
 };
 
 /**
@@ -55,7 +58,7 @@ export default function AssignmentBox({
   return (
     <div className="mt-5 pt-5 border-t border-slate-100">
       <div className="flex items-baseline justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-900">ใครไปส่ง ใครไปรับ</h3>
+        <h3 className="text-sm font-semibold text-slate-900">คนส่งและรับรถ</h3>
         <span className="text-xs text-slate-400">กรอกทั้งสองงาน แล้วกดมอบหมายครั้งเดียว</span>
       </div>
 
@@ -107,11 +110,18 @@ export default function AssignmentBox({
                           <span className={`block text-[11px] ${badge.className}`}>
                             {badge.label}
                             {a.syncError && (
-                              <span className="block text-slate-400 truncate">
-                                {a.syncError}
+                              <span className="block text-slate-500">
+                                {syncErrorText(a.syncError)}
                               </span>
                             )}
                           </span>
+
+                          {/* ส่งการ์ดงานเข้าแชทไม่ได้ ถ้าเขายังไม่ผูก LINE */}
+                          {!a.admin.lineUserId && (
+                            <span className="block text-[11px] text-red-600 font-medium">
+                              ยังไม่ผูก LINE — ส่งแจ้งเตือนไม่ถึงตัว
+                            </span>
+                          )}
 
                           {/* คนรับ-ส่งรถกดปุ่มรับทราบในแชท LINE แล้วหรือยัง */}
                           {a.ackedAt ? (
@@ -176,6 +186,16 @@ export default function AssignmentBox({
                               ลองซิงก์ใหม่
                             </button>
                           )}
+                          <button
+                            type="submit"
+                            formAction={resendAction}
+                            name="assignmentId"
+                            value={a.id}
+                            title="ส่งการ์ดงานเข้าแชท LINE อีกครั้ง โดยไม่แก้ข้อมูลงาน"
+                            className="text-xs text-blue-700 hover:underline"
+                          >
+                            ส่งซ้ำ
+                          </button>
                           <button
                             type="submit"
                             formAction={unassignAction}
@@ -251,11 +271,10 @@ export default function AssignmentBox({
         })}
         </div>
 
-        <button className="w-full mt-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
-          มอบหมายและแจ้งทาง LINE
-        </button>
+        <AssignSubmit />
         <p className="text-xs text-slate-400 mt-2 text-center">
-          เลือกเฉพาะงานที่ต้องการมอบหมายก็ได้ · ปฏิทินจะกันเวลาเดินทางให้ 30 นาที
+          กดซ้ำได้ — ถ้าไม่ได้แก้อะไร ระบบจะส่งการ์ดงานเดิมเข้าแชทอีกครั้ง ·
+          ปฏิทินจะกันเวลาเดินทางให้ 30 นาที
           — นัด 09:00 น. จะลงปฏิทินเป็น 08:30-09:30 น.
         </p>
       </form>

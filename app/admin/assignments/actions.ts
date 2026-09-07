@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { toBangkokDate, formatBangkokDateTime } from "@/lib/settings";
 import { syncAssignment, removeAssignmentEvent } from "@/lib/calendar-sync";
-import { notifyJob } from "@/lib/driver-jobs";
+import { notifyJob, type NotifyResult } from "@/lib/driver-jobs";
 import { audit } from "@/lib/audit";
 import {
   HANDOFF_LABEL,
@@ -29,9 +29,9 @@ async function assignOne(
   },
   kind: HandoffKind,
   input: { adminUserId: string; meetDate: string; meetTime: string; place: string; note: string }
-): Promise<boolean> {
+): Promise<NotifyResult | null> {
   const adminUserId = input.adminUserId.trim();
-  if (!adminUserId) return false;
+  if (!adminUserId) return null;
 
   // ถ้าแอดมินไม่ได้แก้เวลา ใช้เวลารับ/คืนรถของการจองนั้น
   const meetAt =
@@ -39,7 +39,7 @@ async function assignOne(
       ? toBangkokDate(input.meetDate, input.meetTime)
       : defaultMeetAt(booking, kind);
 
-  if (Number.isNaN(meetAt.getTime())) return false;
+  if (Number.isNaN(meetAt.getTime())) return null;
 
   const place = input.place.trim() || defaultPlace(booking, kind);
   const note = input.note.trim() || null;
@@ -49,8 +49,16 @@ async function assignOne(
   // เคยมอบหมายไว้แล้วหรือยัง — ใช้เลือกข้อความแจ้งเตือน (งานใหม่ / งานแก้ไข)
   const existing = await prisma.bookingAssignment.findUnique({
     where: key,
-    select: { id: true, notifiedAt: true },
+    select: { id: true, notifiedAt: true, meetAt: true, place: true, note: true },
   });
+
+  // กดซ้ำโดยไม่แก้อะไรเลย = ตั้งใจส่งแจ้งเตือนซ้ำ (เช่น เพิ่งผูก LINE เสร็จ)
+  // ถ้าแก้เวลา จุดนัด หรือหมายเหตุ จึงจะนับเป็น "งานมีการเปลี่ยนแปลง"
+  const sameAsBefore =
+    existing != null &&
+    existing.meetAt.getTime() === meetAt.getTime() &&
+    (existing.place ?? "") === (place ?? "") &&
+    (existing.note ?? "") === (note ?? "");
 
   const saved = await prisma.bookingAssignment.upsert({
     where: key,
@@ -73,9 +81,10 @@ async function assignOne(
     detail: `นัด ${formatBangkokDateTime(meetAt)}${place ? ` · ${place}` : ""}`,
   });
 
-  await notifyJob(saved.id, existing?.notifiedAt ? "updated" : "new");
+  const mode = !existing ? "new" : sameAsBefore ? "resend" : "updated";
+  const result = await notifyJob(saved.id, mode);
   await syncAssignment(saved.id);
-  return true;
+  return result;
 }
 
 /** อ่านค่าจากฟอร์มรวม ที่ตั้งชื่อฟิลด์แยกตามชนิดงาน */
@@ -107,12 +116,22 @@ export async function assignBothAction(formData: FormData) {
   const delivered = await assignOne(booking, "DELIVERY", readFields(formData, "DELIVERY"));
   const picked = await assignOne(booking, "PICKUP", readFields(formData, "PICKUP"));
 
-  if (!delivered && !picked) {
+  const results = [delivered, picked].filter((r): r is NotifyResult => r !== null);
+
+  if (results.length === 0) {
     redirect("/admin/bookings?error=nobody");
   }
 
   revalidatePath("/admin/bookings");
   revalidatePath("/admin");
+
+  // มีคนที่ยังไม่ผูก LINE — บันทึกงานให้แล้ว แต่ต้องบอกว่าแจ้งไม่ถึงตัว
+  if (results.includes("no-line")) {
+    redirect("/admin/bookings?ok=assigned_noline");
+  }
+  if (results.includes("error")) {
+    redirect("/admin/bookings?ok=assigned_sendfail");
+  }
   redirect("/admin/bookings?ok=assigned");
 }
 
@@ -150,6 +169,34 @@ export async function unassignAction(formData: FormData) {
   revalidatePath("/admin/bookings");
   revalidatePath("/admin");
   redirect("/admin/bookings?ok=unassigned");
+}
+
+/**
+ * ส่งการ์ดงานเข้าแชท LINE ซ้ำ โดยไม่แก้ข้อมูลงาน
+ * ใช้ตอนคนรับงานเพิ่งผูก LINE เสร็จ หรือเผลอลบข้อความทิ้ง
+ */
+export async function resendAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const id = String(formData.get("assignmentId") ?? "");
+  if (!id) redirect("/admin/bookings?error=assign");
+
+  const result = await notifyJob(id, "resend");
+
+  await audit({
+    action: "assignment.resend",
+    summary: "ส่งแจ้งเตือนงานรับ-ส่งรถซ้ำทาง LINE",
+    entity: "assignment",
+    entityId: id,
+    detail: result === "sent" ? "ส่งสำเร็จ" : `ส่งไม่สำเร็จ (${result})`,
+  });
+
+  revalidatePath("/admin/bookings");
+
+  if (result === "no-line") redirect("/admin/bookings?error=resend_noline");
+  if (result !== "sent") redirect("/admin/bookings?error=resend_failed");
+  redirect("/admin/bookings?ok=resent");
 }
 
 /** ลองซิงก์ปฏิทินใหม่ หลังจากครั้งก่อนพลาด */
