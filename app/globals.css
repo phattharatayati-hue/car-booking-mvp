@@ -328,8 +328,13 @@ input[type="date"],
 input[type="time"],
 input[type="datetime-local"],
 input[type="month"] {
-  padding-right: 2.5rem;
+  padding-right: 2rem;
+  /* ช่องพวกนี้มีความกว้างธรรมชาติของตัวเอง (input วันที่คิดจากรูปแบบวันที่เต็ม)
+     ถ้าไม่กดสองบรรทัดนี้ไว้ พอเพิ่ม padding เข้าไปช่องจะดันทะลุขอบการ์ด
+     โดยเฉพาะในกริดสองคอลัมน์บนจอแคบ */
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   text-overflow: ellipsis;
 }
 
