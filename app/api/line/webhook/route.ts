@@ -222,7 +222,7 @@ async function handleEvent(event: LineEvent) {
 
   // เช็คสถานะ
   if (text.includes("เช็คสถานะ") || text.includes("สถานะ")) {
-    const customer = await prisma.customer.findFirst({ where: { lineUserId: userId } });
+    const customer = await prisma.customer.findUnique({ where: { lineUserId: userId } });
 
     if (customer) {
       const booking = await prisma.booking.findFirst({

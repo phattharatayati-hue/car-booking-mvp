@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/image-resize";
 import { BANK } from "@/lib/contact";
+
+/** เพดานเดียวกับฝั่งเซิร์ฟเวอร์ — บอกผู้ใช้ตั้งแต่ตอนเลือกไฟล์ */
+const MAX_MB = 8;
+const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 export default function SlipUpload({
   bookingId,
@@ -16,9 +20,44 @@ export default function SlipUpload({
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [amount, setAmount] = useState(String(suggestedAmount));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /* แสดงรูปตัวอย่าง — บนมือถือชื่อไฟล์เป็น IMG_4821 ดูไม่ออกว่าแนบใบถูกไหม
+     ต้องคืน URL ทิ้งทุกครั้งที่เปลี่ยนไฟล์ ไม่งั้นหน่วยความจำรั่ว */
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  /** ตรวจไฟล์ตั้งแต่ตอนเลือก ไม่ใช่ปล่อยให้รออัปโหลดจนจบแล้วเจอ 413 */
+  function pickFile(chosen: File | null) {
+    setError(null);
+    if (!chosen) {
+      setFile(null);
+      return;
+    }
+    if (!chosen.type.startsWith("image/")) {
+      setFile(null);
+      setError("ไฟล์ต้องเป็นรูปภาพเท่านั้น (JPG, PNG หรือ WEBP)");
+      return;
+    }
+    if (chosen.size > MAX_BYTES) {
+      setFile(null);
+      setError(
+        `ไฟล์ใหญ่ ${(chosen.size / 1024 / 1024).toFixed(1)} MB เกิน ${MAX_MB} MB — ถ่ายใหม่ด้วยความละเอียดต่ำลง หรือย่อรูปก่อน`
+      );
+      return;
+    }
+    setFile(chosen);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,6 +147,10 @@ export default function SlipUpload({
         <input
           id="amount"
           type="number"
+          min={1}
+          step={1}
+          required
+          inputMode="numeric"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           className="w-full rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
@@ -132,7 +175,21 @@ export default function SlipUpload({
             />
           </svg>
           {file ? (
-            <span className="text-sm font-medium text-slate-900 break-all">{file.name}</span>
+            <>
+              {preview && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={preview}
+                  alt="ตัวอย่างสลิปที่เลือก"
+                  data-no-dim
+                  className="max-h-56 w-auto rounded-lg border border-slate-200"
+                />
+              )}
+              <span className="text-sm font-medium text-slate-900 break-all">{file.name}</span>
+              <span className="text-xs text-slate-400">
+                {(file.size / 1024 / 1024).toFixed(1)} MB · แตะเพื่อเปลี่ยนรูป
+              </span>
+            </>
           ) : (
             <>
               <span className="text-sm font-medium text-slate-700">
@@ -146,8 +203,8 @@ export default function SlipUpload({
           id="slip"
           type="file"
           accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="hidden"
+          onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+          className="sr-only"
         />
       </div>
 

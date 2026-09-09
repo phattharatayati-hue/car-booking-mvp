@@ -3,36 +3,63 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import MyLogin from "./MyLogin";
+import DeviceBookings from "./DeviceBookings";
+import FindBooking from "./FindBooking";
 import LogoutButton from "./LogoutButton";
 import { prisma } from "@/lib/prisma";
-import { getSessionPhone } from "@/lib/customer-session";
+import { getSessionCustomer } from "@/lib/customer-session";
+import LineLoginButton from "@/components/LineLoginButton";
+import { safeNext } from "@/lib/line-login";
 import { lineAddFriendUrl } from "@/lib/line-public";
 import { formatBangkokDateTime } from "@/lib/settings";
 import { STATUS_LABEL, STATUS_CLASS, ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 
 const UPCOMING = new Set<string>(ACTIVE_BOOKING_STATUSES);
 
-export default async function MyBookingsPage() {
-  const phone = await getSessionPhone();
+/** ข้อความอธิบายเมื่อเข้าสู่ระบบด้วย LINE ไม่สำเร็จ — โค้ดมาจาก /api/line/callback */
+const LOGIN_ERROR: Record<string, string> = {
+  cancelled: "ยกเลิกการเข้าสู่ระบบด้วย LINE แล้ว กดปุ่มด้านล่างเพื่อลองใหม่",
+  state: "ลิงก์เข้าสู่ระบบหมดอายุ กรุณากดปุ่ม LINE ใหม่อีกครั้ง",
+  exchange: "ต่อกับ LINE ไม่สำเร็จ กรุณาลองใหม่",
+  verify: "ยืนยันตัวตนกับ LINE ไม่สำเร็จ กรุณาลองใหม่",
+  blocked: "บัญชีนี้ใช้จองไม่ได้ กรุณาติดต่อแอดมิน",
+  line_off: "ยังไม่ได้เปิดใช้การเข้าสู่ระบบด้วย LINE",
+};
 
-  if (!phone) {
+export default async function MyBookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ e?: string; next?: string }>;
+}) {
+  const me = await getSessionCustomer();
+  const sp = await searchParams;
+
+  if (!me) {
     return (
       <PublicShell>
         <div className="max-w-lg mx-auto px-4 sm:px-6 py-10 sm:py-14">
           <Crumbs />
-          <MyLogin addFriendUrl={lineAddFriendUrl()} />
+          <MyLogin
+            addFriendUrl={lineAddFriendUrl()}
+            lineButton={<LineLoginButton next={safeNext(sp.next)} />}
+            notice={sp.e ? LOGIN_ERROR[sp.e] ?? null : null}
+          />
+
+          {/* ทางเข้าสำหรับคนที่จองโดยไม่เข้าสู่ระบบ — เครื่องจำให้ และค้นด้วยรหัสจองได้ */}
+          <DeviceBookings />
+          <FindBooking />
         </div>
       </PublicShell>
     );
   }
 
   const bookings = await prisma.booking.findMany({
-    where: { customer: { phone } },
+    where: { customerId: me.id },
     include: { car: true, deposit: true, customer: true },
     orderBy: { createdAt: "desc" },
   });
 
-  const name = bookings[0]?.customer.fullName ?? "";
+  const name = me.fullName;
   const upcoming = bookings.filter((b) => UPCOMING.has(b.status));
   const past = bookings.filter((b) => !UPCOMING.has(b.status));
   const totalSpent = bookings
@@ -48,8 +75,8 @@ export default async function MyBookingsPage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900">ประวัติการจอง</h1>
             <p className="text-sm text-slate-500 mt-1">
-              {name ? `${name} · ` : ""}
-              {phone}
+              {name}
+              {me.phone ? ` · ${me.phone}` : ""}
             </p>
           </div>
           <LogoutButton />
@@ -57,7 +84,7 @@ export default async function MyBookingsPage() {
 
         {bookings.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-            <p className="text-slate-600 mb-5">ยังไม่มีประวัติการจองด้วยเบอร์นี้</p>
+            <p className="text-slate-600 mb-5">ยังไม่มีประวัติการจองในบัญชีนี้</p>
             <Link
               href="/cars"
               className="inline-block rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 transition-colors"
@@ -90,6 +117,10 @@ export default async function MyBookingsPage() {
             )}
           </>
         )}
+
+        {/* การจองที่ทำไว้ตอนยังไม่เข้าสู่ระบบ แต่ยังค้างอยู่ในเครื่องนี้
+            ซ่อนใบที่อยู่ในบัญชีแล้ว เพื่อไม่ให้เห็นซ้ำสองที่ */}
+        <DeviceBookings hideIds={bookings.map((b) => b.id)} />
       </div>
     </PublicShell>
   );

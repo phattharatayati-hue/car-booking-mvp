@@ -40,6 +40,9 @@ export default function BookingForm({
   availability,
   pickupPoints,
   lateRule = DEFAULT_LATE_RULE,
+  defaultName = "",
+  defaultPhone = "",
+  defaultEmail = "",
 }: {
   carId: string;
   pricePerDay: number;
@@ -52,6 +55,10 @@ export default function BookingForm({
   lateRule?: LateRule;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
+  /* เติมให้อัตโนมัติเมื่อลูกค้าเข้าสู่ระบบไว้แล้ว — ยังแก้ไขได้ทุกช่อง */
+  defaultName?: string;
+  defaultPhone?: string;
+  defaultEmail?: string;
 }) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
@@ -367,6 +374,7 @@ export default function BookingForm({
             <input
               id="fullName"
               name="fullName"
+              defaultValue={defaultName}
               required
               placeholder="เช่น สมชาย ใจดี"
               className={inputClass}
@@ -378,6 +386,7 @@ export default function BookingForm({
               <input
                 id="phone"
                 name="phone"
+                defaultValue={defaultPhone}
                 required
                 inputMode="tel"
                 placeholder="08X-XXX-XXXX"
@@ -392,6 +401,7 @@ export default function BookingForm({
                 id="email"
                 name="email"
                 type="email"
+                defaultValue={defaultEmail}
                 placeholder="you@example.com"
                 className={inputClass}
               />

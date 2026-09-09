@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // ลูกค้าเก่าใช้เบอร์เดิมได้เลย ไม่ต้องกรอกซ้ำ
-    const existing = await prisma.customer.findFirst({ where: { lineUserId } });
+    const existing = await prisma.customer.findUnique({ where: { lineUserId } });
     const finalPhone = String(phone ?? "").replace(/[\s-]/g, "") || existing?.phone;
 
     if (!finalPhone) {

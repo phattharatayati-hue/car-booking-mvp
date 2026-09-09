@@ -1,5 +1,16 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/prisma";
+
+/**
+ * เซสชันลูกค้า — ผูกกับ "ตัวลูกค้า" ไม่ใช่เบอร์โทร
+ *
+ * เดิมเก็บเบอร์ไว้ใน token แล้วดึงการจองจากเบอร์
+ * ปัญหาคือเบอร์เป็นสิ่งที่ใครก็พิมพ์ได้ พอใช้เป็นกุญแจเข้าระบบจึงเปิดช่องให้สวมรอย
+ * ตอนนี้ตัวตนของลูกค้าคือบัญชี LINE (Customer.lineUserId เป็น unique)
+ * เข้าสู่ระบบได้ทางเดียวคือ LINE Login ที่เซิร์ฟเวอร์ LINE ยืนยันให้ (ดู lib/line-login.ts)
+ * เบอร์โทรเหลือสถานะเป็นข้อมูลติดต่อเท่านั้น
+ */
 
 export const CUSTOMER_COOKIE = "cb_customer";
 /** เซสชันลูกค้ามีอายุ 30 วัน */
@@ -25,14 +36,14 @@ export function isValidPhone(phone: string): boolean {
 }
 
 /** สร้าง token แบบ stateless: payload.signature */
-export function createSessionToken(phone: string): string {
+export function createSessionToken(customerId: string): string {
   const payload = Buffer.from(
-    JSON.stringify({ phone, exp: Date.now() + SESSION_TTL_MS })
+    JSON.stringify({ cid: customerId, exp: Date.now() + SESSION_TTL_MS })
   ).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
-/** คืนเบอร์โทรถ้า token ถูกต้องและยังไม่หมดอายุ */
+/** คืน customerId ถ้า token ถูกต้องและยังไม่หมดอายุ */
 export function readSessionToken(token: string | undefined): string | null {
   if (!token) return null;
 
@@ -51,18 +62,31 @@ export function readSessionToken(token: string | undefined): string | null {
 
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString()) as {
-      phone?: string;
+      cid?: string;
       exp?: number;
     };
-    if (!data.phone || !data.exp || data.exp < Date.now()) return null;
-    return data.phone;
+    if (!data.cid || !data.exp || data.exp < Date.now()) return null;
+    return data.cid;
   } catch {
     return null;
   }
 }
 
-/** อ่านเบอร์โทรของลูกค้าที่ล็อกอินอยู่ (ใช้ใน server component / route handler) */
-export async function getSessionPhone(): Promise<string | null> {
+/** อ่าน id ของลูกค้าที่เข้าสู่ระบบอยู่ (ใช้ใน server component / route handler) */
+export async function getSessionCustomerId(): Promise<string | null> {
   const store = await cookies();
   return readSessionToken(store.get(CUSTOMER_COOKIE)?.value);
+}
+
+/**
+ * อ่านตัวลูกค้าที่เข้าสู่ระบบอยู่จากฐานข้อมูล
+ * คืน null ถ้าคุกกี้ชี้ไปที่ลูกค้าที่ถูกลบไปแล้ว หรือถูกระงับ
+ */
+export async function getSessionCustomer() {
+  const id = await getSessionCustomerId();
+  if (!id) return null;
+
+  const customer = await prisma.customer.findUnique({ where: { id } });
+  if (!customer || customer.isBlacklisted) return null;
+  return customer;
 }

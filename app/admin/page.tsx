@@ -77,7 +77,7 @@ export default async function AdminDashboard() {
     {
       label: "รอตรวจสลิปค่าจอง",
       value: pendingCount,
-      accent: "bg-amber-50 text-amber-600",
+      accent: "bg-amber-50 text-amber-700",
       href: "/admin/bookings",
       icon: (
         <path
@@ -92,7 +92,7 @@ export default async function AdminDashboard() {
     {
       label: "ยืนยันแล้ว",
       value: confirmedCount,
-      accent: "bg-emerald-50 text-emerald-600",
+      accent: "bg-emerald-50 text-emerald-700",
       href: "/admin/bookings",
       icon: (
         <path
@@ -107,7 +107,7 @@ export default async function AdminDashboard() {
     {
       label: "รถทั้งหมด",
       value: carsCount,
-      accent: "bg-blue-50 text-blue-600",
+      accent: "bg-blue-50 text-blue-700",
       href: "/admin/cars",
       icon: (
         <path
@@ -122,7 +122,7 @@ export default async function AdminDashboard() {
     {
       label: "การจองทั้งหมด",
       value: totalBookings,
-      accent: "bg-violet-50 text-violet-600",
+      accent: "bg-violet-50 text-violet-700",
       href: "/admin/bookings",
       icon: (
         <>
@@ -134,7 +134,7 @@ export default async function AdminDashboard() {
     {
       label: "งานรับ-ส่งของฉันวันนี้",
       value: myJobs.length,
-      accent: "bg-blue-50 text-blue-600",
+      accent: "bg-blue-50 text-blue-700",
       href: "/admin/bookings",
       icon: (
         <>

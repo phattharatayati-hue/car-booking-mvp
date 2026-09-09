@@ -3,13 +3,12 @@ import { getSettings, lateRuleFromSettings, toBangkokDate } from "@/lib/settings
 import { quoteBooking } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
+import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import {
-  notifyAdmin,
-  buildNewBookingMessage,
-  buildCustomerBookingMessage,
-  pushMessage,
-  siteUrl,
-} from "@/lib/line";
+  flexNewBookingAdmin,
+  flexBookingCreated,
+  flexBookingRequested,
+} from "@/lib/line-flex";
 import { BANK_ACCOUNT } from "@/lib/contact";
 import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
@@ -24,6 +23,8 @@ export type CreateBookingInput = {
   phone: string;
   email?: string | null;
   lineUserId?: string | null;
+  /** ลูกค้าที่เข้าสู่ระบบด้วย LINE อยู่แล้ว — ใช้ค่านี้เป็นตัวตนก่อนเสมอ */
+  customerId?: string | null;
   pickupPlace?: string | null;
   returnPlace?: string | null;
 };
@@ -101,7 +102,27 @@ export async function createBooking(
   const totalPrice = quote.total;
 
   const phone = String(input.phone).replace(/[\s-]/g, "");
-  let customer = await prisma.customer.findFirst({ where: { phone } });
+
+  /* หาตัวลูกค้า — เรียงตามความน่าเชื่อถือของหลักฐาน
+       1. customerId จากเซสชัน (เข้าสู่ระบบด้วย LINE แล้ว)
+       2. lineUserId ที่เซิร์ฟเวอร์ LINE ยืนยัน (จาก LIFF หรือแชท)
+       3. เบอร์โทร — สำหรับคนที่จองโดยไม่เข้าสู่ระบบเท่านั้น
+
+     ข้อ 3 จับคู่เฉพาะลูกค้าที่ "ยังไม่ผูก LINE" (lineUserId: null)
+     ห้ามให้การจองแบบไม่ล็อกอินไปเกาะกับบัญชีที่ยืนยันตัวตนแล้ว
+     ไม่งั้นใครก็ตามที่รู้เบอร์ของลูกค้าคนอื่นจะยัดการจองเข้าประวัติเขาได้ */
+  let customer =
+    (input.customerId
+      ? await prisma.customer.findUnique({ where: { id: input.customerId } })
+      : null) ??
+    (input.lineUserId
+      ? await prisma.customer.findUnique({
+          where: { lineUserId: input.lineUserId },
+        })
+      : null) ??
+    (phone
+      ? await prisma.customer.findFirst({ where: { phone, lineUserId: null } })
+      : null);
 
   if (customer?.isBlacklisted) {
     return { ok: false, status: 403, error: "ไม่สามารถจองได้ กรุณาติดต่อแอดมิน" };
@@ -112,8 +133,9 @@ export async function createBooking(
       where: { id: customer.id },
       data: {
         fullName: fullName || customer.fullName,
+        phone: phone || customer.phone,
         email: email || customer.email,
-        lineUserId: input.lineUserId ?? customer.lineUserId,
+        lineUserId: customer.lineUserId ?? input.lineUserId ?? null,
       },
     });
   } else {
@@ -147,24 +169,25 @@ export async function createBooking(
   });
 
   try {
-    await notifyAdmin(
-      buildNewBookingMessage({
+    await notifyAdminRaw(
+      flexNewBookingAdmin({
         bookingId: booking.id,
         carLabel: `${car.brand} ${car.name}`,
         customerName: customer.fullName,
         phone,
-        startDate: start,
-        endDate: end,
-        totalPrice,
+        start,
+        end,
+        total: totalPrice,
         afterHoursTotal: quote.afterHoursTotal,
-        siteUrl: siteUrl(),
         isRequest,
         partnerName: car.partner?.name,
         partnerPhone: car.partner?.phone,
         pickupPlace,
         returnPlace,
+        adminUrl: `${siteUrl()}/admin/bookings`,
       })
     );
+
   } catch (err) {
     console.error("notifyAdmin failed:", err);
   }
@@ -173,23 +196,33 @@ export async function createBooking(
   // ยอดค่าจองกับเลขบัญชีหายไปเลย ไม่มีอะไรค้างในแชท
   if (customer.lineUserId) {
     try {
-      await pushMessage(
-        customer.lineUserId,
-        buildCustomerBookingMessage({
-          bookingId: booking.id,
-          carLabel: `${car.brand} ${car.name}`,
-          startDate: start,
-          endDate: end,
-          totalPrice,
-          afterHoursTotal: quote.afterHoursTotal,
-          bookingFee: settings.bookingFee,
-          bankAccount: BANK_ACCOUNT,
-          siteUrl: siteUrl(),
-          isRequest,
-          pickupPlace,
-          returnPlace,
-        })
-      );
+      const bookingUrl = `${siteUrl()}/booking/${booking.id}`;
+
+      await pushRaw(customer.lineUserId, [
+        isRequest
+          ? flexBookingRequested({
+              bookingId: booking.id,
+              carLabel: `${car.brand} ${car.name}`,
+              start,
+              end,
+              total: totalPrice,
+              bookingUrl,
+            })
+          : flexBookingCreated({
+              bookingId: booking.id,
+              carLabel: `${car.brand} ${car.name}`,
+              start,
+              end,
+              total: totalPrice,
+              afterHoursTotal: quote.afterHoursTotal,
+              bookingFee: settings.bookingFee,
+              bankAccount: BANK_ACCOUNT,
+              pickupPlace,
+              returnPlace,
+              bookingUrl,
+            }),
+      ]);
+
     } catch (err) {
       console.error("notify customer failed:", err);
     }

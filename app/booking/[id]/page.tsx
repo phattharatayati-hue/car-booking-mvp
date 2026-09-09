@@ -12,6 +12,11 @@ import { getPickupPoints } from "@/lib/pickup-points-server";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 
 import { STATUS_LABEL, STATUS_CLASS, needsApproval } from "@/lib/booking-status";
+import { getSessionCustomer } from "@/lib/customer-session";
+import { siteUrl } from "@/lib/line";
+import LineLoginButton from "@/components/LineLoginButton";
+import ClaimBooking from "./ClaimBooking";
+import BookingHandoff from "./BookingHandoff";
 
 export default async function BookingStatusPage({
   params,
@@ -28,6 +33,12 @@ export default async function BookingStatusPage({
 
   const settings = await getSettings();
   const pickupPoints = await getPickupPoints();
+
+  /* หน้านี้เปิดได้ด้วยรหัสการจอง (cuid เดาไม่ได้) เพราะลิงก์ถูกส่งให้ลูกค้าทางแชท
+     แต่ถ้าการจองยังไม่มีเจ้าของที่ผูก LINE ก็ชวนให้เก็บเข้าบัญชี จะได้ตามต่อได้ที่ /my */
+  const me = await getSessionCustomer();
+  const unclaimed = !booking.customer.lineUserId;
+  const mine = me?.id === booking.customerId;
   const isOpen = !["CANCELLED", "REJECTED", "COMPLETED"].includes(booking.status);
 
   const isRequest = needsApproval(booking.car);
@@ -53,6 +64,28 @@ export default async function BookingStatusPage({
   return (
     <PublicShell>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+        <BookingHandoff
+          bookingId={booking.id}
+          code={booking.id.slice(0, 8).toUpperCase()}
+          carLabel={`${booking.car.brand} ${booking.car.name}`}
+          bookingUrl={`${siteUrl()}/booking/${booking.id}`}
+          showSaveHint={unclaimed && isOpen}
+        />
+
+        {!mine && unclaimed && isOpen && (
+          me ? (
+            <ClaimBooking bookingId={booking.id} />
+          ) : (
+            <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <p className="text-sm text-slate-600 mb-3">
+                เข้าสู่ระบบด้วย LINE เพื่อเก็บการจองนี้ไว้ในประวัติของคุณ
+                และรับแจ้งเตือนสถานะทางแชท
+              </p>
+              <LineLoginButton next={`/booking/${booking.id}`} />
+            </div>
+          )
+        )}
+
         <div className="text-center mb-8">
           <span className="w-14 h-14 rounded-2xl bg-blue-600 text-white grid place-items-center mx-auto mb-4">
             <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7">
@@ -180,8 +213,10 @@ export default async function BookingStatusPage({
           </dl>
         </div>
 
-        {/* รับแจ้งเตือนทาง LINE */}
-        {booking.customer.lineUserId ? (
+        {/* เชื่อม LINE แล้ว — บอกสถานะอย่างเดียว
+            ส่วนคนที่ยังไม่เชื่อม ใช้กล่องเข้าสู่ระบบด้านบนสุดใบเดียว
+            เดิมมีกล่อง "เชื่อมต่อกับ LINE" ตรงนี้อีกใบ ทำหน้าที่ซ้ำกันจนมีปุ่มเขียวสองปุ่มในหน้าเดียว */}
+        {booking.customer.lineUserId && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5 flex items-center gap-3">
             <span className="w-9 h-9 rounded-xl bg-emerald-500 text-white grid place-items-center shrink-0">
               <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
@@ -197,28 +232,6 @@ export default async function BookingStatusPage({
             <p className="text-sm text-emerald-900">
               เปิดรับแจ้งเตือนทาง LINE แล้ว — เราจะแจ้งทันทีที่ตรวจสลิปเสร็จ
             </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
-            <div className="flex items-start gap-3 mb-4">
-              <span className="w-9 h-9 rounded-xl bg-[#06C755] text-white grid place-items-center shrink-0 font-bold text-sm">
-                L
-              </span>
-              <div>
-                <p className="font-semibold text-slate-900 text-sm">
-                  รับแจ้งเตือนทาง LINE
-                </p>
-                <p className="text-sm text-slate-500 mt-0.5 leading-relaxed">
-                  รู้ผลทันทีที่แอดมินตรวจสลิปเสร็จ ไม่ต้องคอยเปิดหน้านี้เช็คเอง
-                </p>
-              </div>
-            </div>
-            <a
-              href={`/line/link?booking=${booking.id}`}
-              className="block text-center w-full rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold py-3 transition-colors"
-            >
-              เชื่อมต่อกับ LINE
-            </a>
           </div>
         )}
 
@@ -262,8 +275,10 @@ export default async function BookingStatusPage({
           </div>
         )}
 
+        {/* id="docs" และ id="slip" — ปลายทางของปุ่มในข้อความ LINE
+            scroll-mt เว้นที่ให้หัวเว็บที่ลอยอยู่ ไม่งั้นหัวข้อถูกบัง */}
         {isOpen && (
-          <div className="mb-5">
+          <div id="docs" className="mb-5 scroll-mt-28">
             <DocumentUpload
               bookingId={booking.id}
               uploaded={booking.documents.map(
@@ -289,11 +304,13 @@ export default async function BookingStatusPage({
             ฝั่ง API รองรับอยู่แล้ว (upsert + รีเซ็ตสถานะเป็น PENDING) */}
         {(!booking.deposit || booking.deposit.status === "REJECTED") &&
           booking.status === "PENDING_DEPOSIT" && (
-          <SlipUpload
-            bookingId={booking.id}
-            suggestedAmount={settings.bookingFee}
-            securityDeposit={settings.securityDeposit}
-          />
+          <div id="slip" className="scroll-mt-28">
+            <SlipUpload
+              bookingId={booking.id}
+              suggestedAmount={settings.bookingFee}
+              securityDeposit={settings.securityDeposit}
+            />
+          </div>
         )}
 
         {booking.deposit && (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { pushMessage, notifyAdmin, siteUrl } from "@/lib/line";
+import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
+import { flexReturnReminder, flexUnassignedAdmin } from "@/lib/line-flex";
 import { SECURITY_DEPOSIT } from "@/lib/fees";
 import {
   getSettings,
@@ -77,20 +78,15 @@ async function nudgeUnassigned(): Promise<{ found: number; notified: boolean }> 
 
   missing.sort((a, b) => a.at.getTime() - b.at.getTime());
 
-  const text = [
-    "⚠️ มีงานรับ-ส่งรถที่ยังไม่มีคนรับ",
-    "",
-    `ภายใน 24 ชั่วโมงข้างหน้า ${missing.length} งาน`,
-    "",
-    ...missing.slice(0, 10).map((m, i) => `${i + 1}. ${m.label}`),
-    ...(missing.length > 10 ? ["", `และอีก ${missing.length - 10} งาน`] : []),
-    "",
-    "มอบหมายได้ที่หน้ารายการจอง",
-    `${siteUrl()}/admin/bookings`,
-  ].join("\n");
-
   try {
-    await notifyAdmin(text);
+    await notifyAdminRaw(
+      flexUnassignedAdmin({
+        count: missing.length,
+        jobs: missing.slice(0, 8).map((m) => m.label),
+        more: Math.max(0, missing.length - 8),
+        adminUrl: `${siteUrl()}/admin/bookings`,
+      })
+    );
     return { found: missing.length, notified: true };
   } catch (err) {
     console.error("nudgeUnassigned failed:", err);
@@ -161,29 +157,19 @@ export async function GET(request: Request) {
         ? "ถึงกำหนดคืนรถแล้วครับ"
         : `อีกประมาณ ${formatMinutesBefore(minutesLeft)} ถึงกำหนดคืนรถครับ`;
 
-    const text = [
-      "🔔 แจ้งเตือนคืนรถ",
-      "",
-      headline,
-      "",
-      `รถ: ${b.car.brand} ${b.car.name}`,
-      `ทะเบียน: ${b.car.licensePlate}`,
-      `กำหนดคืนรถ: ${formatBangkokDateTime(b.endDate)}`,
-      `รหัสจอง: ${b.id.slice(0, 8).toUpperCase()}`,
-      "",
-      `เช็คก่อนคืนรถ เพื่อได้เงินประกัน ${SECURITY_DEPOSIT.amount.toLocaleString()} บาทคืนเต็มจำนวน`,
-      "• เติมน้ำมันให้เท่าระดับตอนรับรถ",
-      "• เก็บของส่วนตัวออกจากรถให้หมด",
-      "• กุญแจครบชุด และไม่มีคราบสกปรกในห้องโดยสาร",
-      "",
-      "หากต้องการต่อระยะเวลาเช่า ติดต่อเราได้เลยครับ",
-      "",
-      `รายละเอียดค่าปรับ: ${siteUrl()}/fees`,
-      `${siteUrl()}/booking/${b.id}`,
-    ].join("\n");
-
     try {
-      await pushMessage(b.customer.lineUserId, text);
+      await pushRaw(b.customer.lineUserId, [
+        flexReturnReminder({
+          bookingId: b.id,
+          carLabel: `${b.car.brand} ${b.car.name}`,
+          plate: b.car.licensePlate,
+          end: b.endDate,
+          headline,
+          securityDeposit: SECURITY_DEPOSIT.amount,
+          feesUrl: `${siteUrl()}/fees`,
+          bookingUrl: `${siteUrl()}/booking/${b.id}`,
+        }),
+      ]);
       await prisma.booking.update({
         where: { id: b.id },
         data: { returnReminderSentAt: new Date() },

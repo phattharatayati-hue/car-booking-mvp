@@ -232,7 +232,7 @@ function RateForm({
         </p>
       </div>
 
-      <button className="mt-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold py-2.5 transition-colors">
+      <button className="mt-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors">
         {isEdit ? "บันทึกการแก้ไข" : "เพิ่มช่วง"}
       </button>
     </form>

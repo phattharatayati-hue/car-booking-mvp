@@ -8,7 +8,6 @@ import {
   LOCATION,
   telHref,
 } from "@/lib/contact";
-import type { Dict } from "@/lib/i18n";
 
 /**
  * ท้ายเว็บ 4 คอลัมน์ตามแบบที่อนุมัติ
@@ -16,22 +15,20 @@ import type { Dict } from "@/lib/i18n";
  *
  * พื้นเขียวเข้มตัดกับพื้นครีมของเนื้อหา เส้นทองคาดบนสุด
  *
- * ชื่อจดทะเบียนภาษาไทยและข้อมูลติดต่อไม่แปลเป็นอังกฤษ
- * เพราะเป็นข้อมูลตามทะเบียนบริษัท ต้องตรงกับเอกสารจริง
+ * ข้อความทั้งหมดเป็นภาษาไทย — เว็บนี้ให้บริการภาษาเดียว
  */
-export default function SiteFooter({ t }: { t: Dict }) {
+export default function SiteFooter() {
   const menu = [
-    { href: "/cars", label: t.nav.cars },
-    { href: "/how-to-book", label: t.nav.howTo },
-    { href: "/fees", label: t.footer.feesLong },
-    { href: "/my", label: t.nav.my },
-    { href: "/line/connect", label: t.nav.line },
+    { href: "/cars", label: "รถทั้งหมด" },
+    { href: "/how-to-book", label: "คู่มือการจอง" },
+    { href: "/fees", label: "ค่าปรับและค่าบริการ" },
+    { href: "/my", label: "ประวัติการจอง" },
   ];
 
   const legal = [
-    { href: "/terms", label: t.footer.terms },
-    { href: "/privacy", label: t.footer.privacy },
-    { href: "/login", label: t.nav.admin },
+    { href: "/terms", label: "เงื่อนไขการใช้บริการ" },
+    { href: "/privacy", label: "นโยบายความเป็นส่วนตัว" },
+    { href: "/login", label: "สำหรับแอดมิน" },
   ];
 
   return (
@@ -46,12 +43,12 @@ export default function SiteFooter({ t }: { t: Dict }) {
               <Brand href={null} size="md" tone="white" />
             </div>
             <p className="text-sm leading-relaxed text-white/75">
-              {COMPANY.nameTh} — {t.footer.about}
+              {COMPANY.nameTh} — บริการเช่ารถคุณภาพในเชียงใหม่ รถสะอาด ราคาชัดเจน จองออนไลน์ได้ตลอด 24 ชั่วโมง
             </p>
           </div>
 
           {/* เมนู */}
-          <FooterCol title={t.footer.menu}>
+          <FooterCol title="เมนู">
             {menu.map((m) => (
               <FooterLink key={m.href} href={m.href}>
                 {m.label}
@@ -60,7 +57,7 @@ export default function SiteFooter({ t }: { t: Dict }) {
           </FooterCol>
 
           {/* ข้อกำหนด */}
-          <FooterCol title={t.footer.legal}>
+          <FooterCol title="ข้อกำหนด">
             {legal.map((m) => (
               <FooterLink key={m.href} href={m.href}>
                 {m.label}
@@ -69,7 +66,7 @@ export default function SiteFooter({ t }: { t: Dict }) {
           </FooterCol>
 
           {/* ติดต่อ */}
-          <FooterCol title={t.footer.contact}>
+          <FooterCol title="ติดต่อ">
             {PHONES.map((phone) => (
               <li key={phone}>
                 <a

@@ -1,18 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Brand from "@/components/Brand";
 import ThemeToggle from "@/components/ThemeToggle";
-import LangToggle from "@/components/LangToggle";
+import AccountMenu from "@/components/AccountMenu";
 import { PHONES, telHref } from "@/lib/contact";
-import type { Dict } from "@/lib/i18n";
-import type { Lang } from "@/lib/locale";
 
 /**
  * หัวเว็บ 2 ชั้น
- *   ชั้นบน  แถบบาง — เบอร์โทร เวลาทำการ ปุ่มภาษา ปุ่มโหมดสว่าง/มืด
+ *   ชั้นบน  แถบบาง — เบอร์โทร เวลาทำการ ปุ่มโหมดสว่าง/มืด
  *   ชั้นล่าง แถบหลัก — ตราบริษัท เมนู ปุ่มจองรถ
  *
  * บนหน้าที่มีรูปใหญ่ (hero) หัวเว็บจะลอยทับรูปแบบโปร่งใสตัวอักษรขาว
@@ -22,14 +20,19 @@ import type { Lang } from "@/lib/locale";
  * ทำให้รูป hero ถูกดันลงมา ทับไม่ได้จริง
  */
 export default function SiteHeader({
-  lang,
-  t,
   hero = false,
+  customerName = null,
 }: {
-  lang: Lang;
-  t: Dict;
   hero?: boolean;
+  /** ชื่อลูกค้าที่เข้าสู่ระบบอยู่ — null คือยังไม่ได้เข้าสู่ระบบ
+      อ่านมาจากฝั่งเซิร์ฟเวอร์ใน PublicShell เพราะคอมโพเนนต์นี้อยู่ฝั่งเบราว์เซอร์ */
+  customerName?: string | null;
 }) {
+  // ชื่อยาวๆ ทำให้แถบบนล้น ตัดให้พอดีแล้วเก็บชื่อเต็มไว้ใน title
+  const shortName =
+    customerName && customerName.length > 14
+      ? `${customerName.slice(0, 14)}…`
+      : customerName;
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -48,11 +51,11 @@ export default function SiteHeader({
   // "ประวัติการจอง" กับ "เชื่อมต่อ LINE" ย้ายไปแถบบนและเมนูมือถือ
   // เพราะเป็นเมนูที่ลูกค้าเก่าใช้ ไม่ใช่ทางเข้าหลักของคนที่เพิ่งเข้าเว็บ
   const NAV = [
-    { href: "/", label: t.nav.home },
-    { href: "/cars", label: t.nav.cars },
-    { href: "/how-to-book", label: t.nav.howTo },
-    { href: "/fees", label: t.nav.fees },
-    { href: "/contact", label: t.nav.contact },
+    { href: "/", label: "หน้าแรก" },
+    { href: "/cars", label: "รถทั้งหมด" },
+    { href: "/how-to-book", label: "คู่มือการจอง" },
+    { href: "/fees", label: "ค่าปรับ" },
+    { href: "/contact", label: "ติดต่อเรา" },
   ];
 
   function isActive(href: string) {
@@ -114,22 +117,26 @@ export default function SiteHeader({
                 strokeLinejoin="round"
               />
             </svg>
-            {t.nav.freeDelivery}
+            ส่งรถฟรีในเขตเมืองเชียงใหม่ · จองได้ 24 ชม.
           </span>
 
           <div className="flex items-center gap-2 shrink-0">
-            <LangToggle lang={lang} />
-            <ThemeToggle lang={lang} />
-            <Link
-              href="/my"
-              className={`ml-1 px-2.5 py-1 rounded-md font-medium transition-colors ${
-                over
-                  ? "text-white/75 hover:text-white"
-                  : "text-slate-500 hover:text-blue-700"
-              }`}
-            >
-              {t.nav.my}
-            </Link>
+            <ThemeToggle tone={over ? "white" : "navy"} size="sm" />
+            {customerName ? (
+              <AccountMenu name={customerName} tone={over ? "white" : "navy"} />
+            ) : (
+              /* ยิงไป LINE ตรงๆ ไม่ต้องแวะหน้า /my ก่อน แล้วกลับมาหน้าเดิมที่กดมา */
+              <a
+                href={`/api/line/login?next=${encodeURIComponent(pathname || "/")}`}
+                className={`ml-1 px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  over
+                    ? "text-white/75 hover:text-white"
+                    : "text-slate-500 hover:text-blue-700"
+                }`}
+              >
+                เข้าสู่ระบบ
+              </a>
+            )}
             <Link
               href="/login"
               className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
@@ -138,7 +145,7 @@ export default function SiteHeader({
                   : "text-slate-500 hover:text-blue-700"
               }`}
             >
-              {t.nav.admin}
+              สำหรับแอดมิน
             </Link>
           </div>
         </div>
@@ -177,7 +184,7 @@ export default function SiteHeader({
                   over ? "text-white/65" : "text-slate-500"
                 }`}
               >
-                {t.nav.callToBook}
+                โทรจองรถ
               </span>
               <span
                 className={`block text-sm font-bold font-mono tracking-tight ${
@@ -189,21 +196,21 @@ export default function SiteHeader({
             </a>
             <Link
               href="/cars"
-              className="px-5 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold shadow-sm transition-colors"
+              className="px-5 py-2.5 rounded-full bg-gold-fixed hover:bg-amber-200 text-ink text-sm font-bold shadow-sm transition-colors"
             >
-              {t.nav.bookNow}
+              จองรถเลย
             </Link>
           </div>
 
           {/* ปุ่มเมนูมือถือ + ปุ่มโหมดมืด (ภาษาอยู่ในเมนู) */}
           <div className="flex items-center gap-2 md:hidden">
-            <ThemeToggle lang={lang} />
+            <ThemeToggle tone={over ? "white" : "navy"} />
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              aria-label={t.nav.openMenu}
+              aria-label="เปิดเมนู"
               aria-expanded={open}
-              className={`w-10 h-10 grid place-items-center rounded-lg border transition-colors ${
+              className={`w-10 h-10 min-h-0 grid place-items-center rounded-lg border transition-colors ${
                 over
                   ? "border-white/25 text-white hover:bg-white/10"
                   : "border-slate-200 text-slate-700 hover:bg-slate-100"
@@ -248,47 +255,75 @@ export default function SiteHeader({
             ))}
 
             <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100">
-              <LangToggle lang={lang} />
               {PHONES[0] && (
                 <a
                   href={telHref(PHONES[0])}
                   className="text-xs font-medium text-slate-500"
                 >
-                  {t.footer.call} {PHONES[0]}
+                  โทร {PHONES[0]}
                 </a>
               )}
             </div>
 
-            <Link
-              href="/my"
-              className="px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              {t.nav.my}
-            </Link>
-            <Link
-              href="/line/connect"
-              className="px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              {t.nav.line}
-            </Link>
+            {customerName ? (
+              <>
+                <Link
+                  href="/my"
+                  className="px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  ประวัติการจอง · {shortName}
+                </Link>
+                <MobileLogout />
+              </>
+            ) : (
+              <a
+                href={`/api/line/login?next=${encodeURIComponent(pathname || "/")}`}
+                className="px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                เข้าสู่ระบบด้วย LINE
+              </a>
+            )}
 
             <div className="flex gap-2 mt-2">
               <Link
                 href="/login"
                 className="flex-1 text-center px-3 py-2.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-700"
               >
-                {t.nav.admin}
+                สำหรับแอดมิน
               </Link>
               <Link
                 href="/cars"
-                className="flex-1 text-center px-3 py-2.5 rounded-lg bg-amber-500 text-white text-sm font-bold"
+                className="flex-1 text-center px-3 py-2.5 rounded-lg bg-gold-fixed text-ink text-sm font-bold"
               >
-                {t.nav.bookNow}
+                จองรถเลย
               </Link>
             </div>
           </div>
         )}
       </div>
     </header>
+  );
+}
+
+/** ออกจากระบบจากเมนูมือถือ — ไม่ต้องมี dropdown ซ้อนในเมนูที่เปิดอยู่แล้ว */
+function MobileLogout() {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        await fetch("/api/my/logout", { method: "POST" });
+        router.push("/?logout=1");
+        router.refresh();
+      }}
+      className="px-3 py-2.5 min-h-0 rounded-lg text-sm font-medium text-red-700 hover:bg-red-50 text-left disabled:opacity-60"
+    >
+      {busy ? "กำลังออกจากระบบ..." : "ออกจากระบบ"}
+    </button>
   );
 }

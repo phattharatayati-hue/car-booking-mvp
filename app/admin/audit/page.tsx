@@ -38,7 +38,7 @@ function tone(action: string): { dot: string; text: string } {
 
 const chip =
   "text-xs font-medium px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap";
-const chipOn = "bg-slate-900 text-white border-slate-900";
+const chipOn = "bg-blue-600 text-white border-blue-600";
 const chipOff = "bg-white text-slate-600 border-slate-200 hover:bg-slate-50";
 
 export default async function AdminAuditPage({
@@ -208,7 +208,7 @@ export default async function AdminAuditPage({
               className="w-full rounded-xl bg-white border border-slate-200 px-3.5 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
             />
           </div>
-          <button className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors">
+          <button className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors">
             กรอง
           </button>
           <Link

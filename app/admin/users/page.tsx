@@ -330,7 +330,7 @@ export default async function AdminUsersPage({
               className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"
             >
               <div className="flex items-center gap-3.5 min-w-0 mb-5">
-                <span className="w-11 h-11 rounded-full bg-slate-900 text-white grid place-items-center font-semibold shrink-0">
+                <span className="w-11 h-11 rounded-full bg-panel text-white grid place-items-center font-semibold shrink-0">
                   {admin.name.slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0">
@@ -342,7 +342,7 @@ export default async function AdminUsersPage({
                       </span>
                     )}
                     {admin.role === "DEV" && (
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-900 text-white border border-slate-900">
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-panel text-white border border-panel">
                         ผู้ดูแลระบบ
                       </span>
                     )}

@@ -140,7 +140,7 @@ model Customer {
   email       String?
   idCardNumber String?
   isBlacklisted Boolean @default(false)
-  lineUserId  String?   // ผูกผ่าน LIFF / LINE Login เพื่อรับแจ้งเตือน
+  lineUserId  String?   @unique // ตัวตนของลูกค้า — เข้าสู่ระบบด้วย LINE เท่านั้น
   createdAt   DateTime  @default(now())
   bookings    Booking[]
 }
@@ -234,16 +234,6 @@ model Deposit {
   confirmedBy   String?
   confirmedAt   DateTime?
   createdAt     DateTime      @default(now())
-}
-
-/// รหัส OTP สำหรับให้ลูกค้าดูประวัติการจอง — ส่งทาง LINE มีอายุ 5 นาที
-model CustomerOtp {
-  phone     String   @id
-  codeHash  String
-  expiresAt DateTime
-  attempts  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 /// จุดรับ-ส่งรถที่ให้ลูกค้าเลือกตอนจอง — แอดมินเพิ่ม/ปิดได้เองในหลังบ้าน

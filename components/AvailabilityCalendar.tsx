@@ -160,7 +160,7 @@ export default function AvailabilityCalendar({
                         ? "bg-emerald-600 text-white"
                         : active
                         ? "bg-blue-600 text-white"
-                        : "bg-slate-300 text-white"
+                        : "bg-slate-200 text-slate-500"
                     }`}
                   >
                     {done ? "✓" : it.n}
@@ -229,7 +229,7 @@ export default function AvailabilityCalendar({
             type="button"
             onClick={() => setOffset((o) => Math.max(0, o - 1))}
             disabled={offset === 0}
-            className="w-9 h-9 grid place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30"
+            className="w-9 h-9 min-h-0 grid place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30"
             aria-label="เดือนก่อนหน้า"
           >
             <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4">
@@ -240,7 +240,7 @@ export default function AvailabilityCalendar({
           <button
             type="button"
             onClick={() => setOffset((o) => o + 1)}
-            className="w-9 h-9 grid place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="w-9 h-9 min-h-0 grid place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
             aria-label="เดือนถัดไป"
           >
             <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4">
@@ -265,7 +265,7 @@ export default function AvailabilityCalendar({
                     <span
                       key={w}
                       className={`text-[11px] font-medium text-center ${
-                        i === 0 || i === 6 ? "text-red-400" : "text-slate-400"
+                        i === 0 || i === 6 ? "text-red-500" : "text-slate-400"
                       }`}
                     >
                       {w}

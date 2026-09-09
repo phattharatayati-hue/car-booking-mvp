@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notifyAdmin, buildSlipUploadedMessage, siteUrl } from "@/lib/line";
+import { notifyAdminRaw, siteUrl } from "@/lib/line";
+import { flexSlipUploadedAdmin } from "@/lib/line-flex";
 
 export async function POST(
   request: Request,
@@ -38,13 +39,13 @@ export async function POST(
   });
 
   try {
-    await notifyAdmin(
-      buildSlipUploadedMessage({
+    await notifyAdminRaw(
+      flexSlipUploadedAdmin({
         bookingId: booking.id,
         carLabel: `${booking.car.brand} ${booking.car.name}`,
         customerName: booking.customer.fullName,
         amount: deposit.amount,
-        siteUrl: siteUrl(),
+        adminUrl: `${siteUrl()}/admin/bookings`,
       })
     );
   } catch (err) {

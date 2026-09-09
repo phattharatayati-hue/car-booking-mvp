@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { formatBangkokDateTime } from "@/lib/settings";
 
 const LINE_API = "https://api.line.me/v2/bot";
 
@@ -217,139 +216,21 @@ export async function notifyAdmin(text: string) {
   );
 }
 
-function fmtDate(d: Date) {
-  return formatBangkokDateTime(d);
+/** แจ้งแอดมินด้วยข้อความ Flex — ใช้แทน notifyAdmin สำหรับการ์ดทุกใบ */
+export async function notifyAdminRaw(message: any) {
+  const ids = await adminIds();
+  if (ids.length === 0) return;
+
+  await Promise.all(
+    ids.map((id) =>
+      pushRaw(id, [message]).catch((err) => console.error(`push to ${id} failed:`, err))
+    )
+  );
 }
 
-export function buildNewBookingMessage(data: {
-  bookingId: string;
-  carLabel: string;
-  customerName: string;
-  phone: string;
-  startDate: Date;
-  endDate: Date;
-  totalPrice: number;
-  afterHoursTotal?: number;
-  siteUrl: string;
-  isRequest?: boolean;
-  partnerName?: string;
-  partnerPhone?: string;
-  pickupPlace?: string | null;
-  returnPlace?: string | null;
-}) {
-  const lines = [
-    data.isRequest ? "📩 มีคำขอจองรถพาร์ทเนอร์" : "🚗 มีการจองใหม่",
-    "",
-    `รถ: ${data.carLabel}`,
-    `ลูกค้า: ${data.customerName}`,
-    `เบอร์: ${data.phone}`,
-    `รับรถ: ${fmtDate(data.startDate)}`,
-    `คืนรถ: ${fmtDate(data.endDate)}`,
-    `ยอดรวม: ${data.totalPrice.toLocaleString()} บาท`,
-    `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
-  ];
-
-  if (data.afterHoursTotal) {
-    lines.push(`(รวมค่ารับ-คืนนอกเวลา ${data.afterHoursTotal.toLocaleString()} บาท)`);
-  }
-  if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
-  if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
-  lines.push("");
-
-  if (data.isRequest) {
-    if (data.partnerName) {
-      lines.push(`เจ้าของรถ: ${data.partnerName}`);
-      if (data.partnerPhone) lines.push(`โทร: ${data.partnerPhone}`);
-      lines.push("");
-    }
-    lines.push("⚠️ กรุณาติดต่อเจ้าของรถเพื่อเช็ครถว่าง");
-    lines.push("แล้วกดอนุมัติหรือปฏิเสธในหลังบ้าน");
-  } else {
-    lines.push("สถานะ: รอลูกค้าโอนค่าจอง");
-  }
-
-  lines.push(`${data.siteUrl}/admin/bookings`);
-  return lines.join("\n");
-}
-
-/**
- * ข้อความแจ้งลูกค้าหลังจองสำเร็จ — บอกยอดค่าจอง เลขบัญชี และลิงก์ส่งสลิป/เอกสาร
- * ส่งทั้งการจองจากเว็บและจาก LIFF ที่ปิดหน้าต่างแล้วข้อมูลหาย
- */
-export function buildCustomerBookingMessage(data: {
-  bookingId: string;
-  carLabel: string;
-  startDate: Date;
-  endDate: Date;
-  totalPrice: number;
-  afterHoursTotal?: number;
-  bookingFee: number;
-  bankAccount: string;
-  siteUrl: string;
-  isRequest: boolean;
-  pickupPlace?: string | null;
-  returnPlace?: string | null;
-}) {
-  const lines = [
-    data.isRequest ? "📩 ส่งคำขอจองเรียบร้อยแล้ว" : "✅ จองสำเร็จ",
-    "",
-    `รถ: ${data.carLabel}`,
-    `รับรถ: ${fmtDate(data.startDate)}`,
-    `คืนรถ: ${fmtDate(data.endDate)}`,
-    `ยอดรวม: ${data.totalPrice.toLocaleString()} บาท`,
-    `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
-  ];
-
-  if (data.afterHoursTotal) {
-    lines.push(
-      `(รวมค่าบริการรับ-คืนรถนอกเวลา ${data.afterHoursTotal.toLocaleString()} บาท)`
-    );
-  }
-  if (data.pickupPlace) lines.push(`จุดรับรถ: ${data.pickupPlace}`);
-  if (data.returnPlace) lines.push(`จุดคืนรถ: ${data.returnPlace}`);
-
-  lines.push("");
-
-  if (data.isRequest) {
-    lines.push(
-      "รถคันนี้เป็นรถจากพาร์ทเนอร์",
-      "เราจะเช็ควันว่างกับเจ้าของรถแล้วแจ้งผลกลับทางแชทนี้ครับ",
-      "",
-      "⚠️ ยังไม่ต้องโอนค่าจองจนกว่าจะได้รับการยืนยัน"
-    );
-  } else {
-    lines.push(
-      `ขั้นต่อไป — โอนค่าจอง ${data.bookingFee.toLocaleString()} บาท เพื่อกันวันให้คุณ`,
-      data.bankAccount,
-      "",
-      "โอนแล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลย",
-      "หรือแนบในหน้าจองพร้อมส่งเอกสาร (บัตรประชาชน ใบขับขี่ เอกสารการเดินทาง/ที่พัก)"
-    );
-  }
-
-  lines.push("", `${data.siteUrl}/booking/${data.bookingId}`);
-  return lines.join("\n");
-}
-
-export function buildSlipUploadedMessage(data: {
-  bookingId: string;
-  carLabel: string;
-  customerName: string;
-  amount: number;
-  siteUrl: string;
-}) {
-  return [
-    "💰 ลูกค้าอัปโหลดสลิปค่าจองแล้ว",
-    "",
-    `รถ: ${data.carLabel}`,
-    `ลูกค้า: ${data.customerName}`,
-    `ยอดที่แจ้ง: ${data.amount.toLocaleString()} บาท`,
-    `รหัสจอง: ${data.bookingId.slice(0, 8).toUpperCase()}`,
-    "",
-    "กรุณาตรวจสอบและยืนยัน",
-    `${data.siteUrl}/admin/bookings`,
-  ].join("\n");
-}
+/* ข้อความแบบตัวอักษรล้วนถูกแทนด้วยการ์ด Flex ทั้งหมดแล้ว — ดู lib/line-flex.ts
+   ฟังก์ชัน buildNewBookingMessage / buildCustomerBookingMessage / buildSlipUploadedMessage
+   ถูกถอดออกเพราะไม่มีใครเรียกแล้ว ถ้าต้องการข้อความล้วนให้ใช้ pushMessage ตรงๆ */
 
 /** URL ของเว็บ ใช้ตอนแนบลิงก์ในข้อความ */
 export function siteUrl() {

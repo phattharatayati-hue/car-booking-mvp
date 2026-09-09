@@ -5,12 +5,18 @@ import {
   replyRaw,
   getProfileName,
   getMessageContent,
-  notifyAdmin,
-  buildNewBookingMessage,
-  buildSlipUploadedMessage,
+  notifyAdminRaw,
   siteUrl,
 } from "@/lib/line";
-import { carCarousel, bookingSummary, datePicker, bookingDone, FlexCar } from "@/lib/line-flex";
+import {
+  carCarousel,
+  bookingSummary,
+  datePicker,
+  bookingDone,
+  flexNewBookingAdmin,
+  flexSlipUploadedAdmin,
+  FlexCar,
+} from "@/lib/line-flex";
 
 import {
   getSettings,
@@ -240,7 +246,7 @@ async function handleConfirm(replyToken: string, lineUserId: string) {
   }
 
   // ถ้าเคยจองแล้วมีเบอร์อยู่ในระบบ ใช้เบอร์เดิมได้เลย ไม่ต้องถามซ้ำ
-  const existing = await prisma.customer.findFirst({ where: { lineUserId } });
+  const existing = await prisma.customer.findUnique({ where: { lineUserId } });
   if (existing) {
     await finalizeBooking(replyToken, lineUserId, existing.phone);
     return;
@@ -306,8 +312,10 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
   const total = quote.total;
   const name = (await getProfileName(lineUserId)) ?? "ลูกค้า LINE";
 
-  // หาลูกค้าเดิมจากเบอร์ ถ้าไม่มีค่อยสร้างใหม่ (ให้ blacklist ทำงาน)
-  let customer = await prisma.customer.findFirst({ where: { phone } });
+  /* ตัวตนของลูกค้าคือบัญชี LINE ที่กำลังคุยอยู่ ไม่ใช่เบอร์ที่พิมพ์เข้ามา
+     เบอร์เป็นแค่ข้อมูลติดต่อ จึงอัปเดตทับได้ แต่ห้ามใช้ค้นหาตัวตน
+     ไม่งั้นพิมพ์เบอร์ของคนอื่นแล้วจะไปเกาะบัญชีเขา */
+  let customer = await prisma.customer.findUnique({ where: { lineUserId } });
 
   if (customer?.isBlacklisted) {
     await clearDraft(lineUserId);
@@ -318,7 +326,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
   if (customer) {
     customer = await prisma.customer.update({
       where: { id: customer.id },
-      data: { lineUserId, fullName: customer.fullName || name },
+      data: { phone, fullName: customer.fullName || name },
     });
   } else {
     customer = await prisma.customer.create({
@@ -379,20 +387,20 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
   }
 
   try {
-    await notifyAdmin(
-      buildNewBookingMessage({
+    await notifyAdminRaw(
+      flexNewBookingAdmin({
         bookingId: booking.id,
         carLabel: `${car.brand} ${car.name}`,
         customerName: customer.fullName,
         phone,
-        startDate: start,
-        endDate: end,
-        totalPrice: total,
+        start,
+        end,
+        total,
         afterHoursTotal: quote.afterHoursTotal,
-        siteUrl: siteUrl(),
         isRequest,
         partnerName: car.partner?.name,
         partnerPhone: car.partner?.phone,
+        adminUrl: `${siteUrl()}/admin/bookings`,
       })
     );
   } catch (err) {
@@ -428,7 +436,7 @@ export async function handleSlipImage(
   lineUserId: string,
   messageId: string
 ): Promise<boolean> {
-  const customer = await prisma.customer.findFirst({ where: { lineUserId } });
+  const customer = await prisma.customer.findUnique({ where: { lineUserId } });
   if (!customer) {
     await replyMessage(
       replyToken,
@@ -494,13 +502,13 @@ export async function handleSlipImage(
       ].join("\n")
     );
 
-    await notifyAdmin(
-      buildSlipUploadedMessage({
+    await notifyAdminRaw(
+      flexSlipUploadedAdmin({
         bookingId: booking.id,
         carLabel: `${booking.car.brand} ${booking.car.name}`,
         customerName: customer.fullName,
         amount,
-        siteUrl: siteUrl(),
+        adminUrl: `${siteUrl()}/admin/bookings`,
       })
     );
   } catch (err) {

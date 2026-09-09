@@ -20,6 +20,20 @@ export type UploadedDoc = {
   rejectReason: string | null;
 };
 
+/** เพดานเดียวกับฝั่งเซิร์ฟเวอร์และกล่องสลิป */
+const MAX_MB = 8;
+
+/** คืนข้อความปัญหา หรือ null ถ้าไฟล์ใช้ได้ — เช็คตั้งแต่ตอนเลือก ไม่ปล่อยไปเจอ 413 */
+function checkFile(f: File): string | null {
+  if (!f.type.startsWith("image/")) {
+    return "ไฟล์ต้องเป็นรูปภาพเท่านั้น (JPG, PNG หรือ WEBP)";
+  }
+  if (f.size > MAX_MB * 1024 * 1024) {
+    return `ไฟล์ใหญ่ ${(f.size / 1024 / 1024).toFixed(1)} MB เกิน ${MAX_MB} MB — ถ่ายใหม่ด้วยความละเอียดต่ำลง หรือย่อรูปก่อน`;
+  }
+  return null;
+}
+
 export default function DocumentUpload({
   bookingId,
   uploaded,
@@ -187,12 +201,18 @@ export default function DocumentUpload({
                       <input
                         type="file"
                         accept="image/*"
-                        className="hidden"
+                        className="sr-only"
                         disabled={busy}
                         onChange={(e) => {
                           const f = e.target.files?.[0];
                           e.target.value = "";
-                          if (f) upload(kind, f);
+                          if (!f) return;
+                          const problem = checkFile(f);
+                          if (problem) {
+                            setError(problem);
+                            return;
+                          }
+                          upload(kind, f);
                         }}
                       />
                     </label>

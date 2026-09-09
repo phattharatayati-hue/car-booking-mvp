@@ -349,7 +349,7 @@ export default async function AccountPage({
         ) : (
           <a
             href="/api/google/connect"
-            className="inline-block rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
+            className="inline-block rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
           >
             เชื่อมต่อ Google Calendar
           </a>

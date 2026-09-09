@@ -100,6 +100,7 @@
   --color-emerald-600: #067a4c;
   --color-emerald-700: #05663f;
   --color-emerald-800: #044f31;
+  --color-emerald-900: #033a24;
 
   /* ยกเลิก / ผิดพลาด */
   --color-red-50: #fbebe9;
@@ -109,6 +110,18 @@
   --color-red-600: #b34438;
   --color-red-700: #9c3a2f;
   --color-red-800: #86322a;
+  --color-red-900: #6e2822;
+
+  /* ม่วงพลัม — ใช้กับสถานะ "รอเช็คกับเจ้าของรถ" และรถพาร์ทเนอร์เท่านั้น
+     ต้องเป็นคนละสีกับทอง (รอตรวจสลิป) และเขียว (ยืนยันแล้ว) จึงแยกออกมาอีกหนึ่งเฉด
+     ลดความสดลงให้เข้ากับโทนเขียว-ทอง ไม่ใช่ม่วงสดของ Tailwind */
+  --color-violet-50: #f3eef5;
+  --color-violet-100: #e9e0ed;
+  --color-violet-200: #dccfe2;
+  --color-violet-500: #7c5b8a;
+  --color-violet-600: #6b4a79;
+  --color-violet-700: #573c63;
+  --color-violet-900: #3a2842;
 
   /* ---- สีชุด "ไม่สลับตามโหมด" ----
      ใช้กับพื้นที่ที่เข้มตลอดทั้งสองโหมด เช่น รูปใหญ่หน้าแรก
@@ -192,6 +205,7 @@ html[data-theme="dark"] {
   --color-emerald-600: #2aa76d;
   --color-emerald-700: #6fdba8;
   --color-emerald-800: #9ee9c5;
+  --color-emerald-900: #c2f2da;
 
   --color-red-50: #2a1614;
   --color-red-100: #351d1a;
@@ -200,6 +214,17 @@ html[data-theme="dark"] {
   --color-red-600: #c9584c;
   --color-red-700: #f2a49b;
   --color-red-800: #f7c4be;
+  --color-red-900: #fbdcd8;
+
+  /* ม่วงพลัม โหมดมืด — สลับหัวท้ายเหมือนสเกลอื่น
+     600 ยังเป็นพื้นปุ่ม (ตัวอักษรขาวได้ 5.8:1) · 700 ขึ้นไปกลายเป็นตัวอักษรสว่าง */
+  --color-violet-50: #221a26;
+  --color-violet-100: #2b2130;
+  --color-violet-200: #3a2c40;
+  --color-violet-500: #a884b6;
+  --color-violet-600: #7d5a8d;
+  --color-violet-700: #d3bcdb;
+  --color-violet-900: #ece0f0;
 
   /* แผงเขียวในโหมดมืด — ยกให้สว่างกว่าพื้นหน้าเล็กน้อยเพื่อให้เห็นเป็นแผง
      แต่ยังเข้มกว่าโหมดสว่าง ไม่ให้จ้าตัดกับหน้าที่มืดอยู่ */
@@ -225,6 +250,11 @@ html[data-theme="dark"] .bg-white {
 }
 html[data-theme="dark"] .hover\:bg-blue-700:hover {
   background-color: var(--color-blue-500);
+}
+/* ปุ่มม่วงก็ชนปัญหาเดียวกัน — 700 ในโหมดมืดคือสีตัวอักษรสว่าง
+   จึงชี้ hover ไปที่ม่วงเข้มกว่าพื้นปุ่มปกติหนึ่งขั้น */
+html[data-theme="dark"] .hover\:bg-violet-700:hover {
+  background-color: #5d4169;
 }
 
 body {
@@ -261,10 +291,14 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
-/* ปุ่มและช่องกรอกสูงพอให้แตะด้วยนิ้วโป้งบนมือถือ */
-button,
-[type="button"],
-[type="submit"],
+/* ปุ่มและช่องกรอกสูงพอให้แตะด้วยนิ้วโป้งบนมือถือ
+
+   ปุ่มไอคอนที่ตั้งความสูงเอง (w-7 h-7 / w-9 h-9 / w-10 h-10) ต้องกันออกจากกฎนี้
+   กฎเขียนนอก @layer ของ Tailwind v4 จึงชนะ utility ทุกตัวไม่ว่า specificity เท่าไร
+   ติดคลาส min-h-0 อย่างเดียวไม่พอ ต้องมี :not(.min-h-0) ตรงนี้ด้วย */
+button:not(.min-h-0),
+[type="button"]:not(.min-h-0),
+[type="submit"]:not(.min-h-0),
 select,
 input:not([type="checkbox"]):not([type="radio"]) {
   min-height: 2.75rem;

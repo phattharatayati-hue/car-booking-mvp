@@ -171,8 +171,10 @@ export default async function AfterHoursPage({
               style={{
                 background:
                   fee === 0
-                    ? "rgb(241 245 249)"
-                    : `rgba(217, 119, 6, ${0.25 + 0.6 * (fee / maxFee)})`,
+                    ? "var(--color-slate-200)"
+                    : `color-mix(in srgb, var(--color-amber-500) ${Math.round(
+                        (0.25 + 0.6 * (fee / maxFee)) * 100
+                      )}%, transparent)`,
               }}
               title={`${String(h).padStart(2, "0")}:00 — ${
                 fee === 0 ? "ฟรี" : `+${fee.toLocaleString()} บาท`
@@ -361,7 +363,7 @@ export default async function AfterHoursPage({
           <input type="hidden" name="isActive" value="on" />
           <button
             type="submit"
-            className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
           >
             เพิ่ม
           </button>

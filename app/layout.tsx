@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
-import { getLang } from "@/lib/locale-server";
 
 /**
  * ฟอนต์ทั้งหมดฝังมากับโปรเจกต์ (@fontsource) ไม่ดึงจาก Google Fonts ตอน build
@@ -30,14 +29,10 @@ export const metadata: Metadata = {
     "ภูพิงค์ คอร์ปอเรชั่น — บริการเช่ารถคุณภาพในเชียงใหม่ จองออนไลน์ได้ 24 ชม. รถสะอาด ราคาชัดเจน ไม่มีค่าใช้จ่ายแอบแฝง",
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // ภาษามาจากคุกกี้ (lib/locale.ts) ต้องใส่ลง <html lang> ให้ตรง
-  // เพื่อให้โปรแกรมอ่านหน้าจอและการตัดคำของเบราว์เซอร์ทำงานถูกภาษา
-  const lang = await getLang();
-
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang={lang}
+      lang="th"
       data-theme="light"
       suppressHydrationWarning
       className="h-full antialiased"

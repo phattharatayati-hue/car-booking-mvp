@@ -3,6 +3,7 @@ import { auth, signOut } from "@/lib/auth";
 import { currentAdmin } from "@/lib/roles";
 import AdminNav from "@/components/AdminNav";
 import Brand from "@/components/Brand";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default async function AdminLayout({
   children,
@@ -47,7 +48,7 @@ export default async function AdminLayout({
         </div>
 
         <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
-          <span className="w-9 h-9 rounded-full bg-slate-900 text-white grid place-items-center text-sm font-semibold shrink-0">
+          <span className="w-9 h-9 rounded-full bg-panel text-white grid place-items-center text-sm font-semibold shrink-0">
             {initial}
           </span>
           <Link href="/admin/account" className="min-w-0 flex-1 group">
@@ -58,6 +59,7 @@ export default async function AdminLayout({
               {email}
             </p>
           </Link>
+          <ThemeToggle />
           <form
             action={async () => {
               "use server";
@@ -67,7 +69,7 @@ export default async function AdminLayout({
             <button
               type="submit"
               title="ออกจากระบบ"
-              className="w-9 h-9 grid place-items-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="w-9 h-9 min-h-0 grid place-items-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
             >
               <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
                 <path

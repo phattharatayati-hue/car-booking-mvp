@@ -13,6 +13,8 @@ import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { needsApproval } from "@/lib/booking-status";
 import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
+import { getSessionCustomer } from "@/lib/customer-session";
+import LineLoginButton from "@/components/LineLoginButton";
 
 export default async function BookCarPage({
   params,
@@ -37,6 +39,11 @@ export default async function BookCarPage({
   const availability = availabilityMap.get(car.id) ?? {};
   const busySpans = await getBusySpans(car.id, 120);
 
+  /* ลูกค้าที่เข้าสู่ระบบไว้แล้ว — เติมชื่อ เบอร์ อีเมลให้อัตโนมัติ
+     ไม่บังคับให้เข้าสู่ระบบก่อนจอง เพราะการขวางด้วยหน้า login
+     ทำให้คนจองครั้งแรกหายไปมาก ปุ่มจึงเป็นทางลัด ไม่ใช่ประตู */
+  const me = await getSessionCustomer();
+
   return (
     <PublicShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
@@ -58,6 +65,21 @@ export default async function BookCarPage({
               กรอกข้อมูลให้ครบถ้วน เราจะติดต่อกลับเพื่อยืนยัน
             </p>
             <ServiceNote note={settings.serviceNote} className="mb-6" />
+
+            {me ? (
+              <p className="mb-6 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                จองในนามบัญชี LINE ของคุณ ({me.fullName}) — การจองนี้จะไปอยู่ในหน้า
+                ประวัติการจองให้อัตโนมัติ
+              </p>
+            ) : (
+              <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-600 mb-3">
+                  เข้าสู่ระบบด้วย LINE เพื่อให้การจองนี้เก็บไว้ในประวัติของคุณ
+                  และรับแจ้งเตือนสถานะทางแชท — หรือจองต่อโดยไม่เข้าสู่ระบบก็ได้
+                </p>
+                <LineLoginButton next={`/cars/${car.id}/book`} />
+              </div>
+            )}
             <BookingForm
               carId={car.id}
               pricePerDay={car.pricePerDay}
@@ -68,6 +90,9 @@ export default async function BookCarPage({
               availability={availability}
               pickupPoints={pickupPoints}
               lateRule={lateRuleFromSettings(settings)}
+              defaultName={me?.fullName ?? ""}
+              defaultPhone={me?.phone ?? ""}
+              defaultEmail={me?.email ?? ""}
             />
           </div>
 

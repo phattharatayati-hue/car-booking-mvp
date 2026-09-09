@@ -7,8 +7,6 @@ import PublicShell from "@/components/PublicShell";
 import CarCard from "@/components/CarCard";
 import { getAvailability, firstFreeDate } from "@/lib/availability";
 import { bangkokDateStr, getSettings } from "@/lib/settings";
-import { getLang } from "@/lib/locale-server";
-import { dict } from "@/lib/i18n";
 import { LINE_OA_ID } from "@/lib/contact";
 
 /**
@@ -30,8 +28,6 @@ import { LINE_OA_ID } from "@/lib/contact";
  */
 
 export default async function HomePage() {
-  const lang = await getLang();
-  const t = dict(lang);
   const settings = await getSettings();
 
   const cars = await prisma.car.findMany({
@@ -67,17 +63,17 @@ export default async function HomePage() {
   }
 
   const WHY = [
-    { title: t.home.why1Title, desc: t.home.why1Desc, icon: ICON_SHIELD },
-    { title: t.home.why2Title, desc: t.home.why2Desc, icon: ICON_PIN },
-    { title: t.home.why3Title, desc: t.home.why3Desc, icon: ICON_CHAT },
-    { title: t.home.why4Title, desc: t.home.why4Desc, icon: ICON_TAG },
+    { title: "ประกันชั้น 1 ทุกคัน", desc: "เงินประกันคืนให้ครบเมื่อคืนรถเรียบร้อย", icon: ICON_SHIELD },
+    { title: "รับส่งถึงที่", desc: "สนามบิน โรงแรม หรือจุดที่นัดไว้ในตัวเมือง", icon: ICON_PIN },
+    { title: "จองผ่าน LINE ได้", desc: "เลือกรถ เลือกวัน ส่งสลิป จบในแชทเดียว", icon: ICON_CHAT },
+    { title: "ราคาชัดเจน", desc: "เห็นยอดรวมทุกก้อนก่อนกดจอง ไม่มีบวกเพิ่มทีหลัง", icon: ICON_TAG },
   ];
 
   const STEPS = [
-    { title: t.home.step1Title, desc: t.home.step1Desc },
-    { title: t.home.step2Title, desc: t.home.step2Desc },
-    { title: t.home.step3Title, desc: t.home.step3Desc },
-    { title: t.home.step4Title, desc: t.home.step4Desc },
+    { title: "เลือกรถและวันเวลา", desc: "ปฏิทินบอกว่าคันไหนว่างจริง ระบุเวลารับ-คืนได้" },
+    { title: "กรอกข้อมูลและจุดรับรถ", desc: "เลือกจุดรับรถที่สะดวก หรือระบุที่อยู่เอง" },
+    { title: "โอนค่าจองและแนบสลิป", desc: "โอนค่าจองเพื่อกันวันไว้ให้ แล้วแนบสลิปในระบบ" },
+    { title: "รับรถตามนัด", desc: "พนักงานนำรถไปส่ง พร้อมแจ้งเตือนทาง LINE" },
   ];
 
   return (
@@ -126,22 +122,22 @@ export default async function HomePage() {
           <div className="w-full lg:max-w-[640px] animate-fade-up">
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white text-xs font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-gold-fixed" />
-              {t.home.heroBadge}
+              บริการเช่ารถเชียงใหม่ · รับส่งถึงที่
             </span>
 
             <h1 className="mt-6 text-[34px] sm:text-5xl lg:text-[56px] font-bold tracking-tight text-white leading-[1.14]">
-              {t.home.heroTitle}
+              เช่ารถคุณภาพ
               <br />
-              <span className="text-gold-fixed">{t.home.heroTitleAccent}</span>
+              <span className="text-gold-fixed">ส่งถึงมือคุณ ทุกที่ในเชียงใหม่</span>
             </h1>
 
             <p className="mt-5 text-base sm:text-lg text-white/85 leading-relaxed max-w-[470px] [text-shadow:0_1px_10px_rgba(0,0,0,0.35)]">
-              {t.home.heroDesc}
+              เลือกรถ ระบุวันเวลา แล้วยืนยันด้วยการโอนค่าจอง ใช้เวลาไม่ถึง 5 นาที พนักงานนำรถไปส่งตามจุดที่นัดไว้
             </p>
 
             {/* ป้ายจุดขายสามอัน */}
             <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2.5">
-              {[t.home.heroChip1, t.home.heroChip2, t.home.heroChip3].map((c) => (
+              {["ประกันชั้น 1 ทุกคัน", "รับส่งถึงที่", "จองผ่าน LINE ได้"].map((c) => (
                 <span
                   key={c}
                   className="inline-flex items-center gap-2 text-sm text-white/90"
@@ -167,14 +163,14 @@ export default async function HomePage() {
                 href="/cars"
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-gold-fixed hover:bg-amber-200 text-ink font-bold shadow-lg shadow-black/30 transition-colors"
               >
-                {t.home.ctaCars}
+                ดูรถทั้งหมด
                 <Arrow />
               </Link>
               <Link
                 href="/how-to-book"
                 className="px-7 py-3.5 rounded-full border border-white/35 text-white font-semibold hover:bg-white/10 transition-colors"
               >
-                {t.home.ctaHowTo}
+                วิธีการจอง
               </Link>
             </div>
 
@@ -192,22 +188,22 @@ export default async function HomePage() {
 
             {/* ตัวเลขสรุป — ทุกตัวมาจากข้อมูลจริง */}
             <div className="mt-9 lg:mt-11 pt-7 border-t border-amber-300/20 flex flex-wrap items-center gap-x-9 gap-y-5">
-              <Stat value={String(totalCars)} label={t.home.statCars} />
+              <Stat value={String(totalCars)} label="คันพร้อมให้เช่า" />
               <Sep />
               {minPrice !== null && (
                 <>
                   <Stat
                     value={`${minPrice.toLocaleString()} ฿`}
-                    label={t.home.statFrom}
+                    label="เริ่มต้นต่อวัน"
                   />
                   <Sep />
                 </>
               )}
-              <Stat value={t.home.statHoursValue} label={t.home.statHours} />
+              <Stat value="24 ชม." label="จองได้ตลอดเวลา" />
               <Sep />
               <Stat
                 value={`${settings.bookingFee.toLocaleString()} ฿`}
-                label={t.home.statDeposit}
+                label="ค่าจองกันวัน"
               />
             </div>
           </div>
@@ -218,9 +214,9 @@ export default async function HomePage() {
       {brandRows.length > 0 && (
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14">
           <SectionHead
-            eyebrow={t.home.brandsEyebrow}
-            title={t.home.brandsTitle}
-            action={{ href: "/cars", label: t.common.viewAll }}
+            eyebrow="เลือกตามยี่ห้อ"
+            title="ยี่ห้อรถที่ให้เช่า"
+            action={{ href: "/cars", label: "ดูทั้งหมด" }}
           />
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
@@ -240,7 +236,7 @@ export default async function HomePage() {
                     {b.brand}
                   </span>
                   <span className="block text-xs text-slate-500 mt-0.5">
-                    {b._count._all} {t.home.carsCountSuffix}
+                    {b._count._all} คัน
                   </span>
                 </span>
               </Link>
@@ -252,10 +248,10 @@ export default async function HomePage() {
       {/* ============ 3. รถแนะนำ ============ */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-14">
         <SectionHead
-          eyebrow={t.home.pickedEyebrow}
-          title={t.home.pickedTitle}
-          desc={`${t.home.pickedDesc} · ${settings.serviceNote}`}
-          action={{ href: "/cars", label: t.common.viewAllCars }}
+          eyebrow="รถแนะนำ"
+          title="ว่างพร้อมให้เช่าตอนนี้"
+          desc={`ราคารวมประกันชั้น 1 · ${settings.serviceNote}`}
+          action={{ href: "/cars", label: "ดูรถทั้งหมด" }}
         />
 
         {cars.length > 0 ? (
@@ -270,8 +266,8 @@ export default async function HomePage() {
           </div>
         ) : (
           <div className="bg-white border border-dashed border-slate-300 rounded-2xl py-16 text-center">
-            <p className="text-slate-500">{t.home.emptyTitle}</p>
-            <p className="text-sm text-slate-400 mt-1">{t.home.emptyDesc}</p>
+            <p className="text-slate-500">ยังไม่มีรถว่างให้จองในขณะนี้</p>
+            <p className="text-sm text-slate-400 mt-1">กรุณากลับมาใหม่อีกครั้ง</p>
           </div>
         )}
       </section>
@@ -288,10 +284,10 @@ export default async function HomePage() {
           />
           <div className="relative">
             <p className="text-xs font-semibold tracking-widest uppercase text-gold-fixed mb-2">
-              {t.home.whyEyebrow}
+              ทำไมต้องเรา
             </p>
             <h2 className="text-2xl sm:text-3xl font-bold text-white mb-9">
-              {t.home.whyTitle}
+              บริการที่วางใจได้
             </h2>
 
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -304,8 +300,8 @@ export default async function HomePage() {
                   </span>
                   <h3 className="font-semibold text-white mb-1.5">{w.title}</h3>
                   <p className="text-sm text-white/75 leading-relaxed">
-                    {w.title === t.home.why1Title
-                      ? `${w.desc} (${settings.securityDeposit.toLocaleString()} ${t.common.baht})`
+                    {w.title === "ประกันชั้น 1 ทุกคัน"
+                      ? `${w.desc} (${settings.securityDeposit.toLocaleString()} บาท)`
                       : w.desc}
                   </p>
                 </div>
@@ -318,9 +314,9 @@ export default async function HomePage() {
       {/* ============ 5. จองง่ายใน 4 ขั้นตอน ============ */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-14">
         <SectionHead
-          eyebrow={t.home.stepsEyebrow}
-          title={t.home.stepsTitle}
-          action={{ href: "/how-to-book", label: t.home.ctaHowTo }}
+          eyebrow="ขั้นตอน"
+          title="จองง่ายใน 4 ขั้นตอน"
+          action={{ href: "/how-to-book", label: "วิธีการจอง" }}
         />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -329,13 +325,13 @@ export default async function HomePage() {
               key={s.title}
               className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-card transition-shadow"
             >
-              <span className="w-9 h-9 rounded-lg bg-amber-500 text-white grid place-items-center font-bold text-sm mb-4">
+              <span className="w-9 h-9 rounded-lg bg-gold-fixed text-ink grid place-items-center font-bold text-sm mb-4">
                 {i + 1}
               </span>
               <h3 className="font-semibold text-slate-900 mb-1.5">{s.title}</h3>
               <p className="text-sm text-slate-600 leading-relaxed">
                 {i === 2
-                  ? `${s.desc} (${settings.bookingFee.toLocaleString()} ${t.common.baht})`
+                  ? `${s.desc} (${settings.bookingFee.toLocaleString()} บาท)`
                   : s.desc}
               </p>
             </div>
@@ -356,9 +352,9 @@ export default async function HomePage() {
           <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-7">
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold text-white">
-                {t.home.bandTitle}
+                พร้อมออกเดินทางแล้วหรือยัง
               </h2>
-              <p className="text-white/80 mt-2.5 max-w-xl">{t.home.bandDesc}</p>
+              <p className="text-white/80 mt-2.5 max-w-xl">เพิ่มเพื่อนใน LINE แล้วจองในแชทได้เลย ตอบกลับเร็วที่สุด</p>
             </div>
             <div className="flex flex-wrap gap-3 shrink-0">
               <a
@@ -367,13 +363,13 @@ export default async function HomePage() {
                 rel="noopener noreferrer"
                 className="px-7 py-3.5 rounded-full bg-gold-fixed hover:bg-amber-200 text-ink font-bold transition-colors"
               >
-                {t.home.bandLine}
+                เพิ่มเพื่อน LINE
               </a>
               <Link
                 href="/cars"
                 className="px-7 py-3.5 rounded-full bg-paper text-ink font-semibold hover:bg-slate-100 transition-colors"
               >
-                {t.common.viewAllCars}
+                ดูรถทั้งหมด
               </Link>
             </div>
           </div>

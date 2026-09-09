@@ -258,7 +258,7 @@ export default async function HowToBookPage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/line/connect"
+                href="/my"
                 className="px-6 py-3 rounded-full bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition-colors"
               >
                 ผูกบัญชี LINE

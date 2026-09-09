@@ -14,12 +14,21 @@ import { THEME_KEY, type ThemeChoice } from "@/lib/theme";
  * ค่าเริ่มต้นอ่านจาก attribute ที่ THEME_INIT_SCRIPT ใส่ไว้บน <html>
  * จึงไม่มีจังหวะที่ปุ่มแสดงไอคอนผิดตอนโหลดหน้า
  */
-const LABEL: Record<ThemeChoice, { th: string; en: string }> = {
-  light: { th: "เปลี่ยนเป็นโหมดมืด", en: "Switch to dark mode" },
-  dark: { th: "เปลี่ยนเป็นโหมดสว่าง", en: "Switch to light mode" },
+const LABEL: Record<ThemeChoice, string> = {
+  light: "เปลี่ยนเป็นโหมดมืด",
+  dark: "เปลี่ยนเป็นโหมดสว่าง",
 };
 
-export default function ThemeToggle({ lang = "th" }: { lang?: "th" | "en" }) {
+export default function ThemeToggle({
+  tone = "navy",
+  size = "md",
+}: {
+  /** navy = บนพื้นสว่างปกติ · white = บนหัวเว็บโปร่งใสที่ลอยทับรูปเข้ม */
+  tone?: "navy" | "white";
+  /** sm = แถบบางด้านบนของหัวเว็บ (สูง 36px) ปุ่มต้องเตี้ยกว่าแถบ ไม่งั้นขอบไปทับเส้นแบ่ง
+      md = แถวหลักและหลังบ้าน มีที่ว่างพอให้ปุ่มขนาดปกติ */
+  size?: "sm" | "md";
+}) {
   const [theme, setTheme] = useState<ThemeChoice>("light");
 
   useEffect(() => {
@@ -38,7 +47,7 @@ export default function ThemeToggle({ lang = "th" }: { lang?: "th" | "en" }) {
     }
   }
 
-  const label = LABEL[theme][lang];
+  const label = LABEL[theme];
 
   return (
     <button
@@ -46,9 +55,15 @@ export default function ThemeToggle({ lang = "th" }: { lang?: "th" | "en" }) {
       onClick={toggle}
       title={label}
       aria-label={label}
-      className="w-9 h-9 grid place-items-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+      className={`${
+        size === "sm" ? "w-7 h-7" : "w-9 h-9"
+      } min-h-0 grid place-items-center rounded-lg border transition-colors ${
+        tone === "white"
+          ? "border-white/25 text-white/85 hover:text-white hover:bg-white/10"
+          : "border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+      }`}
     >
-      <svg viewBox="0 0 24 24" fill="none" className="w-[18px] h-[18px]">
+      <svg viewBox="0 0 24 24" fill="none" className={size === "sm" ? "w-4 h-4" : "w-[18px] h-[18px]"}>
         {theme === "dark" ? (
           <>
             <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="1.7" />

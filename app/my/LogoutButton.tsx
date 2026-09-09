@@ -14,11 +14,14 @@ export default function LogoutButton() {
       onClick={async () => {
         setBusy(true);
         await fetch("/api/my/logout", { method: "POST" });
+        // ไปหน้าแรกพร้อมธงบอกผล ไม่ใช่รีเฟรชอยู่กับที่
+        // ไม่งั้นหน้านี้จะกลายเป็นหน้าเข้าสู่ระบบทันที ซึ่งดูเหมือนระบบพัง
+        router.push("/?logout=1");
         router.refresh();
       }}
-      className="text-sm text-slate-500 hover:text-slate-800 disabled:opacity-60"
+      className="text-sm min-h-0 text-slate-500 hover:text-slate-800 disabled:opacity-60"
     >
-      ออกจากระบบ
+      {busy ? "กำลังออกจากระบบ..." : "ออกจากระบบ"}
     </button>
   );
 }

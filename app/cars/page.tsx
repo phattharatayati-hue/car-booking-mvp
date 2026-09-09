@@ -137,7 +137,7 @@ export default async function CarsPage({
                 href={linkFor({ sort: s.key })}
                 className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                   (sort ?? "price-asc") === s.key
-                    ? "bg-slate-900 border-slate-900 text-white"
+                    ? "bg-blue-600 border-blue-600 text-white"
                     : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                 }`}
               >

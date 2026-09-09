@@ -20,8 +20,8 @@ export default function AssignSubmit() {
         aria-busy={pending}
         className={`w-full mt-3 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${
           pending
-            ? "bg-blue-600 cursor-wait"
-            : "bg-slate-900 hover:bg-slate-800"
+            ? "bg-blue-500 cursor-wait"
+            : "bg-blue-600 hover:bg-blue-700"
         }`}
       >
         {pending && (
