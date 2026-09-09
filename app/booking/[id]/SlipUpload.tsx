@@ -162,7 +162,7 @@ export default function SlipUpload({
           รูปสลิปโอนเงิน
         </span>
         <label
-          htmlFor="slip"
+          htmlFor="slip-file"
           className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl py-8 px-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50/40 transition-colors text-center"
         >
           <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-slate-400">
@@ -199,8 +199,10 @@ export default function SlipUpload({
             </>
           )}
         </label>
+        {/* ห้ามตั้ง id เป็น "slip" — ชนกับ div จุดหมายของลิงก์ #slip ในหน้า
+            พอ id ซ้ำกัน label จะไปจับ div แทน input แล้วกดเลือกไฟล์ไม่ได้ */}
         <input
-          id="slip"
+          id="slip-file"
           type="file"
           accept="image/*"
           onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
