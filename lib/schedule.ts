@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { bangkokDayRange } from "@/lib/settings";
+import { bangkokDayRange, bangkokDateStr } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import { HANDOFF_KINDS, type HandoffKind } from "@/lib/assignments";
 
@@ -65,6 +65,31 @@ export async function scheduleForDay(
   onlyAdminId?: string | null
 ): Promise<ScheduleRow[]> {
   const day = bangkokDayRange(dateStr);
+  return scheduleBetween(day.start, day.end, onlyAdminId);
+}
+
+/**
+ * ช่วงเวลาของเดือน YYYY-MM ตามเวลาไทย
+ * คิดจาก "วันที่ 1 ของเดือนถัดไป" แทนการบวก 30 วัน จะได้ไม่พลาดเดือนที่มี 28/31 วัน
+ */
+export function monthRange(month: string): { start: Date; end: Date } {
+  const [y, m] = month.split("-").map(Number);
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+
+  return {
+    start: bangkokDayRange(`${month}-01`).start,
+    end: bangkokDayRange(`${nextY}-${String(nextM).padStart(2, "0")}-01`).start,
+  };
+}
+
+/** คิวทั้งหมดในช่วงเวลาที่กำหนด — ใช้ได้ทั้งรายวันและรายเดือน */
+export async function scheduleBetween(
+  rangeStart: Date,
+  rangeEnd: Date,
+  onlyAdminId?: string | null
+): Promise<ScheduleRow[]> {
+  const day = { start: rangeStart, end: rangeEnd };
 
   // 1. งานที่มอบหมายแล้ว — ยึดเวลานัดจริงเป็นหลัก เพราะแอดมินแก้เวลาได้
   const assignments = await prisma.bookingAssignment.findMany({
@@ -159,4 +184,24 @@ export function summarize(rows: ScheduleRow[]) {
     left: rows.filter((r) => !r.doneAt).length,
     unassigned: rows.filter((r) => !r.assignmentId).length,
   };
+}
+
+/** จัดกลุ่มแถวตามวัน (คีย์เป็น YYYY-MM-DD เวลาไทย) เรียงวันจากน้อยไปมาก */
+export function groupByDay(rows: ScheduleRow[]): { date: string; rows: ScheduleRow[] }[] {
+  const map = new Map<string, ScheduleRow[]>();
+
+  for (const r of rows) {
+    const key = bangkokDateStr(r.at);
+    const list = map.get(key);
+    if (list) list.push(r);
+    else map.set(key, [r]);
+  }
+
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, list]) => ({
+      date,
+      // ในมุมมองเดือน เรียงตามเวลาอย่างเดียว ไม่ต้องดันงานค้างขึ้นบนสุดของทั้งเดือน
+      rows: [...list].sort((x, y) => x.at.getTime() - y.at.getTime()),
+    }));
 }

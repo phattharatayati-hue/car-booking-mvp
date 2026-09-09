@@ -7,6 +7,9 @@ import { bangkokDateStr, formatBangkokTime } from "@/lib/settings";
 import { HANDOFF_LABEL } from "@/lib/assignments";
 import {
   scheduleForDay,
+  scheduleBetween,
+  monthRange,
+  groupByDay,
   summarize,
   rowStatus,
   STATUS_TEXT,
@@ -26,7 +29,7 @@ import {
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string }>;
+  searchParams: Promise<{ d?: string; m?: string }>;
 }) {
   const me = await currentAdmin();
   if (!me) redirect("/login");
@@ -35,9 +38,21 @@ export default async function SchedulePage({
   const today = bangkokDateStr(new Date());
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.d ?? "") ? (sp.d as string) : today;
 
+  /* มีพารามิเตอร์ m = มุมมองรายเดือน
+     เก็บ d ไว้เสมอ เพื่อให้สลับกลับมาโหมดวันแล้วยังอยู่วันเดิม */
+  const monthly = /^\d{4}-\d{2}$/.test(sp.m ?? "");
+  const month = monthly ? (sp.m as string) : date.slice(0, 7);
+
   const isDriver = me.role === "DRIVER";
-  const rows = await scheduleForDay(date, isDriver ? me.id : null);
+  const onlyMe = isDriver ? me.id : null;
+
+  const range = monthRange(month);
+  const rows = monthly
+    ? await scheduleBetween(range.start, range.end, onlyMe)
+    : await scheduleForDay(date, onlyMe);
+
   const sum = summarize(rows);
+  const days = monthly ? groupByDay(rows) : [];
 
   const tomorrow = bangkokDateStr(new Date(Date.now() + 86400000));
 
@@ -47,14 +62,22 @@ export default async function SchedulePage({
         <div>
           <h1 className="text-2xl font-bold text-slate-900">ตารางรับ-ส่งรถ</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {isDriver
-              ? "คิวงานของคุณ เรียงตามเวลานัด"
-              : "คิวงานทั้งหมด เรียงตามเวลานัด · งานที่ยังไม่มีคนรับขึ้นบนสุด"}
+            {monthly
+              ? `ทั้งเดือน ${monthLabel(month)}${
+                  isDriver ? " · เฉพาะงานของคุณ" : ""
+                }`
+              : isDriver
+                ? "คิวงานของคุณ เรียงตามเวลานัด"
+                : "คิวงานทั้งหมด เรียงตามเวลานัด · งานที่ยังไม่มีคนรับขึ้นบนสุด"}
           </p>
         </div>
 
         <a
-          href={`/api/admin/schedule.csv?d=${date}`}
+          href={
+            monthly
+              ? `/api/admin/schedule.csv?m=${month}`
+              : `/api/admin/schedule.csv?d=${date}`
+          }
           className="btn rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
         >
           ดาวน์โหลด CSV
@@ -76,21 +99,27 @@ export default async function SchedulePage({
 
       {/* เลือกวัน */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        <DayLink href={`/admin/schedule`} active={date === today}>
+        <DayLink href={`/admin/schedule`} active={!monthly && date === today}>
           วันนี้
         </DayLink>
-        <DayLink href={`/admin/schedule?d=${tomorrow}`} active={date === tomorrow}>
+        <DayLink
+          href={`/admin/schedule?d=${tomorrow}`}
+          active={!monthly && date === tomorrow}
+        >
           พรุ่งนี้
         </DayLink>
+        <DayLink href={`/admin/schedule?m=${date.slice(0, 7)}`} active={monthly}>
+          ทั้งเดือน
+        </DayLink>
         <form className="flex items-center gap-2" action="/admin/schedule">
-          <label htmlFor="d" className="text-sm text-slate-500">
-            เลือกวันที่
+          <label htmlFor={monthly ? "m" : "d"} className="text-sm text-slate-500">
+            {monthly ? "เลือกเดือน" : "เลือกวันที่"}
           </label>
           <input
-            id="d"
-            name="d"
-            type="date"
-            defaultValue={date}
+            id={monthly ? "m" : "d"}
+            name={monthly ? "m" : "d"}
+            type={monthly ? "month" : "date"}
+            defaultValue={monthly ? month : date}
             className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
           />
           <button
@@ -104,143 +133,190 @@ export default async function SchedulePage({
 
       {rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500">
-          ไม่มีคิวรับ-ส่งรถในวันนี้
+          {monthly ? "ไม่มีคิวรับ-ส่งรถในเดือนนี้" : "ไม่มีคิวรับ-ส่งรถในวันนี้"}
+        </div>
+      ) : monthly ? (
+        /* รายเดือน — แยกเป็นก้อนละวัน อ่านง่ายกว่าตารางยาวพันแถว
+           และเห็นทันทีว่าวันไหนงานแน่นวันไหนว่าง */
+        <div className="flex flex-col gap-6">
+          {days.map((d) => (
+            <section key={d.date}>
+              <div className="flex items-baseline justify-between gap-3 mb-2">
+                <h2 className="font-semibold text-slate-900">{dayLabel(d.date)}</h2>
+                <span className="text-xs text-slate-500">
+                  {d.rows.length} งาน
+                  {d.rows.filter((r) => !r.assignmentId).length > 0 && (
+                    <span className="text-red-700 font-medium">
+                      {" "}
+                      · ยังไม่มีคนรับ {d.rows.filter((r) => !r.assignmentId).length}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <JobTable rows={d.rows} />
+              <JobCards rows={d.rows} />
+            </section>
+          ))}
         </div>
       ) : (
         <>
-          {/* จอใหญ่ — ตาราง */}
-          <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <Th>เวลา</Th>
-                  <Th>งาน</Th>
-                  <Th>รถ</Th>
-                  <Th>ลูกค้า</Th>
-                  <Th>จุดนัด</Th>
-                  <Th>เบอร์โทร</Th>
-                  <Th>สถานะ</Th>
-                  <Th>คนรับผิดชอบ</Th>
-                  <Th>หมายเหตุ</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const st = rowStatus(r);
-                  return (
-                    <tr
-                      key={`${r.bookingId}-${r.kind}`}
-                      className={`border-t border-slate-100 ${
-                        st === "unassigned" ? "bg-red-50/40" : ""
-                      }`}
-                    >
-                      <Td>
-                        <span className="font-mono font-semibold text-slate-900">
-                          {formatBangkokTime(r.at)}
-                        </span>
-                      </Td>
-                      <Td>
-                        <KindBadge kind={r.kind} />
-                      </Td>
-                      <Td>
-                        <p className="font-medium text-slate-900">{r.carLabel}</p>
-                        <p className="text-xs text-slate-500 font-mono">
-                          {r.licensePlate}
-                        </p>
-                      </Td>
-                      <Td>{r.customerName}</Td>
-                      <Td>{r.place}</Td>
-                      <Td>
-                        <a
-                          href={`tel:${r.phone.replace(/[\s-]/g, "")}`}
-                          className="font-mono text-blue-700 hover:underline"
-                        >
-                          {r.phone}
-                        </a>
-                      </Td>
-                      <Td>
-                        <span
-                          className={`inline-block text-[11px] font-medium px-2.5 py-1 rounded-full border ${STATUS_STYLE[st]}`}
-                        >
-                          {STATUS_TEXT[st]}
-                        </span>
-                      </Td>
-                      <Td>
-                        {r.assigneeName ?? (
-                          <Link
-                            href={`/admin/bookings?status=all#${r.bookingId}`}
-                            className="text-red-700 font-medium hover:underline"
-                          >
-                            มอบหมายงาน →
-                          </Link>
-                        )}
-                      </Td>
-                      <Td className="text-slate-500">{r.note ?? "-"}</Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* จอเล็ก — การ์ด ไม่ใช่ตารางเลื่อนแนวนอน */}
-          <ul className="lg:hidden flex flex-col gap-3">
-            {rows.map((r) => {
-              const st = rowStatus(r);
-              return (
-                <li
-                  key={`${r.bookingId}-${r.kind}`}
-                  className={`bg-white rounded-2xl border p-4 ${
-                    st === "unassigned" ? "border-red-200" : "border-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-lg text-slate-900">
-                        {formatBangkokTime(r.at)}
-                      </span>
-                      <KindBadge kind={r.kind} />
-                    </div>
-                    <span
-                      className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${STATUS_STYLE[st]}`}
-                    >
-                      {STATUS_TEXT[st]}
-                    </span>
-                  </div>
-
-                  <p className="font-medium text-slate-900">
-                    {r.carLabel}{" "}
-                    <span className="font-mono text-xs text-slate-500">
-                      {r.licensePlate}
-                    </span>
-                  </p>
-
-                  <dl className="mt-2 text-sm flex flex-col gap-1">
-                    <Row label="ลูกค้า">{r.customerName}</Row>
-                    <Row label="จุดนัด">{r.place}</Row>
-                    <Row label="เบอร์โทร">
-                      <a
-                        href={`tel:${r.phone.replace(/[\s-]/g, "")}`}
-                        className="font-mono text-blue-700"
-                      >
-                        {r.phone}
-                      </a>
-                    </Row>
-                    <Row label="คนรับผิดชอบ">
-                      {r.assigneeName ?? (
-                        <span className="text-red-700 font-medium">ยังไม่มีคนรับ</span>
-                      )}
-                    </Row>
-                    {r.note && <Row label="หมายเหตุ">{r.note}</Row>}
-                  </dl>
-                </li>
-              );
-            })}
-          </ul>
+          <JobTable rows={rows} />
+          <JobCards rows={rows} />
         </>
       )}
     </div>
   );
+}
+
+/** ตารางสำหรับจอใหญ่ */
+function JobTable({ rows }: { rows: ScheduleRow[] }) {
+  return (
+    <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 text-slate-500">
+          <tr>
+            <Th>เวลา</Th>
+            <Th>งาน</Th>
+            <Th>รถ</Th>
+            <Th>ลูกค้า</Th>
+            <Th>จุดนัด</Th>
+            <Th>เบอร์โทร</Th>
+            <Th>สถานะ</Th>
+            <Th>คนรับผิดชอบ</Th>
+            <Th>หมายเหตุ</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const st = rowStatus(r);
+            return (
+              <tr
+                key={`${r.bookingId}-${r.kind}`}
+                className={`border-t border-slate-100 ${
+                  st === "unassigned" ? "bg-red-50/40" : ""
+                }`}
+              >
+                <Td>
+                  <span className="font-mono font-semibold text-slate-900">
+                    {formatBangkokTime(r.at)}
+                  </span>
+                </Td>
+                <Td>
+                  <KindBadge kind={r.kind} />
+                </Td>
+                <Td>
+                  <p className="font-medium text-slate-900">{r.carLabel}</p>
+                  <p className="text-xs text-slate-500 font-mono">{r.licensePlate}</p>
+                </Td>
+                <Td>{r.customerName}</Td>
+                <Td>{r.place}</Td>
+                <Td>
+                  <a
+                    href={`tel:${r.phone.replace(/[\s-]/g, "")}`}
+                    className="font-mono text-blue-700 hover:underline"
+                  >
+                    {r.phone}
+                  </a>
+                </Td>
+                <Td>
+                  <span
+                    className={`inline-block text-[11px] font-medium px-2.5 py-1 rounded-full border ${STATUS_STYLE[st]}`}
+                  >
+                    {STATUS_TEXT[st]}
+                  </span>
+                </Td>
+                <Td>
+                  {r.assigneeName ?? (
+                    <Link
+                      href={`/admin/bookings?status=all#${r.bookingId}`}
+                      className="text-red-700 font-medium hover:underline"
+                    >
+                      มอบหมายงาน →
+                    </Link>
+                  )}
+                </Td>
+                <Td className="text-slate-500">{r.note ?? "-"}</Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** การ์ดสำหรับจอเล็ก — ตารางเก้าคอลัมน์ใช้บนมือถือไม่ได้ */
+function JobCards({ rows }: { rows: ScheduleRow[] }) {
+  return (
+    <ul className="lg:hidden flex flex-col gap-3">
+      {rows.map((r) => {
+        const st = rowStatus(r);
+        return (
+          <li
+            key={`${r.bookingId}-${r.kind}`}
+            className={`bg-white rounded-2xl border p-4 ${
+              st === "unassigned" ? "border-red-200" : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-lg text-slate-900">
+                  {formatBangkokTime(r.at)}
+                </span>
+                <KindBadge kind={r.kind} />
+              </div>
+              <span
+                className={`text-[11px] font-medium px-2.5 py-1 rounded-full border ${STATUS_STYLE[st]}`}
+              >
+                {STATUS_TEXT[st]}
+              </span>
+            </div>
+
+            <p className="font-medium text-slate-900">
+              {r.carLabel}{" "}
+              <span className="font-mono text-xs text-slate-500">{r.licensePlate}</span>
+            </p>
+
+            <dl className="mt-2 text-sm flex flex-col gap-1">
+              <Row label="ลูกค้า">{r.customerName}</Row>
+              <Row label="จุดนัด">{r.place}</Row>
+              <Row label="เบอร์โทร">
+                <a
+                  href={`tel:${r.phone.replace(/[\s-]/g, "")}`}
+                  className="font-mono text-blue-700"
+                >
+                  {r.phone}
+                </a>
+              </Row>
+              <Row label="คนรับผิดชอบ">
+                {r.assigneeName ?? (
+                  <span className="text-red-700 font-medium">ยังไม่มีคนรับ</span>
+                )}
+              </Row>
+              {r.note && <Row label="หมายเหตุ">{r.note}</Row>}
+            </dl>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+const TH_MONTH = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+/** "2026-09" → "กันยายน 2569" — ปีพุทธเหมือนที่ใช้ทั้งระบบ */
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return `${TH_MONTH[m - 1]} ${y + 543}`;
+}
+
+/** "2026-09-19" → "19 กันยายน 2569" */
+function dayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return `${d} ${TH_MONTH[m - 1]} ${y + 543}`;
 }
 
 function KindBadge({ kind }: { kind: ScheduleRow["kind"] }) {

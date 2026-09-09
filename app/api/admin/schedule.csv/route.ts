@@ -1,7 +1,13 @@
 import { currentAdmin } from "@/lib/roles";
 import { bangkokDateStr, formatBangkokDateTime } from "@/lib/settings";
 import { HANDOFF_LABEL } from "@/lib/assignments";
-import { scheduleForDay, rowStatus, STATUS_TEXT } from "@/lib/schedule";
+import {
+  scheduleForDay,
+  scheduleBetween,
+  monthRange,
+  rowStatus,
+  STATUS_TEXT,
+} from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +26,22 @@ export async function GET(request: Request) {
   if (!me) return new Response("unauthorized", { status: 401 });
 
   const { searchParams } = new URL(request.url);
-  const raw = searchParams.get("d") ?? "";
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : bangkokDateStr(new Date());
+  const rawDay = searchParams.get("d") ?? "";
+  const rawMonth = searchParams.get("m") ?? "";
+
+  const monthly = /^\d{4}-\d{2}$/.test(rawMonth);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDay) ? rawDay : bangkokDateStr(new Date());
 
   // คนรับ-ส่งรถโหลดได้เฉพาะงานของตัวเอง เหมือนที่เห็นบนหน้าจอ
-  const rows = await scheduleForDay(date, me.role === "DRIVER" ? me.id : null);
+  const onlyMe = me.role === "DRIVER" ? me.id : null;
+
+  const rows = monthly
+    ? await scheduleBetween(
+        monthRange(rawMonth).start,
+        monthRange(rawMonth).end,
+        onlyMe
+      )
+    : await scheduleForDay(date, onlyMe);
 
   const header = [
     "เวลา",
@@ -67,7 +84,9 @@ export async function GET(request: Request) {
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="schedule-${date}.csv"`,
+      "Content-Disposition": `attachment; filename="schedule-${
+        monthly ? rawMonth : date
+      }.csv"`,
     },
   });
 }

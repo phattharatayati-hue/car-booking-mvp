@@ -314,18 +314,51 @@ input:not([type="checkbox"]):not([type="radio"]) {
   justify-content: center;
 }
 
+/* ---- ช่องที่เบราว์เซอร์วาดไอคอนของตัวเองทับไว้ ----
+
+   select มีลูกศร · input วันที่/เวลามีไอคอนปฏิทินหรือนาฬิกา
+   ไอคอนพวกนี้ลอยอยู่ชิดขวาเสมอ และ "ไม่กินพื้นที่" ของกล่อง
+   ถ้าเว้น padding ขวาไว้เท่าซ้าย (เช่น px-4 ของ Tailwind) ค่าในช่องจะวิ่งไปทับไอคอน
+   เห็นชัดสุดกับข้อความไทยยาวๆ อย่าง "สนามบินเชียงใหม่ (ฟรี)" หรือ "11 ก.ย. 2569"
+
+   กฎนี้เขียนนอก @layer จึงชนะ utility ของ Tailwind — ตั้งใจให้ทับ px-* ที่ด้านขวา
+   จะได้ไม่ต้องไล่แก้ทีละหน้าและไม่พลาดหน้าใหม่ที่เพิ่มทีหลัง */
+select,
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+  padding-right: 2.5rem;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+/* iOS จัดค่าในช่องวันที่ไว้กึ่งกลาง ทำให้ชนไอคอนแม้เว้น padding แล้ว */
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 /* ทำให้ปฏิทินของ input[type=date] กดง่ายขึ้น */
 input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
 }
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 /* ไอคอนปฏิทินเป็นสีดำ มองไม่เห็นบนพื้นมืด */
 html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator,
 html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
 }
