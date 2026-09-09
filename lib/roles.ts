@@ -3,8 +3,9 @@
  *
  *   ADMIN  พนักงานทั่วไป — ใช้หลังบ้านได้ ยกเว้นหน้าตั้งค่าและจัดการแอดมิน
  *   DEV    ผู้ดูแลระบบ — ได้ทุกอย่าง และบัญชี DEV ถูกซ่อนจากรายชื่อที่คนอื่นเห็น
- *   DRIVER คนรับ-ส่งรถ — รับงานทางแชท LINE เท่านั้น
- *          เข้าหลังบ้านได้แค่หน้า "บัญชีของฉัน" เพื่อผูก LINE และเชื่อมปฏิทิน
+ *   DRIVER คนรับ-ส่งรถ — รับงานทางแชท LINE เป็นหลัก
+ *          เข้าหลังบ้านได้แค่ "บัญชีของฉัน" กับ "ตารางรับ-ส่งรถ"
+ *          และตารางนั้นกรองให้เห็นเฉพาะงานของตัวเอง (ดู lib/schedule.ts)
  */
 
 import { redirect } from "next/navigation";
@@ -19,8 +20,8 @@ export const ROLE_LABEL: Record<Role, string> = {
   DRIVER: "คนรับ-ส่งรถ",
 };
 
-/** หน้าเดียวที่คนรับ-ส่งรถเข้าได้ — ไว้ผูก LINE และเชื่อมปฏิทินของตัวเอง */
-export const DRIVER_ALLOWED_PATHS = ["/admin/account"];
+/** หน้าที่คนรับ-ส่งรถเข้าได้ — บัญชีของตัวเอง และตารางคิวที่กรองเฉพาะงานตัวเอง */
+export const DRIVER_ALLOWED_PATHS = ["/admin/account", "/admin/schedule"];
 
 /** เส้นทางที่เฉพาะ DEV เท่านั้นที่เข้าได้ */
 export const DEV_ONLY_PATHS = ["/admin/users", "/admin/settings", "/admin/audit"];

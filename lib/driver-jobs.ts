@@ -5,6 +5,16 @@ import { put } from "@vercel/blob";
 import { pushMessage, pushRaw, getMessageContent, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
+import {
+  card,
+  kv,
+  amountBox,
+  noteBox,
+  bullets,
+  sectionTitle,
+  btnGold,
+  line,
+} from "@/lib/line-flex";
 
 /** ลิงก์ค้นหาจุดนัดใน Google Maps */
 function mapsLink(place: string): string {
@@ -98,23 +108,11 @@ async function viewTokenFor(job: Job): Promise<string> {
   return token;
 }
 
-const NAVY = "#26456E";
-const GOLD = "#8A6E12";
-const MUTED = "#647388";
+/* สีของการ์ดงานยกมาจากชุดเดียวกับข้อความลูกค้า (lib/line-flex.ts)
+   จะได้เป็นระบบเดียวกันทั้ง OA ไม่ใช่โทนน้ำเงินแยกอีกชุดเหมือนเดิม */
+const GREEN = "#1E5841";
 
-function row(label: string, value: string) {
-  return {
-    type: "box",
-    layout: "baseline",
-    spacing: "sm",
-    contents: [
-      { type: "text", text: label, size: "sm", color: MUTED, flex: 2 },
-      { type: "text", text: value, size: "sm", color: "#1B2B41", flex: 4, wrap: true },
-    ],
-  };
-}
-
-/** การ์ดงานพร้อมปุ่มปิดงาน */
+/** การ์ดงานพร้อมปุ่มปิดงาน — ใช้โครงการ์ดกลางจาก lib/line-flex.ts */
 async function jobFlex(job: Job, headline?: string) {
   const kind = job.kind as HandoffKind;
   const money = await moneyDue(job);
@@ -122,165 +120,94 @@ async function jobFlex(job: Job, headline?: string) {
   const alt = await jobText(job);
   const token = await viewTokenFor(job);
 
-  return {
-    type: "flex",
-    altText: alt.slice(0, 390),
-    contents: {
-      type: "bubble",
-      header: {
+  /* สีแถบหัวบอกชนิดของข่าว
+       ไม่มี headline = งานปกติ (เขียว)
+       🔁 = แก้ไขรายละเอียด (ทอง/เตือน)
+       อื่นๆ = ถอนงาน (แดง) */
+  const tone: "green" | "warn" | "danger" = !headline
+    ? "green"
+    : headline.startsWith("🔁")
+      ? "warn"
+      : "danger";
+
+  const ackButton = job.ackedAt
+    ? {
         type: "box",
         layout: "vertical",
-        backgroundColor: !headline
-          ? "#EAF1FA"
-          : headline.startsWith("🔁")
-            ? "#F1F3F6"
-            : "#FBEBE9",
-        paddingAll: "14px",
+        paddingAll: "8px",
         contents: [
-          ...(headline
-            ? [
-                {
-                  type: "text",
-                  text: headline,
-                  size: "sm",
-                  weight: "bold",
-                  color: headline.startsWith("🔁") ? MUTED : "#B34438",
-                },
-              ]
-            : []),
           {
             type: "text",
-            text: HANDOFF_LABEL[kind],
-            weight: "bold",
-            size: "lg",
-            color: headline && !headline.startsWith("🔁") ? "#B34438" : NAVY,
-          },
-          {
-            type: "text",
-            text: formatBangkokDateTime(job.meetAt),
+            text: `✓ รับทราบแล้ว ${formatBangkokTime(job.ackedAt)} น.`,
             size: "sm",
-            color: MUTED,
-          },
-          {
-            type: "text",
-            text: `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น.`,
-            size: "xs",
-            color: GOLD,
+            color: "#067A4C",
             weight: "bold",
+            align: "center",
           },
         ],
+      }
+    : {
+        type: "button",
+        style: "primary",
+        color: GREEN,
+        height: "sm",
+        action: {
+          type: "postback",
+          label: "รับทราบ",
+          data: `action=job_ack&id=${job.id}`,
+          displayText: "รับทราบ",
+        },
+      };
+
+  return card({
+    altText: alt,
+    title: HANDOFF_LABEL[kind],
+    subtitle: `${formatBangkokDateTime(job.meetAt)} · ออกเดินทาง ${formatBangkokTime(
+      leaveAt(job.meetAt)
+    )} น.`,
+    tone,
+    body: [
+      ...(headline ? [noteBox([headline], tone === "danger" ? "warn" : "cream")] : []),
+      kv("รถ", `${car.brand} ${car.name}`),
+      kv("ทะเบียน", car.licensePlate),
+      kv("ลูกค้า", job.booking.customer.fullName),
+      kv("โทร", job.booking.customer.phone),
+      ...(job.place ? [kv("จุดนัด", job.place)] : []),
+      ...(money
+        ? [
+            line,
+            amountBox(
+              "เก็บเงินหน้างาน",
+              money.total,
+              `ค่าเช่าคงเหลือ ${money.rental.toLocaleString()} + เงินประกัน ${money.deposit.toLocaleString()} บาท`
+            ),
+          ]
+        : []),
+      ...(job.note ? [noteBox([`หมายเหตุ: ${job.note}`])] : []),
+      line,
+      sectionTitle("ต้องทำหน้างาน"),
+      bullets([
+        "ขอดูบัตรประชาชนและใบขับขี่ตัวจริง",
+        "ถ่ายรูปรอบคันก่อนส่งมอบ",
+        "จดเลขไมล์และระดับน้ำมัน",
+      ]),
+    ],
+    buttons: [
+      btnGold("ดูเอกสารลูกค้า", `${siteUrl()}/job/${token}`),
+      ackButton,
+      {
+        type: "button",
+        style: "secondary",
+        height: "sm",
+        action: {
+          type: "postback",
+          label: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
+          data: `action=job_done&id=${job.id}`,
+          displayText: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
+        },
       },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          row("รถ", `${car.brand} ${car.name}`),
-          row("ทะเบียน", car.licensePlate),
-          row("ลูกค้า", job.booking.customer.fullName),
-          row("โทร", job.booking.customer.phone),
-          ...(job.place ? [row("จุดนัด", job.place)] : []),
-          ...(money
-            ? [
-                { type: "separator", margin: "md" },
-                {
-                  type: "text",
-                  text: `เก็บเงินหน้างาน ${money.total.toLocaleString()} บาท`,
-                  weight: "bold",
-                  size: "md",
-                  color: GOLD,
-                  margin: "md",
-                },
-                {
-                  type: "text",
-                  text: `ค่าเช่าคงเหลือ ${money.rental.toLocaleString()} + เงินประกัน ${money.deposit.toLocaleString()}`,
-                  size: "xs",
-                  color: MUTED,
-                },
-              ]
-            : []),
-          ...(job.note
-            ? [
-                { type: "separator", margin: "md" },
-                {
-                  type: "text",
-                  text: `หมายเหตุ: ${job.note}`,
-                  size: "xs",
-                  color: MUTED,
-                  wrap: true,
-                  margin: "md",
-                },
-              ]
-            : []),
-          { type: "separator", margin: "md" },
-          {
-            type: "text",
-            text: "หน้างาน: ขอดูบัตร+ใบขับขี่ตัวจริง · ถ่ายรูปรอบคัน · จดเลขไมล์และน้ำมัน",
-            size: "xxs",
-            color: MUTED,
-            wrap: true,
-            margin: "md",
-          },
-        ],
-      },
-      footer: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          // เปิดหน้าเอกสารลูกค้าของงานนี้ — ใช้เทียบกับตัวจริงหน้างาน
-          {
-            type: "button",
-            style: "secondary",
-            height: "sm",
-            action: {
-              type: "uri",
-              label: "ดูเอกสารลูกค้า",
-              uri: `${siteUrl()}/job/${token}`,
-            },
-          },
-          // ปุ่มรับทราบ — บอกออฟฟิศว่าเห็นงานแล้ว (แทนปุ่มนำทางเดิม)
-          job.ackedAt
-            ? {
-                type: "box",
-                layout: "vertical",
-                paddingAll: "8px",
-                contents: [
-                  {
-                    type: "text",
-                    text: `✓ รับทราบแล้ว ${formatBangkokTime(job.ackedAt)} น.`,
-                    size: "sm",
-                    color: "#2E7D5B",
-                    weight: "bold",
-                    align: "center",
-                  },
-                ],
-              }
-            : {
-                type: "button",
-                style: "primary",
-                color: NAVY,
-                action: {
-                  type: "postback",
-                  label: "รับทราบ",
-                  data: `action=job_ack&id=${job.id}`,
-                  displayText: "รับทราบ",
-                },
-              },
-          {
-            type: "button",
-            style: "secondary",
-            action: {
-              type: "postback",
-              label: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
-              data: `action=job_done&id=${job.id}`,
-              displayText: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
-            },
-          },
-        ],
-      },
-    },
-  };
+    ],
+  });
 }
 
 /**

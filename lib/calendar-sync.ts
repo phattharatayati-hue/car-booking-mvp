@@ -2,12 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/line";
 import { formatBangkokDateTime } from "@/lib/settings";
 import { HANDOFF_LABEL, eventWindow, type HandoffKind } from "@/lib/assignments";
+import { markCalendarDisconnected } from "@/lib/google-health";
 import {
   accessTokenFor,
   insertEvent,
   patchEvent,
   deleteEvent,
   oauthConfigured,
+  isAuthExpired,
   type CalendarEventInput,
 } from "@/lib/google-calendar";
 
@@ -77,6 +79,31 @@ export async function syncAssignment(assignmentId: string): Promise<void> {
     }
   } catch (err) {
     console.error("syncAssignment failed:", err);
+
+    /* สิทธิ์หมดอายุแก้เองไม่ได้ ต้องให้เจ้าตัวเชื่อมใหม่
+       ตัดการเชื่อมทิ้งแล้วส่ง LINE บอกทันที ไม่ต้องรอ cron รอบหน้า
+       ส่วน error อื่น (เน็ตล่ม, Google ล่มชั่วคราว) ปล่อยไว้ เพราะหายเองได้ */
+    if (isAuthExpired(err)) {
+      const a = await prisma.bookingAssignment
+        .findUnique({
+          where: { id: assignmentId },
+          select: {
+            admin: {
+              select: {
+                id: true,
+                name: true,
+                lineUserId: true,
+                googleRefreshToken: true,
+                googleCalendarId: true,
+              },
+            },
+          },
+        })
+        .catch(() => null);
+
+      if (a?.admin) await markCalendarDisconnected(a.admin).catch(() => {});
+    }
+
     const message = err instanceof Error ? err.message : "ซิงก์ปฏิทินไม่สำเร็จ";
     await prisma.bookingAssignment
       .update({

@@ -5,6 +5,7 @@ import {
   exchangeCode,
   googleEmail,
   createAppCalendar,
+  renameAppCalendar,
   GOOGLE_CALENDAR_SCOPE,
 } from "@/lib/google-calendar";
 
@@ -57,8 +58,16 @@ export async function GET(request: Request) {
 
     // สร้างปฏิทินแยกให้คนนี้ ถ้ายังไม่มี
     const existing = await prisma.adminUser.findUnique({ where: { id: adminId } });
-    const calendarId =
-      existing?.googleCalendarId ?? (await createAppCalendar(accessToken));
+    let calendarId = existing?.googleCalendarId ?? null;
+
+    if (calendarId) {
+      // ใช้ปฏิทินใบเดิมต่อ แต่แก้ชื่อให้ตรงกับชื่อปัจจุบัน เผื่อเคยตั้งชื่ออื่นไว้
+      await renameAppCalendar(accessToken, calendarId).catch((err) =>
+        console.error("rename calendar failed:", err)
+      );
+    } else {
+      calendarId = await createAppCalendar(accessToken);
+    }
 
     await prisma.adminUser.update({
       where: { id: adminId },

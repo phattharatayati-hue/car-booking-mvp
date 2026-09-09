@@ -34,6 +34,23 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/schedule",
+    label: "ตารางรับ-ส่งรถ",
+    driver: true,
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M12 7.5V12l3 2"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/calendar",
     label: "ปฏิทินการจอง",
     icon: (
@@ -198,19 +215,11 @@ export default function AdminNav({
 }) {
   const pathname = usePathname();
 
-  // คนรับ-ส่งรถไม่มีเมนูหลังบ้าน งานทั้งหมดอยู่ในแชท LINE
+  /* คนรับ-ส่งรถเห็นเฉพาะเมนูที่ติดธง driver ไว้ — ตอนนี้คือตารางคิวของตัวเอง
+     ที่เหลือยังทำงานผ่านแชท LINE เหมือนเดิม */
   const items = isDriver
-    ? []
+    ? ITEMS.filter((item) => "driver" in item && item.driver)
     : ITEMS.filter((item) => isDev || !("devOnly" in item && item.devOnly));
-
-  if (isDriver) {
-    return (
-      <div className="rounded-xl bg-blue-50 border border-blue-100 px-3.5 py-3 text-xs text-blue-900 leading-relaxed">
-        <p className="font-semibold mb-1">งานของคุณอยู่ในแชท LINE</p>
-        ระบบจะส่งคิวงานรับ-ส่งรถให้คุณทางแชท พิมพ์ <b>งานของฉัน</b> ในแชทเพื่อดูคิวได้ตลอด
-      </div>
-    );
-  }
 
   return (
     <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
@@ -234,6 +243,13 @@ export default function AdminNav({
           </Link>
         );
       })}
+
+      {isDriver && (
+        <div className="mt-3 rounded-xl bg-blue-50 border border-blue-100 px-3.5 py-3 text-xs text-blue-900 leading-relaxed">
+          <p className="font-semibold mb-1">งานของคุณอยู่ในแชท LINE</p>
+          ระบบส่งคิวงานให้ทางแชท พิมพ์ <b>งานของฉัน</b> เพื่อดูคิวได้ตลอด
+        </div>
+      )}
     </nav>
   );
 }

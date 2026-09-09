@@ -16,7 +16,7 @@ export const GOOGLE_CALENDAR_SCOPE =
  * เป็น scope แบบไม่ sensitive ไม่ต้องยื่นตรวจสอบเพิ่ม
  */
 export const GOOGLE_SCOPE = `${GOOGLE_CALENDAR_SCOPE} openid email`;
-export const CALENDAR_NAME = "งานรับส่งรถ · PHUPING CORPORATION";
+export const CALENDAR_NAME = "งานรับส่งรถ PHUPING";
 const API = "https://www.googleapis.com/calendar/v3";
 const TZ = "Asia/Bangkok";
 
@@ -46,6 +46,23 @@ export function authUrl(state: string): string {
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
+}
+
+/**
+ * refresh token ใช้ไม่ได้แล้ว — ต้องให้เจ้าตัวเชื่อมใหม่เท่านั้น กู้เองไม่ได้
+ * แยกชนิดไว้เพื่อให้ที่เรียกใช้แยกออกจาก "เน็ตล่ม" หรือ "Google ล่มชั่วคราว"
+ * ซึ่งสองอย่างหลังหายเองได้ ไม่ควรไปตัดการเชื่อมทิ้ง
+ */
+export class GoogleAuthExpired extends Error {
+  constructor(message = "สิทธิ์เชื่อมปฏิทินหมดอายุแล้ว") {
+    super(message);
+    this.name = "GoogleAuthExpired";
+  }
+}
+
+/** Google ตอบ invalid_grant เมื่อ token ถูกถอน หมดอายุ หรือเปลี่ยนรหัสผ่านบัญชี */
+export function isAuthExpired(err: unknown): boolean {
+  return err instanceof GoogleAuthExpired;
 }
 
 type TokenResponse = {
@@ -90,6 +107,11 @@ export async function accessTokenFor(encryptedRefreshToken: string): Promise<str
     grant_type: "refresh_token",
   });
   if (!data.access_token) {
+    if (data.error === "invalid_grant") {
+      throw new GoogleAuthExpired(
+        data.error_description || "สิทธิ์เชื่อมปฏิทินหมดอายุหรือถูกถอนแล้ว"
+      );
+    }
     throw new Error(data.error_description || data.error || "ขอ access token ไม่สำเร็จ");
   }
   return data.access_token;
@@ -148,6 +170,21 @@ export async function createAppCalendar(accessToken: string): Promise<string> {
     body: { summary: CALENDAR_NAME, timeZone: TZ },
   });
   return cal.id;
+}
+
+/**
+ * เปลี่ยนชื่อปฏิทินที่แอปสร้างไว้แล้วให้ตรงกับ CALENDAR_NAME ปัจจุบัน
+ * ใช้ตอนแอดมินเชื่อมใหม่และตอนเช็คสุขภาพประจำสัปดาห์
+ * ปฏิทินเก่าจึงเปลี่ยนชื่อตามเองโดยไม่ต้องให้ใครไปแก้ในปฏิทินทีละคน
+ */
+export async function renameAppCalendar(
+  accessToken: string,
+  calendarId: string
+): Promise<void> {
+  await api(accessToken, `/calendars/${encodeURIComponent(calendarId)}`, {
+    method: "PATCH",
+    body: { summary: CALENDAR_NAME },
+  });
 }
 
 export type CalendarEventInput = {
