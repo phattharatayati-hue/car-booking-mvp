@@ -95,7 +95,8 @@ export default async function SchedulePage({
         </div>
 
         <div className="no-print flex flex-wrap items-center gap-2">
-          <AutoRefresh seconds={60} />
+          {/* key ผูกกับ URL — บังคับให้เริ่มนับใหม่ทุกครั้งที่เปลี่ยนวันหรือตัวกรอง */}
+          <AutoRefresh key={back} seconds={60} />
           <PrintButton />
           <a
             href={`/api/admin/schedule.csv?${new URLSearchParams({
@@ -186,6 +187,7 @@ export default async function SchedulePage({
           </span>
           <Link
             href={link(base, "all")}
+            prefetch={false}
             className="ml-auto font-semibold underline underline-offset-4"
           >
             ดูทั้งหมด
@@ -556,6 +558,10 @@ function Stat({
     <Link
       href={link(base, isActive && filter !== "all" ? "all" : filter)}
       aria-pressed={isActive}
+      /* ปิด prefetch — หน้านี้ force-dynamic และรีเฟรชตัวเองทุก 60 วิ
+         ถ้าให้ prefetch ไว้ Next จะเก็บผลลัพธ์เก่าของ URL นี้ไว้ในแคชฝั่ง client
+         แล้วมีจังหวะที่กดปุ่มกรองพอดีกับที่ refresh กำลังทำงาน จนได้ตารางเก่าคู่กับหัวข้อใหม่ */
+      prefetch={false}
       className={`${box} block text-left transition-shadow hover:shadow-md`}
     >
       {body}
@@ -575,6 +581,7 @@ function DayLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`btn px-4 rounded-full text-sm font-medium border transition-colors ${
         active
           ? "bg-blue-600 border-blue-600 text-white"
