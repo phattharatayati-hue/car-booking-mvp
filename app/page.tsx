@@ -6,7 +6,8 @@ import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import CarCard from "@/components/CarCard";
 import { getAvailability, firstFreeDate } from "@/lib/availability";
-import { bangkokDateStr, getSettings } from "@/lib/settings";
+import { earliestPickupDateStr } from "@/lib/booking-rules";
+import { getSettings } from "@/lib/settings";
 import { LINE_OA_ID } from "@/lib/contact";
 
 /**
@@ -47,7 +48,9 @@ export default async function HomePage() {
     take: 6,
   });
 
-  const fromStr = bangkokDateStr(new Date());
+  /* นับความว่างจาก "วันแรกที่จองได้" ไม่ใช่วันนี้ — ไม่งั้นการ์ดจะบอกว่าว่าง
+     ทั้งที่กดจองวันนั้นไม่ได้ (ดู lib/booking-rules.ts) */
+  const fromStr = earliestPickupDateStr(settings.minLeadHours);
   const availabilityMap = await getAvailability(
     cars.map((c: CarCardData) => c.id),
     fromStr,
@@ -59,6 +62,7 @@ export default async function HomePage() {
     return {
       busyToday: map[fromStr] === "full",
       nextFree: firstFreeDate(map, fromStr, 60),
+      from: fromStr,
     };
   }
 
@@ -199,7 +203,10 @@ export default async function HomePage() {
                   <Sep />
                 </>
               )}
-              <Stat value="24 ชม." label="จองได้ตลอดเวลา" />
+              <Stat
+                value={`${settings.minLeadHours} ชม.`}
+                label="จองล่วงหน้าขั้นต่ำ"
+              />
               <Sep />
               <Stat
                 value={`${settings.bookingFee.toLocaleString()} ฿`}

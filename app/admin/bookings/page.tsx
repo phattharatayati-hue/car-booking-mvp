@@ -19,7 +19,7 @@ import {
   type DocumentKind,
   type DocumentStatus,
 } from "@/lib/documents";
-import { STATUS_LABEL, STATUS_CLASS } from "@/lib/booking-status";
+import { STATUS_LABEL, STATUS_CLASS, ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import AssignmentBox from "@/components/AssignmentBox";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
@@ -345,11 +345,18 @@ async function cancelBookingAction(formData: FormData) {
 
 const PAGE_SIZE = 20;
 
+/**
+ * ตัวกรอง — ทุกช่องต้องตอบคำถามว่า "แล้วต้องไปทำอะไรต่อ" ให้ได้
+ *
+ * สองช่องแรกหลัง "ทั้งหมด" ไม่ใช่สถานะใน DB แต่เป็นกองงานที่ค้างอยู่ที่แอดมิน
+ *   review — มีของให้เปิดดู (สลิปหรือเอกสารลูกค้าที่ยังไม่ได้ตรวจ)
+ *   unassigned — ยืนยันแล้วแต่ยังไม่มีคนไปส่ง/ไปรับ ซึ่งเป็นจุดที่พลาดแล้วเสียหายที่สุด
+ */
 const FILTERS = [
   { key: "all", label: "ทั้งหมด" },
-  { key: "todo", label: "ต้องทำ" },
   { key: "REQUESTED", label: "คำขอรอเช็ค" },
-  { key: "PENDING_DEPOSIT", label: "รอตรวจสลิป" },
+  { key: "review", label: "รอตรวจเอกสาร" },
+  { key: "unassigned", label: "รอมอบหมายคนส่ง-รับรถ" },
   { key: "CONFIRMED", label: "ยืนยันแล้ว" },
   { key: "COMPLETED", label: "เสร็จสิ้น" },
   { key: "CANCELLED", label: "ยกเลิก" },
@@ -403,13 +410,29 @@ export default async function AdminBookingsPage({
   const byUrgency = sort === "urgent";
   const pageNo = Math.max(1, Number(page) || 1);
 
-  // "ต้องทำ" = งานที่ค้างอยู่ที่แอดมิน ไม่ใช่สถานะเดียวใน DB
+  // สองกองนี้ไม่ใช่สถานะเดียวใน DB จึงต้องประกอบเงื่อนไขเอง
   const statusWhere =
-    active === "todo"
-      ? { status: { in: ["REQUESTED", "PENDING_DEPOSIT"] as never[] } }
-      : active
-      ? { status: active as never }
-      : {};
+    active === "review"
+      ? {
+          // มีของให้ตรวจจริง ๆ เท่านั้น — ใบที่ยังไม่ส่งสลิปไม่นับ เพราะไม่มีอะไรให้เปิดดู
+          status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+          OR: [
+            { deposit: { status: "PENDING" as never } },
+            { documents: { some: { status: "PENDING" as never } } },
+          ],
+        }
+      : active === "unassigned"
+        ? {
+            // ขาดอย่างน้อยหนึ่งขา — มีคนไปส่งแต่ไม่มีคนไปรับคืน ก็ยังถือว่าค้าง
+            status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+            OR: [
+              { assignments: { none: { kind: "DELIVERY" as never } } },
+              { assignments: { none: { kind: "PICKUP" as never } } },
+            ],
+          }
+        : active
+          ? { status: active as never }
+          : {};
 
   // ค้นหาได้จาก ชื่อ/เบอร์ลูกค้า, ทะเบียนรถ หรือรหัสจอง 8 ตัวหน้า
   const searchWhere = term
@@ -455,7 +478,35 @@ export default async function AdminBookingsPage({
     select: { id: true, name: true, googleConnectedAt: true },
   });
 
-  const requestCount = await prisma.booking.count({ where: { status: "REQUESTED" } });
+  /* จำนวนงานค้างของแต่ละกอง — ใส่ไว้บนป้ายกรอง เพราะถ้าไม่มีตัวเลข
+     "รอตรวจเอกสาร" กับ "รอมอบหมาย" จะดูเหมือนกันจนแยกไม่ออกว่าต่างกันตรงไหน */
+  const [requestCount, reviewCount, unassignedCount] = await Promise.all([
+    prisma.booking.count({ where: { status: "REQUESTED" } }),
+    prisma.booking.count({
+      where: {
+        status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+        OR: [
+          { deposit: { status: "PENDING" as never } },
+          { documents: { some: { status: "PENDING" as never } } },
+        ],
+      },
+    }),
+    prisma.booking.count({
+      where: {
+        status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+        OR: [
+          { assignments: { none: { kind: "DELIVERY" as never } } },
+          { assignments: { none: { kind: "PICKUP" as never } } },
+        ],
+      },
+    }),
+  ]);
+
+  const filterCount: Record<string, number> = {
+    REQUESTED: requestCount,
+    review: reviewCount,
+    unassigned: unassignedCount,
+  };
 
   return (
     <div>
@@ -466,9 +517,9 @@ export default async function AdminBookingsPage({
           {pageCount > 1 && (
             <span className="text-slate-400"> · หน้า {current}/{pageCount}</span>
           )}
-          {requestCount > 0 && (
-            <span className="ml-2 text-violet-700 font-medium">
-              · มีคำขอรอเช็ค {requestCount} รายการ
+          {unassignedCount > 0 && (
+            <span className="ml-2 text-red-700 font-medium">
+              · ยังไม่มีคนไปส่ง-รับรถ {unassignedCount} รายการ
             </span>
           )}
         </p>
@@ -523,13 +574,26 @@ export default async function AdminBookingsPage({
                 ...(term ? { q: term } : {}),
                 ...(byUrgency ? { sort: "urgent" } : {}),
               }).toString()}`}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 isActive
                   ? "bg-blue-600 border-blue-600 text-white"
                   : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
               }`}
             >
               {f.label}
+              {filterCount[f.key] > 0 && (
+                <span
+                  className={`text-xs font-bold tabular-nums px-1.5 rounded-full ${
+                    isActive
+                      ? "bg-white/25 text-white"
+                      : f.key === "unassigned"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {filterCount[f.key]}
+                </span>
+              )}
             </Link>
           );
         })}

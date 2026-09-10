@@ -93,24 +93,46 @@ export function describeDayBusy(dateStr: string, busy: BusySpan[]): string | nul
   return parts.join(" · ");
 }
 
-/** ตัวเลือกเวลาพร้อมสถานะว่ากดได้ไหม */
-export type TimeChoice = { time: string; busy: boolean };
+/**
+ * ตัวเลือกเวลาพร้อมสถานะว่ากดได้ไหม
+ *
+ * ปิดได้สองเหตุผล และต้องแยกกันเพราะข้อความที่บอกลูกค้าต่างกันคนละเรื่อง
+ *   busy    — ช่วงนั้นมีคนจองอยู่
+ *   tooSoon — กระชั้นเกินกฎจองล่วงหน้า (ดู lib/booking-rules.ts)
+ */
+export type TimeChoice = { time: string; busy: boolean; tooSoon: boolean };
 
+/**
+ * @param earliest เวลารับรถที่เร็วที่สุดที่จองได้ — ส่ง null ถ้าไม่บังคับ
+ *   ปฏิทินกรองได้แค่ระดับวัน แต่กฎจองล่วงหน้านับเป็นชั่วโมง
+ *   วันแรกที่เลือกได้จึงยังมีบางเวลาที่กระชั้นเกินไป ต้องปิดตรงนี้อีกชั้น
+ *   ไม่งั้นลูกค้ากรอกจนครบแล้วค่อยโดนปฏิเสธตอนกดยืนยัน
+ */
 export function timeChoicesFor(
   dateStr: string,
   allTimes: string[],
-  busy: BusySpan[]
+  busy: BusySpan[],
+  earliest?: Date | null
 ): TimeChoice[] {
-  if (!dateStr) return allTimes.map((time) => ({ time, busy: false }));
-  return allTimes.map((time) => ({ time, busy: isTimeBusy(dateStr, time, busy) }));
+  if (!dateStr) return allTimes.map((time) => ({ time, busy: false, tooSoon: false }));
+  return allTimes.map((time) => ({
+    time,
+    busy: isTimeBusy(dateStr, time, busy),
+    tooSoon: earliest
+      ? new Date(`${dateStr}T${time}:00+07:00`).getTime() < earliest.getTime()
+      : false,
+  }));
 }
 
-/** เวลาว่างแรกของวันนั้น — ใช้เลื่อนค่าที่เลือกอัตโนมัติเมื่อเวลาเดิมถูกปิด */
+/** เวลาที่เลือกได้ตัวแรกของวันนั้น — ใช้เลื่อนค่าที่เลือกอัตโนมัติเมื่อเวลาเดิมถูกปิด */
 export function firstFreeTime(
   dateStr: string,
   allTimes: string[],
-  busy: BusySpan[]
+  busy: BusySpan[],
+  earliest?: Date | null
 ): string | null {
-  const found = timeChoicesFor(dateStr, allTimes, busy).find((c) => !c.busy);
+  const found = timeChoicesFor(dateStr, allTimes, busy, earliest).find(
+    (c) => !c.busy && !c.tooSoon
+  );
   return found?.time ?? null;
 }

@@ -14,6 +14,7 @@ import {
 } from "@/lib/pricing";
 import {
   DEFAULT_LEAD_HOURS,
+  earliestPickup,
   earliestPickupDateStr,
   isTooSoon,
   leadTimeShort,
@@ -99,6 +100,9 @@ export default function LiffBooking({
 
   /* วันแรกที่จองได้ตามกฎจองล่วงหน้า (lib/booking-rules.ts) */
   const minPickupDate = earliestPickupDateStr(minLeadHours);
+  /* เวลารับรถที่เร็วที่สุดจริง ๆ (ระดับนาที) — ปฏิทินกรองได้แค่ระดับวัน
+     ค่านี้เอาไว้ปิดเวลาที่กระชั้นเกินไปในวันแรกที่เลือกได้ */
+  const earliestAt = minLeadHours > 0 ? earliestPickup(minLeadHours) : null;
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -190,14 +194,15 @@ export default function LiffBooking({
       : null;
   const days = duration?.days ?? 0;
   // ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
-  const startChoices = timeChoicesFor(startDate, timeOptions, busySpans);
+  const startChoices = timeChoicesFor(startDate, timeOptions, busySpans, earliestAt);
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
   const overlaps = rangeBusy(startDate, startTime, endDate, endTime, busySpans);
 
   useEffect(() => {
     if (!startDate) return;
-    if (startChoices.find((c) => c.time === startTime)?.busy) {
-      const next = firstFreeTime(startDate, timeOptions, busySpans);
+    const startChoice = startChoices.find((c) => c.time === startTime);
+    if (startChoice?.busy || startChoice?.tooSoon) {
+      const next = firstFreeTime(startDate, timeOptions, busySpans, earliestAt);
       if (next) setStartTime(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -500,8 +505,9 @@ export default function LiffBooking({
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
           >
             {startChoices.map((c) => (
-              <option key={c.time} value={c.time} disabled={c.busy}>
-                {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
+              <option key={c.time} value={c.time} disabled={c.busy || c.tooSoon}>
+                {c.time} น.
+                {c.busy ? " — รถไม่ว่าง" : c.tooSoon ? " — กระชั้นเกินไป" : ""}
               </option>
             ))}
           </select>

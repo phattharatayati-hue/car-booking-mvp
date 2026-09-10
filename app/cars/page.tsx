@@ -5,7 +5,8 @@ import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
 import CarCard from "@/components/CarCard";
 import { getAvailability, firstFreeDate } from "@/lib/availability";
-import { bangkokDateStr, getSettings } from "@/lib/settings";
+import { earliestPickupDateStr } from "@/lib/booking-rules";
+import { getSettings } from "@/lib/settings";
 import ServiceNote from "@/components/ServiceNote";
 
 type CarCardData = {
@@ -57,7 +58,9 @@ export default async function CarsPage({
   ).sort();
 
 
-  const fromStr = bangkokDateStr(new Date());
+  /* นับความว่างจาก "วันแรกที่จองได้" ไม่ใช่วันนี้ — ไม่งั้นการ์ดจะบอกว่าว่าง
+     ทั้งที่กดจองวันนั้นไม่ได้ (ดู lib/booking-rules.ts) */
+  const fromStr = earliestPickupDateStr(settings.minLeadHours);
   const availabilityMap = await getAvailability(
     cars.map((c: CarCardData) => c.id),
     fromStr,
@@ -69,6 +72,7 @@ export default async function CarsPage({
     return {
       busyToday: map[fromStr] === "full",
       nextFree: firstFreeDate(map, fromStr, 60),
+      from: fromStr,
     };
   }
 

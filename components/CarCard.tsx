@@ -13,17 +13,22 @@ type CarCardProps = {
     licensePlate: string;
     partnerId?: string | null;
   };
-  /** สถานะว่างวันนี้ + วันว่างถัดไป (ถ้าวันนี้ไม่ว่าง) */
-  availability?: { busyToday: boolean; nextFree: string | null };
+  /** ว่างไหมใน "วันแรกที่จองได้" (ไม่ใช่วันนี้ — มีกฎจองล่วงหน้า ดู lib/booking-rules.ts)
+      พร้อมวันว่างถัดไปถ้าวันนั้นเต็ม */
+  availability?: { busyToday: boolean; nextFree: string | null; from?: string };
 };
 
 export default function CarCard({ car, availability }: CarCardProps) {
   const isRequest = needsApproval(car);
 
+  /* เลี่ยงคำว่า "ว่างวันนี้" เพราะจองวันนี้ไม่ได้อยู่แล้วเมื่อมีกฎจองล่วงหน้า
+     บอกวันที่ไปตรง ๆ ชัดกว่าและไม่มีทางผิด */
   const freeLabel = !availability
     ? null
+    : !availability.busyToday && availability.from
+    ? `ว่าง ${thaiDay(availability.from)}`
     : !availability.busyToday
-    ? "ว่างวันนี้"
+    ? "ว่าง"
     : availability.nextFree
     ? `ว่าง ${new Date(`${availability.nextFree}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`
     : "ไม่ว่างช่วงนี้";
@@ -128,4 +133,12 @@ export default function CarCard({ car, availability }: CarCardProps) {
       </div>
     </div>
   );
+}
+
+/** "2026-09-11" → "11 ก.ย." */
+function thaiDay(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+  });
 }

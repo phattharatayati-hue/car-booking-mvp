@@ -117,7 +117,7 @@ export default function SiteHeader({
                 strokeLinejoin="round"
               />
             </svg>
-            ส่งรถฟรีในเขตเมืองเชียงใหม่ · จองได้ 24 ชม.
+            ส่งรถฟรีในเขตเมืองเชียงใหม่ · จองออนไลน์ได้ตลอดคืน
           </span>
 
           <div className="flex items-center gap-2 shrink-0">

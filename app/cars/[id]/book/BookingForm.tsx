@@ -20,6 +20,7 @@ import {
 } from "@/lib/car-rates";
 import {
   DEFAULT_LEAD_HOURS,
+  earliestPickup,
   earliestPickupDateStr,
   isTooSoon,
   leadTimeShort,
@@ -77,6 +78,9 @@ export default function BookingForm({
   /* วันแรกที่จองได้ตามกฎจองล่วงหน้า — คำนวณครั้งเดียวตอนเปิดหน้า
      ถ้าผู้ใช้เปิดหน้าค้างไว้ข้ามคืน ฝั่งเซิร์ฟเวอร์ยังตรวจซ้ำให้อยู่ดี */
   const minPickupDate = earliestPickupDateStr(minLeadHours);
+  /* เวลารับรถที่เร็วที่สุดจริง ๆ (ระดับนาที) — ปฏิทินกรองได้แค่ระดับวัน
+     ค่านี้เอาไว้ปิดเวลาที่กระชั้นเกินไปในวันแรกที่เลือกได้ */
+  const earliestAt = minLeadHours > 0 ? earliestPickup(minLeadHours) : null;
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -94,15 +98,17 @@ export default function BookingForm({
       : null;
   const days = duration?.days ?? 0;
   // ตัวเลือกเวลา — ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
-  const startChoices = timeChoicesFor(startDate, timeOptions, busySpans);
+  const startChoices = timeChoicesFor(startDate, timeOptions, busySpans, earliestAt);
+  // เวลาคืนรถไม่ต้องติดกฎจองล่วงหน้า เพราะยังไงก็อยู่หลังเวลารับรถอยู่แล้ว
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
   const overlaps = rangeBusy(startDate, startTime, endDate, endTime, busySpans);
 
   // ถ้าเวลาที่เลือกอยู่กลายเป็นเวลาที่ชน ให้เลื่อนไปเวลาว่างแรกของวันนั้นให้เลย
   useEffect(() => {
     if (!startDate) return;
-    if (startChoices.find((c) => c.time === startTime)?.busy) {
-      const next = firstFreeTime(startDate, timeOptions, busySpans);
+    const startChoice = startChoices.find((c) => c.time === startTime);
+    if (startChoice?.busy || startChoice?.tooSoon) {
+      const next = firstFreeTime(startDate, timeOptions, busySpans, earliestAt);
       if (next) setStartTime(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,8 +281,9 @@ export default function BookingForm({
               className={inputClass}
             >
               {startChoices.map((c) => (
-                <option key={c.time} value={c.time} disabled={c.busy}>
-                  {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
+                <option key={c.time} value={c.time} disabled={c.busy || c.tooSoon}>
+                  {c.time} น.
+                  {c.busy ? " — รถไม่ว่าง" : c.tooSoon ? " — กระชั้นเกินไป" : ""}
                 </option>
               ))}
             </select>
