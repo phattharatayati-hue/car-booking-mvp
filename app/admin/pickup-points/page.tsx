@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
+import AdminTabs from "@/components/AdminTabs";
+import { SETTINGS_TABS } from "@/components/adminTabSets";
 
 type PointRow = {
   id: string;
@@ -121,6 +123,7 @@ export default async function PickupPointsPage({
 
   return (
     <div className="max-w-3xl">
+      <AdminTabs tabs={SETTINGS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">จุดรับ-ส่งรถ</h1>
         <p className="text-slate-500 text-sm mt-1">

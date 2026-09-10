@@ -8,6 +8,8 @@ import Image from "next/image";
 import Link from "next/link";
 import AddCarForm from "@/components/AddCarForm";
 import { BTN } from "@/lib/ui";
+import AdminTabs from "@/components/AdminTabs";
+import { FLEET_TABS } from "@/components/adminTabSets";
 
 type CarRow = {
   id: string;
@@ -85,6 +87,7 @@ export default async function AdminCarsPage({
 
   return (
     <div>
+      <AdminTabs tabs={FLEET_TABS} />
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">จัดการรถ</h1>

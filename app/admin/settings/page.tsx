@@ -14,6 +14,8 @@ import {
   REMINDER_MIN_MINUTES,
   REMINDER_MAX_MINUTES,
 } from "@/lib/settings";
+import AdminTabs from "@/components/AdminTabs";
+import { SETTINGS_TABS } from "@/components/adminTabSets";
 
 async function saveSettingsAction(formData: FormData) {
   "use server";
@@ -180,6 +182,7 @@ export default async function SettingsPage({
 
   return (
     <div className="max-w-2xl">
+      <AdminTabs tabs={SETTINGS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">ตั้งค่าระบบ</h1>
         <p className="text-slate-500 text-sm mt-1">

@@ -16,6 +16,8 @@ import {
   isInRange,
   rangesOverlap,
 } from "@/lib/pricing";
+import AdminTabs from "@/components/AdminTabs";
+import { SETTINGS_TABS } from "@/components/adminTabSets";
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -143,6 +145,7 @@ export default async function AfterHoursPage({
 
   return (
     <div className="max-w-3xl">
+      <AdminTabs tabs={SETTINGS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">ค่าบริการนอกเวลา</h1>
         <p className="text-slate-500 text-sm mt-1">

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   {
     href: "/admin",
+    group: "daily",
     label: "แดชบอร์ด",
     icon: (
       <path
@@ -19,6 +20,7 @@ const ITEMS = [
   },
   {
     href: "/admin/bookings",
+    group: "daily",
     label: "รายการจอง",
     icon: (
       <>
@@ -35,6 +37,7 @@ const ITEMS = [
   },
   {
     href: "/admin/schedule",
+    group: "daily",
     label: "ตารางรับ-ส่งรถ",
     driver: true,
     icon: (
@@ -52,6 +55,7 @@ const ITEMS = [
   },
   {
     href: "/admin/handoffs",
+    group: "daily",
     label: "ภาพสภาพรถ",
     icon: (
       <>
@@ -69,6 +73,7 @@ const ITEMS = [
   },
   {
     href: "/admin/calendar",
+    group: "daily",
     label: "ปฏิทินการจอง",
     icon: (
       <>
@@ -84,6 +89,7 @@ const ITEMS = [
   },
   {
     href: "/admin/cars",
+    group: "fleet",
     label: "จัดการรถ",
     icon: (
       <path
@@ -96,47 +102,8 @@ const ITEMS = [
     ),
   },
   {
-    href: "/admin/partners",
-    label: "คลังรถพาร์ทเนอร์",
-    icon: (
-      <>
-        <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.7" />
-        <path
-          d="M3.5 19a5.5 5.5 0 0111 0M17 3.5a2.5 2.5 0 010 5M19 19a5 5 0 00-2-4"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-      </>
-    ),
-  },
-  {
-    href: "/admin/pickup-points",
-    label: "จุดรับ-ส่งรถ",
-    icon: (
-      <>
-        <path
-          d="M12 21s7-5.5 7-11a7 7 0 10-14 0c0 5.5 7 11 7 11z"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinejoin="round"
-        />
-        <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.7" />
-      </>
-    ),
-  },
-  {
-    href: "/admin/after-hours",
-    label: "ค่าบริการนอกเวลา",
-    icon: (
-      <>
-        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
-        <path d="M12 7.5V12l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-      </>
-    ),
-  },
-  {
     href: "/admin/storage",
+    group: "system",
     label: "พื้นที่เก็บไฟล์",
     icon: (
       <>
@@ -152,6 +119,7 @@ const ITEMS = [
   },
   {
     href: "/admin/settings",
+    group: "system",
     label: "ตั้งค่าระบบ",
     devOnly: true,
     icon: (
@@ -169,6 +137,7 @@ const ITEMS = [
   },
   {
     href: "/admin/guide",
+    group: "help",
     label: "คู่มือการใช้งาน",
     icon: (
       <>
@@ -189,6 +158,7 @@ const ITEMS = [
   },
   {
     href: "/admin/users",
+    group: "system",
     label: "จัดการแอดมิน",
     devOnly: true,
     icon: (
@@ -206,6 +176,7 @@ const ITEMS = [
   },
   {
     href: "/admin/audit",
+    group: "system",
     label: "ประวัติการใช้งาน",
     devOnly: true,
     icon: (
@@ -223,6 +194,16 @@ const ITEMS = [
   },
 ];
 
+/** ลำดับกลุ่มในเมนู — เรียงตามความถี่ที่ใช้จริง งานประจำวันอยู่บนสุด */
+const GROUP_ORDER = ["daily", "fleet", "system", "help"] as const;
+
+const GROUP_LABEL: Record<string, string> = {
+  daily: "งานประจำวัน",
+  fleet: "รถและราคา",
+  system: "ระบบ",
+  help: "ช่วยเหลือ",
+};
+
 export default function AdminNav({
   isDev = false,
   isDriver = false,
@@ -238,28 +219,54 @@ export default function AdminNav({
     ? ITEMS.filter((item) => "driver" in item && item.driver)
     : ITEMS.filter((item) => isDev || !("devOnly" in item && item.devOnly));
 
+  /* จัดกลุ่มเมนู — 14 บรรทัดเรียงแบนทำให้เมนูที่ใช้ทุกวันปนกับเมนูที่ตั้งครั้งเดียวจบ
+     แอดมินใหม่เปิดมาแล้วไม่รู้ว่าเริ่มตรงไหน หัวข้อคั่นช่วยได้มากโดยไม่ต้องพับเก็บ
+     บนมือถือแถบเลื่อนแนวนอน จึงซ่อนหัวข้อไว้ (md:block) ไม่งั้นกินที่โดยเปล่าประโยชน์ */
+  const grouped = GROUP_ORDER.map((key) => ({
+    key,
+    label: GROUP_LABEL[key],
+    items: items.filter((item) => item.group === key),
+  })).filter((g) => g.items.length > 0);
+
+  const renderItem = (item: (typeof ITEMS)[number]) => {
+    const active =
+      item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+          active
+            ? "bg-blue-600 text-white shadow-sm shadow-blue-600/25"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        }`}
+      >
+        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0">
+          {item.icon}
+        </svg>
+        {item.label}
+      </Link>
+    );
+  };
+
   return (
     <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
-      {items.map((item) => {
-        const active =
-          item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-              active
-                ? "bg-blue-600 text-white shadow-sm shadow-blue-600/25"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0">
-              {item.icon}
-            </svg>
-            {item.label}
-          </Link>
-        );
-      })}
+      {grouped.map((g, i) => (
+        <div key={g.key} className="contents md:block">
+          {g.label && (
+            <p
+              className={`hidden md:block px-3.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 ${
+                i === 0 ? "mb-1.5" : "mt-5 mb-1.5"
+              }`}
+            >
+              {g.label}
+            </p>
+          )}
+          <div className="contents md:flex md:flex-col md:gap-1">
+            {g.items.map(renderItem)}
+          </div>
+        </div>
+      ))}
 
       {isDriver && (
         <div className="mt-3 rounded-xl bg-blue-50 border border-blue-100 px-3.5 py-3 text-xs text-blue-900 leading-relaxed">

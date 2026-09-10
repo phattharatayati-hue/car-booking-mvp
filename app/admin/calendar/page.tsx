@@ -14,7 +14,18 @@ type BookingLite = {
   customer: { fullName: string };
 };
 
-type CarLite = { id: string; brand: string; name: string; licensePlate: string };
+type CarLite = {
+  id: string;
+  brand: string;
+  name: string;
+  licensePlate: string;
+  status: string;
+};
+
+const TH_MONTH = [
+  "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+];
 
 const DAYS = 30;
 const DAY_MS = 86400000;
@@ -26,15 +37,31 @@ function buildDays() {
   return Array.from({ length: DAYS }, (_, i) => new Date(start.getTime() + i * DAY_MS));
 }
 
-export default async function CalendarPage() {
+export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cars?: string }>;
+}) {
   await requireStaff();
+
+  /* ค่าเริ่มต้นแสดงเฉพาะรถที่เปิดให้เช่า — รถที่ปิดใช้งานจองไม่ได้อยู่แล้ว
+     แถวว่างเปล่าของมันกินพื้นที่ไปครึ่งจอโดยไม่ให้ข้อมูลอะไร */
+  const { cars: carFilter } = await searchParams;
+  const showAllCars = carFilter === "all";
 
   const days = buildDays();
   const rangeStart = days[0];
   const rangeEnd = new Date(days[days.length - 1].getTime() + DAY_MS);
 
+  const hiddenCount = showAllCars
+    ? 0
+    : await prisma.car.count({ where: { status: { not: "AVAILABLE" } } });
+
   const [cars, bookings] = await Promise.all([
-    prisma.car.findMany({ orderBy: [{ brand: "asc" }, { name: "asc" }] }),
+    prisma.car.findMany({
+      where: showAllCars ? {} : { status: "AVAILABLE" },
+      orderBy: [{ brand: "asc" }, { name: "asc" }],
+    }),
     prisma.booking.findMany({
       where: {
         status: { in: ["PENDING_DEPOSIT", "CONFIRMED"] },
@@ -68,7 +95,23 @@ export default async function CalendarPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">ปฏิทินการจอง</h1>
         <p className="text-slate-500 text-sm mt-1">
-          30 วันข้างหน้า · เขียว = ยืนยันแล้ว · เหลือง = รอตรวจสลิป
+          รถคันไหนว่างวันไหน · 30 วันข้างหน้า · กดช่องสีเพื่อเปิดใบจองนั้น
+          {!showAllCars && hiddenCount > 0 && (
+            <>
+              {" · "}
+              <Link href="/admin/calendar?cars=all" className="text-blue-700 hover:underline">
+                ซ่อนรถที่ปิดใช้งานอยู่ {hiddenCount} คัน — กดเพื่อแสดง
+              </Link>
+            </>
+          )}
+          {showAllCars && (
+            <>
+              {" · "}
+              <Link href="/admin/calendar" className="text-blue-700 hover:underline">
+                แสดงเฉพาะรถที่เปิดให้เช่า
+              </Link>
+            </>
+          )}
         </p>
       </div>
 
@@ -87,15 +130,19 @@ export default async function CalendarPage() {
                   </th>
                   {days.map((d, i) => {
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    /* วันแรกของเดือนใหม่ — เดิมเลขไล่ 29 30 1 2 โดยไม่มีอะไรบอกว่าข้ามเดือนแล้ว */
+                    const newMonth = i > 0 && d.getDate() === 1;
                     return (
                       <th
                         key={i}
                         className={`px-0 py-2 font-medium w-9 min-w-[36px] text-center ${
-                          isWeekend ? "bg-slate-100 text-slate-500" : "text-slate-500"
-                        }`}
+                          newMonth ? "border-l-2 border-slate-300 " : ""
+                        }${isWeekend ? "bg-slate-100 text-slate-500" : "text-slate-500"}`}
                       >
                         <span className="block text-[10px] leading-tight">
-                          {d.toLocaleDateString("th-TH", { weekday: "narrow" })}
+                          {newMonth
+                            ? TH_MONTH[d.getMonth()]
+                            : d.toLocaleDateString("th-TH", { weekday: "narrow" })}
                         </span>
                         <span className="block text-xs font-semibold text-slate-700">
                           {d.getDate()}
@@ -120,26 +167,42 @@ export default async function CalendarPage() {
                     {days.map((day, i) => {
                       const booking = bookingOn(car.id, day);
                       const confirmed = booking?.status === "CONFIRMED";
+                      const newMonth = i > 0 && day.getDate() === 1;
+                      const cellClass = `h-8 rounded block ${
+                        booking
+                          ? confirmed
+                            ? "bg-emerald-500 hover:bg-emerald-600"
+                            : "bg-amber-400 hover:bg-amber-500"
+                          : "bg-slate-100"
+                      }`;
+                      const tip = booking
+                        ? `${booking.customer.fullName} · ${
+                            confirmed ? "ยืนยันแล้ว" : "รอตรวจสลิป"
+                          }\nรับ ${formatBangkokDateTime(
+                            booking.startDate
+                          )}\nคืน ${formatBangkokDateTime(
+                            booking.endDate
+                          )}\nกดเพื่อเปิดใบจอง`
+                        : "ว่าง";
                       return (
-                        <td key={i} className="p-0.5 align-middle">
-                          <div
-                            title={
-                              booking
-                                ? `${booking.customer.fullName} · ${
-                                    confirmed ? "ยืนยันแล้ว" : "รอตรวจสลิป"
-                                  }\nรับ ${formatBangkokDateTime(
-                                    booking.startDate
-                                  )}\nคืน ${formatBangkokDateTime(booking.endDate)}`
-                                : "ว่าง"
-                            }
-                            className={`h-8 rounded ${
-                              booking
-                                ? confirmed
-                                  ? "bg-emerald-500"
-                                  : "bg-amber-400"
-                                : "bg-slate-100"
-                            }`}
-                          />
+                        <td
+                          key={i}
+                          className={`p-0.5 align-middle ${
+                            newMonth ? "border-l-2 border-slate-300" : ""
+                          }`}
+                        >
+                          {/* กดช่องสีแล้วเปิดใบจองนั้นได้เลย — เดิมเห็นว่าติดแต่ไม่รู้ว่าใครจอง
+                              ต้องจำวันแล้วไปไล่หาเองในหน้ารายการจอง */}
+                          {booking ? (
+                            <Link
+                              href={`/admin/bookings?q=${booking.id.slice(0, 8)}`}
+                              title={tip}
+                              aria-label={tip}
+                              className={`${cellClass} transition-colors`}
+                            />
+                          ) : (
+                            <div title={tip} className={cellClass} />
+                          )}
                         </td>
                       );
                     })}

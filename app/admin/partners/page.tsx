@@ -10,6 +10,8 @@ import { auth } from "@/lib/auth";
 import AddPartnerForm from "@/components/AddPartnerForm";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM } from "@/lib/ui";
+import AdminTabs from "@/components/AdminTabs";
+import { FLEET_TABS } from "@/components/adminTabSets";
 
 type PartnerRow = {
   id: string;
@@ -132,6 +134,7 @@ export default async function PartnersPage({
 
   return (
     <div>
+      <AdminTabs tabs={FLEET_TABS} />
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">คลังรถพาร์ทเนอร์</h1>

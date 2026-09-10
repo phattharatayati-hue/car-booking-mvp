@@ -399,11 +399,15 @@ export default async function AdminBookingsPage({
     q?: string;
     page?: string;
     sort?: string;
+    view?: string;
   }>;
 }) {
   await requireStaff();
 
-  const { status, ok, error, q, page, sort } = await searchParams;
+  const { status, ok, error, q, page, sort, view } = await searchParams;
+  /* มุมมองตาราง — การ์ดหนึ่งใบกินเกือบเต็มจอ 20 ใบคือไถ 20 หน้าจอ
+     ตอนอยากกวาดตาหาใบเดียวหรือเทียบหลายใบพร้อมกัน ตารางเร็วกว่ามาก */
+  const asTable = view === "table";
   const flash = FLASH[ok ?? ""] ?? FLASH[error ?? ""];
   const active = status && status !== "all" ? status : null;
   const term = (q ?? "").trim();
@@ -534,6 +538,7 @@ export default async function AdminBookingsPage({
       {/* ค้นหา + เรียงลำดับ — เดิมต้องไถหาเองทั้งหน้า */}
       <form method="get" className="flex flex-wrap gap-2 mb-4">
         {active && <input type="hidden" name="status" value={active} />}
+        {asTable && <input type="hidden" name="view" value="table" />}
         <label htmlFor="booking-search" className="sr-only">
           ค้นหาการจอง
         </label>
@@ -580,6 +585,7 @@ export default async function AdminBookingsPage({
                 ...(f.key === "all" ? {} : { status: f.key }),
                 ...(term ? { q: term } : {}),
                 ...(byUrgency ? { sort: "urgent" } : {}),
+                ...(asTable ? { view: "table" } : {}),
               }).toString()}`}
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 isActive
@@ -619,6 +625,134 @@ export default async function AdminBookingsPage({
         </div>
       )}
 
+      {/* สลับมุมมอง — เก็บตัวกรอง/คำค้น/หน้าไว้ทั้งหมด */}
+      <div className="flex justify-end mb-3">
+        <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+          {[
+            { key: "card", label: "การ์ด" },
+            { key: "table", label: "ตาราง" },
+          ].map((v) => {
+            const on = (asTable ? "table" : "card") === v.key;
+            return (
+              <Link
+                key={v.key}
+                href={`/admin/bookings?${new URLSearchParams({
+                  ...(active ? { status: active } : {}),
+                  ...(term ? { q: term } : {}),
+                  ...(byUrgency ? { sort: "urgent" } : {}),
+                  ...(current > 1 ? { page: String(current) } : {}),
+                  ...(v.key === "table" ? { view: "table" } : {}),
+                }).toString()}`}
+                className={`px-3.5 py-2 text-sm font-medium transition-colors ${
+                  on ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {v.label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {asTable ? (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">#</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">รหัสจอง</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">รถ</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">ลูกค้า</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">รับ-คืน</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">เอกสาร</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">คนรับ-ส่ง</th>
+                  <th className="text-right font-medium px-4 py-3 whitespace-nowrap">ยอด</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((b: BookingRow, i: number) => {
+                  const approved = b.documents.filter((d) => d.status === "APPROVED").length;
+                  const kinds = new Set(b.assignments.map((a) => a.kind));
+                  const staffed = kinds.size === 2;
+                  return (
+                    <tr key={b.id} className="border-t border-slate-100">
+                      <td className="px-4 py-3 text-slate-400 tabular-nums">
+                        {(current - 1) * PAGE_SIZE + i + 1}
+                      </td>
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
+                        #{b.id.slice(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">
+                          {b.car.brand} {b.car.name}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono">{b.car.licensePlate}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-slate-900">{b.customer.fullName}</p>
+                        <a
+                          href={`tel:${b.customer.phone}`}
+                          className="text-xs font-mono text-blue-700 hover:underline"
+                        >
+                          {b.customer.phone}
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                        <p>{formatBangkokDateTime(b.startDate)}</p>
+                        <p>{formatBangkokDateTime(b.endDate)}</p>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          className={
+                            approved === DOCUMENT_KINDS.length
+                              ? "text-emerald-700 font-medium"
+                              : "text-amber-700 font-medium"
+                          }
+                        >
+                          {approved}/{DOCUMENT_KINDS.length}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {staffed ? (
+                          <span className="text-slate-600">
+                            {[...new Set(b.assignments.map((a) => a.admin.name))].join(", ")}
+                          </span>
+                        ) : (
+                          <span className="text-red-700 font-medium">ยังไม่ครบ</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900 whitespace-nowrap">
+                        {b.totalPrice.toLocaleString()} ฿
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span
+                          className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full border ${
+                            STATUS_CLASS[b.status] ?? STATUS_CLASS.PENDING_DEPOSIT
+                          }`}
+                        >
+                          {STATUS_LABEL[b.status] ?? b.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {bookings.length === 0 && (
+            <p className="py-16 text-center text-slate-500">
+              {term ? `ไม่พบรายการที่ตรงกับ "${term}"` : "ไม่มีรายการจองในหมวดนี้"}
+            </p>
+          )}
+
+          <p className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400">
+            มุมมองตารางดูอย่างเดียว — กดปุ่ม “การ์ด” ด้านบนเพื่อตรวจเอกสาร มอบหมายงาน หรือยืนยันค่าจอง
+          </p>
+        </div>
+      ) : (
       <div className="flex flex-col gap-4">
         {bookings.map((b: BookingRow, i: number) => {
           const label = STATUS_LABEL[b.status] ?? b.status;
@@ -999,6 +1133,7 @@ export default async function AdminBookingsPage({
           </div>
         )}
       </div>
+      )}
 
       {pageCount > 1 && (
         <nav
@@ -1016,6 +1151,7 @@ export default async function AdminBookingsPage({
                   ...(active ? { status: active } : {}),
                   ...(term ? { q: term } : {}),
                   ...(byUrgency ? { sort: "urgent" } : {}),
+                  ...(asTable ? { view: "table" } : {}),
                   page: String(btn.to),
                 }).toString()}`}
                 className={BTN.ghost}
