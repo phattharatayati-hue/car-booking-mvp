@@ -14,7 +14,11 @@ import {
   rowStatus,
   STATUS_TEXT,
   STATUS_STYLE,
+  filterRows,
+  isScheduleFilter,
+  FILTER_TEXT,
   type ScheduleRow,
+  type ScheduleFilter,
 } from "@/lib/schedule";
 import { markJobAction } from "./actions";
 import ActionButton from "@/components/ActionButton";
@@ -34,7 +38,7 @@ import { NOTICE } from "@/lib/ui";
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string; m?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ d?: string; m?: string; ok?: string; error?: string; f?: string }>;
 }) {
   const me = await currentAdmin();
   if (!me) redirect("/login");
@@ -52,17 +56,26 @@ export default async function SchedulePage({
   const onlyMe = isDriver ? me.id : null;
 
   const range = monthRange(month);
-  const rows = monthly
+  const allRows = monthly
     ? await scheduleBetween(range.start, range.end, onlyMe)
     : await scheduleForDay(date, onlyMe);
 
-  const sum = summarize(rows);
+  /* ตัวเลขสรุปคำนวณจากแถวทั้งหมดเสมอ ส่วนตารางด้านล่างแสดงเฉพาะที่กรองแล้ว
+     ถ้าคิดจากแถวที่กรองแล้ว ช่องอื่นจะเป็น 0 หมดจนกดสลับไปช่องอื่นไม่ได้ */
+  const filter: ScheduleFilter = isScheduleFilter(sp.f) ? sp.f : "all";
+  const sum = summarize(allRows);
+  const rows = filterRows(allRows, filter);
   const days = monthly ? groupByDay(rows) : [];
 
   const tomorrow = bangkokDateStr(new Date(Date.now() + 86400000));
 
   // ลิงก์กลับมาหน้าเดิมหลังเปลี่ยนสถานะ จะได้ไม่เด้งไปวันนี้ทุกครั้ง
-  const back = monthly ? `/admin/schedule?m=${month}` : `/admin/schedule?d=${date}`;
+  const back = `/admin/schedule?${new URLSearchParams({
+    ...(monthly ? { m: month } : { d: date }),
+    ...(filter !== "all" ? { f: filter } : {}),
+  }).toString()}`;
+  /* พารามิเตอร์ที่ต้องพกติดไปกับลิงก์กรอง ไม่งั้นกดกรองแล้วเด้งกลับไปวันนี้ */
+  const base: Record<string, string> = monthly ? { m: month } : { d: date };
   const flash = FLASH[sp.ok ?? ""] ?? FLASH[sp.error ?? ""];
 
   return (
@@ -85,11 +98,10 @@ export default async function SchedulePage({
           <AutoRefresh seconds={60} />
           <PrintButton />
           <a
-            href={
-              monthly
-                ? `/api/admin/schedule.csv?m=${month}`
-                : `/api/admin/schedule.csv?d=${date}`
-            }
+            href={`/api/admin/schedule.csv?${new URLSearchParams({
+              ...(monthly ? { m: month } : { d: date }),
+              ...(filter !== "all" ? { f: filter } : {}),
+            }).toString()}`}
             className="btn rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
           >
             ดาวน์โหลด CSV
@@ -99,32 +111,43 @@ export default async function SchedulePage({
 
       {/* ตัวเลขสรุปของวัน */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <Stat label="ทั้งหมดวันนี้" value={sum.total} tone="slate" />
-        <Stat label="ไปส่งรถ" value={sum.delivery} tone="blue" />
-        <Stat label="ไปรับคืน" value={sum.pickup} tone="amber" />
-        <Stat label="เสร็จแล้ว" value={sum.done} tone="emerald" />
+        <Stat
+          label={monthly ? "ทั้งเดือน" : "ทั้งหมดวันนี้"}
+          value={sum.total}
+          tone="slate"
+          filter="all"
+          current={filter}
+          base={base}
+        />
+        <Stat label="ไปส่งรถ" value={sum.delivery} tone="blue" filter="delivery" current={filter} base={base} />
+        <Stat label="ไปรับคืน" value={sum.pickup} tone="amber" filter="pickup" current={filter} base={base} />
+        <Stat label="เสร็จแล้ว" value={sum.done} tone="emerald" filter="done" current={filter} base={base} />
         <Stat
           label={isDriver ? "เหลือ" : "ยังไม่มีคนรับ"}
           value={isDriver ? sum.left : sum.unassigned}
           tone={!isDriver && sum.unassigned > 0 ? "red" : "slate"}
+          filter={isDriver ? "left" : "unassigned"}
+          current={filter}
+          base={base}
         />
       </div>
 
       {/* เลือกวัน */}
       <div className="no-print flex flex-wrap items-center gap-2 mb-5">
-        <DayLink href={`/admin/schedule`} active={!monthly && date === today}>
+        <DayLink href={link({}, filter)} active={!monthly && date === today}>
           วันนี้
         </DayLink>
         <DayLink
-          href={`/admin/schedule?d=${tomorrow}`}
+          href={link({ d: tomorrow }, filter)}
           active={!monthly && date === tomorrow}
         >
           พรุ่งนี้
         </DayLink>
-        <DayLink href={`/admin/schedule?m=${date.slice(0, 7)}`} active={monthly}>
+        <DayLink href={link({ m: date.slice(0, 7) }, filter)} active={monthly}>
           ทั้งเดือน
         </DayLink>
         <form className="flex items-center gap-2" action="/admin/schedule">
+          {filter !== "all" && <input type="hidden" name="f" value={filter} />}
           <label htmlFor={monthly ? "m" : "d"} className="text-sm text-slate-500">
             {monthly ? "เลือกเดือน" : "เลือกวันที่"}
           </label>
@@ -156,9 +179,27 @@ export default async function SchedulePage({
         </div>
       )}
 
+      {filter !== "all" && (
+        <div className="no-print mb-4 flex flex-wrap items-center gap-3 text-sm bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-xl">
+          <span>
+            กำลังดู{FILTER_TEXT[filter]} · {rows.length} จาก {sum.total} งาน
+          </span>
+          <Link
+            href={link(base, "all")}
+            className="ml-auto font-semibold underline underline-offset-4"
+          >
+            ดูทั้งหมด
+          </Link>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500">
-          {monthly ? "ไม่มีคิวรับ-ส่งรถในเดือนนี้" : "ไม่มีคิวรับ-ส่งรถในวันนี้"}
+          {filter !== "all"
+            ? `ไม่มีงานที่ตรงกับ${FILTER_TEXT[filter]}`
+            : monthly
+              ? "ไม่มีคิวรับ-ส่งรถในเดือนนี้"
+              : "ไม่มีคิวรับ-ส่งรถในวันนี้"}
         </div>
       ) : monthly ? (
         /* รายเดือน — แยกเป็นก้อนละวัน อ่านง่ายกว่าตารางยาวพันแถว
@@ -466,20 +507,59 @@ const TONE: Record<string, string> = {
   red: "bg-red-50 border-red-200 text-red-900",
 };
 
+/** สร้างลิงก์ของหน้านี้ โดยคงวัน/เดือนที่ดูอยู่และตัวกรองที่เลือกไว้ */
+function link(params: Record<string, string>, f: ScheduleFilter): string {
+  const q = new URLSearchParams(params);
+  if (f !== "all") q.set("f", f);
+  const s = q.toString();
+  return s ? `/admin/schedule?${s}` : "/admin/schedule";
+}
+
+/**
+ * ตัวเลขสรุปที่กดกรองตารางด้านล่างได้
+ *
+ * กดช่องที่เลือกอยู่ซ้ำ = ล้างตัวกรอง จะได้ไม่ต้องไถหาปุ่ม "ทั้งหมด"
+ * ช่องที่เป็น 0 ไม่ต้องกดได้ เพราะกดไปก็เจอตารางว่าง
+ */
 function Stat({
   label,
   value,
   tone,
+  filter,
+  current,
+  base,
 }: {
   label: string;
   value: number;
   tone: keyof typeof TONE;
+  filter: ScheduleFilter;
+  current: ScheduleFilter;
+  base: Record<string, string>;
 }) {
-  return (
-    <div className={`rounded-2xl border p-4 ${TONE[tone]}`}>
+  const isActive = current === filter || (filter === "all" && current === "all");
+  const body = (
+    <>
       <p className="text-xs opacity-70">{label}</p>
       <p className="text-2xl font-bold tabular-nums mt-0.5">{value}</p>
-    </div>
+    </>
+  );
+
+  const box = `rounded-2xl border p-4 ${TONE[tone]} ${
+    isActive ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-50" : ""
+  }`;
+
+  if (value === 0 && filter !== "all") {
+    return <div className={`${box} opacity-50`}>{body}</div>;
+  }
+
+  return (
+    <Link
+      href={link(base, isActive && filter !== "all" ? "all" : filter)}
+      aria-pressed={isActive}
+      className={`${box} block text-left transition-shadow hover:shadow-md`}
+    >
+      {body}
+    </Link>
   );
 }
 

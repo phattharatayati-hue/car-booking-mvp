@@ -7,6 +7,8 @@ import {
   monthRange,
   rowStatus,
   STATUS_TEXT,
+  filterRows,
+  isScheduleFilter,
 } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
@@ -35,13 +37,18 @@ export async function GET(request: Request) {
   // คนรับ-ส่งรถโหลดได้เฉพาะงานของตัวเอง เหมือนที่เห็นบนหน้าจอ
   const onlyMe = me.role === "DRIVER" ? me.id : null;
 
-  const rows = monthly
+  const all = monthly
     ? await scheduleBetween(
         monthRange(rawMonth).start,
         monthRange(rawMonth).end,
         onlyMe
       )
     : await scheduleForDay(date, onlyMe);
+
+  // กรองแบบเดียวกับที่หน้าจอกำลังแสดงอยู่ — โหลดไปแล้วต้องได้ของที่เห็น
+  const rawFilter = searchParams.get("f") ?? "all";
+  const filter = isScheduleFilter(rawFilter) ? rawFilter : "all";
+  const rows = filterRows(all, filter);
 
   const header = [
     "เวลา",
@@ -86,7 +93,7 @@ export async function GET(request: Request) {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="schedule-${
         monthly ? rawMonth : date
-      }.csv"`,
+      }${filter === "all" ? "" : `-${filter}`}.csv"`,
     },
   });
 }

@@ -205,3 +205,42 @@ export function groupByDay(rows: ScheduleRow[]): { date: string; rows: ScheduleR
       rows: [...list].sort((x, y) => x.at.getTime() - y.at.getTime()),
     }));
 }
+
+/** ตัวกรองของกระดานคิว — ตรงกับตัวเลขสรุปห้าช่องด้านบนหน้า */
+export type ScheduleFilter = "all" | "delivery" | "pickup" | "done" | "left" | "unassigned";
+
+export function isScheduleFilter(v: string | undefined): v is ScheduleFilter {
+  return ["all", "delivery", "pickup", "done", "left", "unassigned"].includes(v ?? "");
+}
+
+/**
+ * กรองแถวตามช่องสรุปที่กดเลือก
+ *
+ * ตัวเลขสรุปยังคำนวณจากแถวทั้งหมดเสมอ ไม่ใช่จากแถวที่กรองแล้ว
+ * ไม่งั้นพอกดกรองหนึ่งช่อง ช่องอื่นจะกลายเป็น 0 หมดจนกดต่อไม่ได้
+ */
+export function filterRows(rows: ScheduleRow[], f: ScheduleFilter): ScheduleRow[] {
+  switch (f) {
+    case "delivery":
+      return rows.filter((r) => r.kind === "DELIVERY");
+    case "pickup":
+      return rows.filter((r) => r.kind === "PICKUP");
+    case "done":
+      return rows.filter((r) => r.doneAt);
+    case "left":
+      return rows.filter((r) => !r.doneAt);
+    case "unassigned":
+      return rows.filter((r) => !r.assignmentId);
+    default:
+      return rows;
+  }
+}
+
+/** ข้อความบอกว่ากำลังกรองอะไรอยู่ — ใช้ในแถบ "กำลังดูเฉพาะ…" */
+export const FILTER_TEXT: Record<Exclude<ScheduleFilter, "all">, string> = {
+  delivery: "เฉพาะงานไปส่งรถ",
+  pickup: "เฉพาะงานไปรับรถคืน",
+  done: "เฉพาะงานที่ปิดแล้ว",
+  left: "เฉพาะงานที่ยังไม่ปิด",
+  unassigned: "เฉพาะงานที่ยังไม่มีคนรับ",
+};
