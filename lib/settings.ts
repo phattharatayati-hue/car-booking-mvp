@@ -8,6 +8,8 @@ export type AppSettings = {
   /** เตือนล่วงหน้ากี่นาที ก่อนเวลานัดคืนรถของการจองนั้น */
   returnReminderMinutesBefore: number;
   bookingFee: number;
+  /** ต้องจองก่อนเวลารับรถอย่างน้อยกี่ชั่วโมง (0 = ไม่บังคับ) */
+  minLeadHours: number;
   securityDeposit: number;
   serviceNote: string;
   /** ค่าคืนรถล่าช้าต่อชั่วโมง */
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   returnReminderOn: true,
   returnReminderMinutesBefore: 120,
   bookingFee: 500,
+  minLeadHours: 24,
   securityDeposit: 3000,
   serviceNote:
     "การเช่ารถขับเองในจังหวัดเชียงใหม่เท่านั้น หากออกต่างจังหวัดจะมีค่าใช้จ่ายเพิ่มเติมครับ",
@@ -42,6 +45,7 @@ export async function getSettings(): Promise<AppSettings> {
       returnReminderOn: row.returnReminderOn,
       returnReminderMinutesBefore: row.returnReminderMinutesBefore,
       bookingFee: row.bookingFee,
+      minLeadHours: row.minLeadHours,
       securityDeposit: row.securityDeposit,
       serviceNote: row.serviceNote,
       lateHourlyFee: row.lateHourlyFee,

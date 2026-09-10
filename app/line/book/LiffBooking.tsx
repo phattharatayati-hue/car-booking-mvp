@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
 import { OTHER_PLACE, pointLabel, type PickupOption } from "@/lib/pickup-points";
@@ -12,6 +12,14 @@ import {
   type AfterHoursRate,
   type LateRule,
 } from "@/lib/pricing";
+import {
+  DEFAULT_LEAD_HOURS,
+  earliestPickupDateStr,
+  isTooSoon,
+  leadTimeShort,
+  URGENT_LINE,
+  leadTimeMessage,
+} from "@/lib/booking-rules";
 import {
   timeChoicesFor,
   firstFreeTime,
@@ -71,6 +79,7 @@ export default function LiffBooking({
   liffId,
   pickupPoints,
   lateRule = DEFAULT_LATE_RULE,
+  minLeadHours = DEFAULT_LEAD_HOURS,
 }: {
   car: LiffCar;
   availability: Record<string, DayStatus>;
@@ -80,11 +89,16 @@ export default function LiffBooking({
   liffId: string;
   /** กติกาค่าคืนรถล่าช้า — มาจากหน้าตั้งค่าระบบ */
   lateRule?: LateRule;
+  /** ต้องจองล่วงหน้ากี่ชั่วโมง — มาจากหน้าตั้งค่าระบบ (0 = ไม่บังคับ) */
+  minLeadHours?: number;
   pickupPoints: PickupOption[];
 }) {
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
+
+  /* วันแรกที่จองได้ตามกฎจองล่วงหน้า (lib/booking-rules.ts) */
+  const minPickupDate = earliestPickupDateStr(minLeadHours);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -98,6 +112,18 @@ export default function LiffBooking({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+
+  // เลื่อนจอไปหาข้อความ error เอง — เดิมกล่อง error อยู่บนสุด กดปุ่มล่างสุดแล้วไม่เห็นว่าพลาดตรงไหน
+  const errorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
+
+  // กันกดจองซ้ำเป็นสองรายการ — ส่งรหัสคำขอเดิมไปทุกครั้งที่ลองใหม่ด้วยเงื่อนไขเดียวกัน
+  const requestId = useMemo(
+    () => `${car.id}-${startDate}-${startTime}-${endDate}-${endTime}-${pickupPlace}-${returnPlace}`,
+    [car.id, startDate, startTime, endDate, endTime, pickupPlace, returnPlace]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -152,11 +178,6 @@ export default function LiffBooking({
       cancelled = true;
     };
   }, [liffId]);
-
-  /** วันนี้ตามเวลาไทย — กันเลือกวันย้อนหลัง */
-  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(
-    new Date()
-  );
 
   // วันเต็ม + ชั่วโมงเลท ตามกติกาที่แอดมินตั้งไว้
   const duration =
@@ -222,6 +243,11 @@ export default function LiffBooking({
       return;
     }
 
+    if (isTooSoon(new Date(`${startDate}T${startTime}:00+07:00`), minLeadHours)) {
+      setError(leadTimeMessage(minLeadHours));
+      return;
+    }
+
     if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
       setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
       return;
@@ -243,6 +269,7 @@ export default function LiffBooking({
           phone: phone || undefined,
           pickupPlace,
           returnPlace,
+          requestId,
         }),
       });
 
@@ -250,14 +277,14 @@ export default function LiffBooking({
 
       if (!res.ok) {
         if (data?.needPhone) setNeedPhone(true);
-        setError(data?.error ?? `จองไม่สำเร็จ (${res.status})`);
+        setError(thaiError(data?.error, res.status));
         setSubmitting(false);
         return;
       }
 
       setResult(data as Result);
     } catch {
-      setError("เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่");
+      setError("เชื่อมต่อไม่สำเร็จ กรุณาเช็คสัญญาณอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง");
     } finally {
       setSubmitting(false);
     }
@@ -396,12 +423,18 @@ export default function LiffBooking({
       </div>
 
       {error && (
-        <div className="text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+        <div
+          ref={errorRef}
+          role="alert"
+          aria-live="assertive"
+          className="text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl"
+        >
           {error}
         </div>
       )}
 
       <AvailabilityCalendar
+        minDate={minPickupDate}
         busySpans={busySpans}
         availability={availability}
         startDate={startDate}
@@ -413,8 +446,16 @@ export default function LiffBooking({
         months={1}
       />
 
+      {minLeadHours > 0 && (
+        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5 leading-relaxed">
+          {leadTimeShort(minLeadHours)} — ทีมงานต้องเตรียมรถและจัดคิวคนไปส่งก่อน
+          <br />
+          {URGENT_LINE}
+        </p>
+      )}
+
       {/* เลือกจากปฏิทินด้านบน หรือกรอกวันตรงนี้ก็ได้ */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="sd">
             วันรับรถ
@@ -423,7 +464,7 @@ export default function LiffBooking({
             id="sd"
             type="date"
             value={startDate}
-            min={todayStr}
+            min={minPickupDate}
             onChange={(e) => {
               const v = e.target.value;
               setStartDate(v);
@@ -440,7 +481,7 @@ export default function LiffBooking({
             id="ed"
             type="date"
             value={endDate}
-            min={startDate || todayStr}
+            min={startDate || minPickupDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="w-full rounded-xl bg-white border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
@@ -497,7 +538,7 @@ export default function LiffBooking({
       </div>
 
       {pickupPoints.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="pp">
               จุดรับรถ
@@ -591,6 +632,8 @@ export default function LiffBooking({
         </div>
       )}
 
+      {/* ปุ่มยืนยันติดขอบล่าง — จอ LIFF เตี้ย เดิมต้องไถลงไปหาปุ่มเอง */}
+      <div className="sticky bottom-0 -mx-4 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-slate-50 via-slate-50 to-transparent">
       <button
         onClick={handleSubmit}
         disabled={submitting || !startDate || !endDate}
@@ -606,6 +649,30 @@ export default function LiffBooking({
           ? "ส่งคำขอจอง"
           : "ยืนยันการจอง"}
       </button>
+      </div>
     </div>
   );
+}
+
+/** แปล error ดิบจาก API เป็นข้อความไทยที่ลูกค้าอ่านแล้วรู้ว่าต้องทำอะไรต่อ */
+function thaiError(raw: unknown, status: number): string {
+  const text = typeof raw === "string" ? raw : "";
+  const map: Record<string, string> = {
+    "invalid id token": "เซสชัน LINE หมดอายุ กรุณาปิดหน้านี้แล้วเปิดใหม่จากแชท",
+    "id token expired": "เซสชัน LINE หมดอายุ กรุณาปิดหน้านี้แล้วเปิดใหม่จากแชท",
+    "car not found": "ไม่พบรถคันนี้แล้ว อาจถูกปิดการจองไป กรุณาเลือกคันอื่น",
+    "car unavailable": "รถคันนี้ถูกจองในช่วงเวลาที่เลือกไปแล้ว กรุณาเลือกวันใหม่",
+    "overlap": "ช่วงเวลาที่เลือกคาบกับการจองอื่น กรุณาเลือกใหม่",
+    "invalid phone": "เบอร์โทรไม่ถูกต้อง กรุณากรอกเบอร์ 10 หลัก",
+    "phone required": "กรุณากรอกเบอร์โทรเพื่อให้เราติดต่อกลับได้",
+    "invalid date": "วันที่ไม่ถูกต้อง กรุณาเลือกใหม่",
+  };
+  const hit = map[text.toLowerCase().trim()];
+  if (hit) return hit;
+  // ข้อความไทยจากเซิร์ฟเวอร์ส่งต่อได้เลย ส่วนอังกฤษดิบไม่ต้องโชว์ให้ลูกค้างง
+  if (text && /[\u0E00-\u0E7F]/.test(text)) return text;
+  if (status === 409) return "ช่วงเวลานี้เพิ่งถูกจองไป กรุณาเลือกวันใหม่";
+  if (status === 429) return "กดถี่เกินไป รอสักครู่แล้วลองใหม่อีกครั้ง";
+  if (status >= 500) return "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งใน 1-2 นาที";
+  return `จองไม่สำเร็จ กรุณาลองใหม่ (รหัส ${status})`;
 }

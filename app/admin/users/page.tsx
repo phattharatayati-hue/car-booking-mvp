@@ -8,6 +8,8 @@ import { requireDev } from "@/lib/roles";
 import { audit } from "@/lib/audit";
 import { revokeToken } from "@/lib/google-calendar";
 import AddAdminForm from "@/components/AddAdminForm";
+import ActionButton from "@/components/ActionButton";
+import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
 
 type AdminRow = {
   id: string;
@@ -311,10 +313,10 @@ export default async function AdminUsersPage({
 
       {flash && (
         <div
+          role="alert"
+          aria-live={flash.tone === "ok" ? "polite" : "assertive"}
           className={`mb-6 text-sm px-4 py-3 rounded-xl border ${
-            flash.tone === "ok"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
+            flash.tone === "ok" ? NOTICE.ok : NOTICE.error
           }`}
         >
           {flash.text}
@@ -384,17 +386,25 @@ export default async function AdminUsersPage({
                   {admin.lineUserId && (
                     <form action={unlinkLineAction}>
                       <input type="hidden" name="id" value={admin.id} />
-                      <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+                      <ActionButton
+                        className={BTN.ghost}
+                        pendingText="กำลังตัด…"
+                        confirm={`ตัดการผูก LINE ของ ${admin.name}\nเขาจะไม่ได้รับการ์ดงานทาง LINE จนกว่าจะผูกใหม่\n\nยืนยันหรือไม่?`}
+                      >
                         ตัดการผูก LINE
-                      </button>
+                      </ActionButton>
                     </form>
                   )}
                   {admin.googleConnectedAt && (
                     <form action={disconnectCalendarAction}>
                       <input type="hidden" name="id" value={admin.id} />
-                      <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
+                      <ActionButton
+                        className={BTN.ghost}
+                        pendingText="กำลังตัด…"
+                        confirm={`ตัดการเชื่อมปฏิทินของ ${admin.name}\nงานที่มอบหมายจะไม่ขึ้นใน Google Calendar อีก\n\nยืนยันหรือไม่?`}
+                      >
                         ตัดการเชื่อมปฏิทิน
-                      </button>
+                      </ActionButton>
                     </form>
                   )}
                 </div>
@@ -417,9 +427,13 @@ export default async function AdminUsersPage({
                       <option value="ADMIN">แอดมิน — เข้าหลังบ้านได้ทั้งหมด</option>
                       <option value="DRIVER">คนรับ-ส่งรถ — เห็นแค่คิวงานใน LINE</option>
                     </select>
-                    <button className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                    <ActionButton
+                      className={BTN.ghost}
+                      pendingText="กำลังบันทึก…"
+                      confirm={`เปลี่ยนประเภทบัญชีของ ${admin.name}\nสิทธิ์เข้าหน้าหลังบ้านจะเปลี่ยนทันที\n\nยืนยันหรือไม่?`}
+                    >
                       บันทึกประเภท
-                    </button>
+                    </ActionButton>
                   </div>
                   <p className="text-xs text-slate-400 mt-2 leading-relaxed">
                     เปลี่ยนเป็นคนรับ-ส่งรถแล้วจะเข้าหลังบ้านไม่ได้ทันที เหลือแค่หน้าบัญชีของฉัน ·
@@ -446,9 +460,13 @@ export default async function AdminUsersPage({
                 {!isSelf && admins.length > 1 && (
                   <form action={deleteAdminAction} className="ml-auto">
                     <input type="hidden" name="id" value={admin.id} />
-                    <button className="px-3.5 py-2 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                    <ActionButton
+                      className={BTN.danger}
+                      pendingText="กำลังลบ…"
+                      confirm={CONFIRM.del(`บัญชี ${admin.name} (${admin.email})`)}
+                    >
                       ลบแอดมิน
-                    </button>
+                    </ActionButton>
                   </form>
                 )}
               </div>

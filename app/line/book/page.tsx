@@ -144,6 +144,7 @@ export default async function LineBookPage({
           liffId={liffId}
           pickupPoints={pickupPoints}
           lateRule={lateRuleFromSettings(settings)}
+          minLeadHours={settings.minLeadHours}
         />
       </div>
     </div>

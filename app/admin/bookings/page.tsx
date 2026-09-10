@@ -21,6 +21,8 @@ import {
 } from "@/lib/documents";
 import { STATUS_LABEL, STATUS_CLASS } from "@/lib/booking-status";
 import AssignmentBox from "@/components/AssignmentBox";
+import ActionButton from "@/components/ActionButton";
+import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
 
 type BookingRow = {
   id: string;
@@ -155,6 +157,17 @@ async function approveDocumentAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
+/** เหตุผลไม่ผ่านที่ใช้บ่อย — เลือกได้เลยจะได้ไม่ต้องพิมพ์ใหม่ทุกครั้ง และข้อความถึงลูกค้าจะเหมือนกันทุกคน */
+export const REJECT_REASONS = [
+  "รูปไม่ชัด กรุณาถ่ายใหม่",
+  "รูปมืดเกินไป มองตัวหนังสือไม่ออก",
+  "ถ่ายไม่ครบทั้งใบ ขอบเอกสารขาด",
+  "เอกสารหมดอายุแล้ว",
+  "ส่งผิดประเภทเอกสาร",
+  "ชื่อในเอกสารไม่ตรงกับชื่อผู้จอง",
+  "อื่น ๆ",
+] as const;
+
 /** แอดมินกดไม่ผ่าน พร้อมบอกเหตุผลให้ลูกค้าส่งใหม่ได้ถูก */
 async function rejectDocumentAction(formData: FormData) {
   "use server";
@@ -162,13 +175,15 @@ async function rejectDocumentAction(formData: FormData) {
   if (!session?.user) redirect("/login");
 
   const id = String(formData.get("documentId") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
+  const preset = String(formData.get("reason") ?? "").trim();
+  const other = String(formData.get("reasonOther") ?? "").trim();
+  const reason = preset === "อื่น ๆ" ? other : preset || other;
 
   const doc = await prisma.bookingDocument.update({
     where: { id },
     data: {
       status: "REJECTED",
-      rejectReason: reason || "รูปไม่ชัด กรุณาถ่ายใหม่",
+      rejectReason: reason || REJECT_REASONS[0],
       reviewedBy: session.user.email ?? null,
       reviewedAt: new Date(),
     },
@@ -328,8 +343,11 @@ async function cancelBookingAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
+const PAGE_SIZE = 20;
+
 const FILTERS = [
   { key: "all", label: "ทั้งหมด" },
+  { key: "todo", label: "ต้องทำ" },
   { key: "REQUESTED", label: "คำขอรอเช็ค" },
   { key: "PENDING_DEPOSIT", label: "รอตรวจสลิป" },
   { key: "CONFIRMED", label: "ยืนยันแล้ว" },
@@ -367,17 +385,55 @@ const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    ok?: string;
+    error?: string;
+    q?: string;
+    page?: string;
+    sort?: string;
+  }>;
 }) {
   await requireStaff();
 
-  const { status, ok, error } = await searchParams;
+  const { status, ok, error, q, page, sort } = await searchParams;
   const flash = FLASH[ok ?? ""] ?? FLASH[error ?? ""];
   const active = status && status !== "all" ? status : null;
+  const term = (q ?? "").trim();
+  const byUrgency = sort === "urgent";
+  const pageNo = Math.max(1, Number(page) || 1);
+
+  // "ต้องทำ" = งานที่ค้างอยู่ที่แอดมิน ไม่ใช่สถานะเดียวใน DB
+  const statusWhere =
+    active === "todo"
+      ? { status: { in: ["REQUESTED", "PENDING_DEPOSIT"] as never[] } }
+      : active
+      ? { status: active as never }
+      : {};
+
+  // ค้นหาได้จาก ชื่อ/เบอร์ลูกค้า, ทะเบียนรถ หรือรหัสจอง 8 ตัวหน้า
+  const searchWhere = term
+    ? {
+        OR: [
+          { id: { startsWith: term.toLowerCase() } },
+          { customer: { fullName: { contains: term, mode: "insensitive" as const } } },
+          { customer: { phone: { contains: term.replace(/\D/g, "") } } },
+          { car: { licensePlate: { contains: term, mode: "insensitive" as const } } },
+        ],
+      }
+    : {};
+
+  const where = { AND: [statusWhere, searchWhere] };
+
+  const total = await prisma.booking.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const current = Math.min(pageNo, pageCount);
 
   const bookings = await prisma.booking.findMany({
-    where: active ? { status: active as never } : {},
-    orderBy: { createdAt: "desc" },
+    where,
+    orderBy: byUrgency ? { startDate: "asc" } : { createdAt: "desc" },
+    skip: (current - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
     include: {
       car: { include: { partner: true } },
       customer: true,
@@ -406,7 +462,10 @@ export default async function AdminBookingsPage({
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">รายการจอง</h1>
         <p className="text-slate-500 text-sm mt-1">
-          พบ {bookings.length} รายการ
+          พบ {total.toLocaleString()} รายการ
+          {pageCount > 1 && (
+            <span className="text-slate-400"> · หน้า {current}/{pageCount}</span>
+          )}
           {requestCount > 0 && (
             <span className="ml-2 text-violet-700 font-medium">
               · มีคำขอรอเช็ค {requestCount} รายการ
@@ -415,13 +474,55 @@ export default async function AdminBookingsPage({
         </p>
       </div>
 
+      {/* ค้นหา + เรียงลำดับ — เดิมต้องไถหาเองทั้งหน้า */}
+      <form method="get" className="flex flex-wrap gap-2 mb-4">
+        {active && <input type="hidden" name="status" value={active} />}
+        <label htmlFor="booking-search" className="sr-only">
+          ค้นหาการจอง
+        </label>
+        <input
+          id="booking-search"
+          name="q"
+          defaultValue={term}
+          placeholder="ค้นหา ชื่อ / เบอร์ / ทะเบียน / รหัสจอง"
+          className="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+        />
+        <label htmlFor="booking-sort" className="sr-only">
+          เรียงลำดับ
+        </label>
+        <select
+          id="booking-sort"
+          name="sort"
+          defaultValue={byUrgency ? "urgent" : "new"}
+          className="rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm"
+        >
+          <option value="new">เรียง: จองล่าสุดก่อน</option>
+          <option value="urgent">เรียง: ใกล้ถึงวันรับรถก่อน</option>
+        </select>
+        <button type="submit" className={BTN.primary}>
+          ค้นหา
+        </button>
+        {(term || byUrgency) && (
+          <Link
+            href={active ? `/admin/bookings?status=${active}` : "/admin/bookings"}
+            className={BTN.ghost}
+          >
+            ล้าง
+          </Link>
+        )}
+      </form>
+
       <div className="flex flex-wrap gap-2 mb-6">
         {FILTERS.map((f) => {
           const isActive = (status ?? "all") === f.key;
           return (
             <Link
               key={f.key}
-              href={f.key === "all" ? "/admin/bookings" : `/admin/bookings?status=${f.key}`}
+              href={`/admin/bookings?${new URLSearchParams({
+                ...(f.key === "all" ? {} : { status: f.key }),
+                ...(term ? { q: term } : {}),
+                ...(byUrgency ? { sort: "urgent" } : {}),
+              }).toString()}`}
               className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 isActive
                   ? "bg-blue-600 border-blue-600 text-white"
@@ -436,10 +537,10 @@ export default async function AdminBookingsPage({
 
       {flash && (
         <div
+          role="alert"
+          aria-live="polite"
           className={`mb-5 text-sm px-4 py-3 rounded-xl border flex items-start gap-2.5 ${
-            flash.tone === "ok"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : "bg-red-50 border-red-200 text-red-800"
+            flash.tone === "ok" ? NOTICE.ok : NOTICE.error
           }`}
         >
           <span className="shrink-0 mt-0.5">{flash.tone === "ok" ? "✓" : "!"}</span>
@@ -464,6 +565,9 @@ export default async function AdminBookingsPage({
                     </h3>
                     <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                       {b.car.licensePlate}
+                    </span>
+                    <span className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                      #{b.id.slice(0, 8).toUpperCase()}
                     </span>
                   </div>
                   <p className="text-sm text-slate-600 mt-1.5">
@@ -551,15 +655,23 @@ export default async function AdminBookingsPage({
                         placeholder="บันทึกภายใน (ไม่บังคับ)"
                         className="flex-1 min-w-[180px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm"
                       />
-                      <button className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm shadow-emerald-600/25 transition-colors">
+                      <ActionButton
+                        className={BTN.ok}
+                        pendingText="กำลังแจ้ง…"
+                        confirm={CONFIRM.sendLine("ข้อความยืนยันรถว่างพร้อมยอดค่าจอง")}
+                      >
                         รถว่าง — แจ้งลูกค้าโอนค่าจอง
-                      </button>
+                      </ActionButton>
                     </form>
                     <form action={rejectRequestAction}>
                       <input type="hidden" name="bookingId" value={b.id} />
-                      <button className="text-sm font-semibold bg-white border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl transition-colors">
+                      <ActionButton
+                        className={BTN.danger}
+                        pendingText="กำลังแจ้ง…"
+                        confirm={CONFIRM.sendLine("ข้อความแจ้งว่ารถไม่ว่าง")}
+                      >
                         รถไม่ว่าง
-                      </button>
+                      </ActionButton>
                     </form>
                   </div>
                 </div>
@@ -640,29 +752,42 @@ export default async function AdminBookingsPage({
                         {status !== "APPROVED" && (
                           <form action={approveDocumentAction} className="mt-2">
                             <input type="hidden" name="documentId" value={doc.id} />
-                            <button
-                              type="submit"
-                              className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
-                            >
+                            <ActionButton className={BTN.smOk} pendingText="กำลังบันทึก…">
                               ผ่าน
-                            </button>
+                            </ActionButton>
                           </form>
                         )}
 
                         {status !== "REJECTED" && (
                           <form action={rejectDocumentAction} className="mt-2 flex flex-col gap-2">
                             <input type="hidden" name="documentId" value={doc.id} />
-                            <input
+                            <label htmlFor={`reason-${doc.id}`} className="sr-only">
+                              เหตุผลที่ไม่ผ่าน
+                            </label>
+                            <select
+                              id={`reason-${doc.id}`}
                               name="reason"
-                              placeholder="เหตุผล เช่น รูปเบลอ"
+                              defaultValue={REJECT_REASONS[0]}
+                              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:border-red-400"
+                            >
+                              {REJECT_REASONS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              name="reasonOther"
+                              placeholder="ถ้าเลือกอื่น ๆ พิมพ์เหตุผลตรงนี้"
                               className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:outline-none focus:border-red-400"
                             />
-                            <button
-                              type="submit"
-                              className="w-full py-1.5 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold transition-colors"
+                            <ActionButton
+                              className={BTN.smDanger}
+                              pendingText="กำลังแจ้ง…"
+                              confirm={CONFIRM.sendLine("ข้อความแจ้งว่าเอกสารไม่ผ่าน")}
                             >
                               ไม่ผ่าน
-                            </button>
+                            </ActionButton>
                           </form>
                         )}
                       </div>
@@ -718,15 +843,23 @@ export default async function AdminBookingsPage({
                     <div className="flex gap-2 sm:ml-auto">
                       <form action={confirmDepositAction}>
                         <input type="hidden" name="bookingId" value={b.id} />
-                        <button className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl shadow-sm shadow-emerald-600/25 transition-colors">
+                        <ActionButton
+                          className={BTN.ok}
+                          pendingText="กำลังยืนยัน…"
+                          confirm={"ยืนยันว่าได้รับค่าจองแล้ว\nสถานะการจองจะเปลี่ยนเป็นยืนยันแล้ว\n\nยืนยันหรือไม่?"}
+                        >
                           ยืนยันค่าจอง
-                        </button>
+                        </ActionButton>
                       </form>
                       <form action={rejectDepositAction}>
                         <input type="hidden" name="bookingId" value={b.id} />
-                        <button className="text-sm font-semibold bg-white border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl transition-colors">
+                        <ActionButton
+                          className={BTN.danger}
+                          pendingText="กำลังแจ้ง…"
+                          confirm={CONFIRM.sendLine("ข้อความแจ้งว่าสลิปไม่ผ่าน")}
+                        >
                           ปฏิเสธ
-                        </button>
+                        </ActionButton>
                       </form>
                     </div>
                   )}
@@ -757,9 +890,13 @@ export default async function AdminBookingsPage({
                 <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
                   <form action={cancelBookingAction}>
                     <input type="hidden" name="bookingId" value={b.id} />
-                    <button className="text-xs text-slate-400 hover:text-red-600 transition-colors">
+                    <ActionButton
+                      className="min-h-0 text-xs text-slate-400 hover:text-red-600 underline underline-offset-4 transition-colors disabled:opacity-60"
+                      pendingText="กำลังยกเลิก…"
+                      confirm={CONFIRM.cancelBooking}
+                    >
                       ยกเลิกการจองนี้
-                    </button>
+                    </ActionButton>
                   </form>
                 </div>
               )}
@@ -769,10 +906,46 @@ export default async function AdminBookingsPage({
 
         {bookings.length === 0 && (
           <div className="bg-white border border-dashed border-slate-300 rounded-2xl py-20 text-center">
-            <p className="text-slate-500">ไม่มีรายการจองในหมวดนี้</p>
+            <p className="text-slate-500">
+              {term ? `ไม่พบรายการที่ตรงกับ "${term}"` : "ไม่มีรายการจองในหมวดนี้"}
+            </p>
           </div>
         )}
       </div>
+
+      {pageCount > 1 && (
+        <nav
+          aria-label="แบ่งหน้ารายการจอง"
+          className="mt-6 flex items-center justify-center gap-3"
+        >
+          {[
+            { to: current - 1, label: "← ก่อนหน้า", show: current > 1 },
+            { to: current + 1, label: "ถัดไป →", show: current < pageCount },
+          ].map((btn) =>
+            btn.show ? (
+              <Link
+                key={btn.label}
+                href={`/admin/bookings?${new URLSearchParams({
+                  ...(active ? { status: active } : {}),
+                  ...(term ? { q: term } : {}),
+                  ...(byUrgency ? { sort: "urgent" } : {}),
+                  page: String(btn.to),
+                }).toString()}`}
+                className={BTN.ghost}
+              >
+                {btn.label}
+              </Link>
+            ) : (
+              <span key={btn.label} className={`${BTN.ghost} opacity-40 pointer-events-none`}>
+                {btn.label}
+              </span>
+            )
+          )}
+          <span className="text-sm text-slate-500">
+            หน้า {current} / {pageCount}
+          </span>
+        </nav>
+      )}
     </div>
   );
 }

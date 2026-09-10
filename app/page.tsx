@@ -405,7 +405,7 @@ function SectionHead({
       {action && (
         <Link
           href={action.href}
-          className="hidden sm:inline-flex items-center gap-1.5 shrink-0 px-4 py-2.5 rounded-full border border-slate-300 text-sm font-semibold text-slate-700 hover:border-blue-600 hover:text-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 shrink-0 px-5 py-3 rounded-full border border-slate-300 text-sm font-semibold text-slate-700 hover:border-blue-600 hover:text-blue-700 transition-colors"
         >
           {action.label}
         </Link>

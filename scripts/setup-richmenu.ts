@@ -19,9 +19,16 @@ const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://car-booking-mvp.verce
   /\/$/,
   ""
 );
+// เบอร์ร้าน — ตอนนี้เมนูไม่มีปุ่มโทรตรงแล้ว แต่เก็บไว้เผื่อเพิ่มกลับ
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PHONE = process.env.SHOP_PHONE ?? "053000000";
 
-const IMAGE_PATH = path.join(__dirname, "richmenu.png");
+/* รูปเมนู — LINE รับได้ทั้ง .jpg และ .png ขนาดไม่เกิน 1 MB
+   ใช้ .jpg เป็นหลักเพราะรูปแบบภาพถ่าย/ภาพวาดบีบเป็น PNG แล้วเกิน 1 MB */
+const IMAGE_PATH = ["richmenu.jpg", "richmenu.png"]
+  .map((f) => path.join(__dirname, f))
+  .find((f) => fs.existsSync(f)) ?? path.join(__dirname, "richmenu.jpg");
+const IMAGE_TYPE = IMAGE_PATH.endsWith(".png") ? "image/png" : "image/jpeg";
 
 /** ขนาดมาตรฐานของ LINE: 2500 x 1686 แบ่ง 3 คอลัมน์ 2 แถว */
 const W = 2500;
@@ -49,16 +56,16 @@ const richMenu = {
       bounds: cell(2, 0),
       action: { type: "message", label: "เช็คสถานะ", text: "เช็คสถานะ" },
     },
-    // แถวล่าง
+    // แถวล่าง — เรียงตามรูป: ค่าปรับ · วิธีการจอง · ติดต่อเรา
+    { bounds: cell(0, 1), action: { type: "uri", label: "ค่าปรับ", uri: `${SITE}/fees` } },
     {
-      bounds: cell(0, 1),
+      bounds: cell(1, 1),
       action: { type: "uri", label: "วิธีการจอง", uri: `${SITE}/how-to-book` },
     },
     {
-      bounds: cell(1, 1),
+      bounds: cell(2, 1),
       action: { type: "message", label: "ติดต่อเรา", text: "ติดต่อแอดมิน" },
     },
-    { bounds: cell(2, 1), action: { type: "uri", label: "โทรหาเรา", uri: `tel:${PHONE}` } },
   ],
 };
 
@@ -69,7 +76,7 @@ async function main() {
   }
   if (!fs.existsSync(IMAGE_PATH)) {
     console.error(`ไม่พบไฟล์รูป: ${IMAGE_PATH}`);
-    console.error("รัน  python3 scripts/make-richmenu-image.py  ก่อน");
+    console.error("วางไฟล์ scripts/richmenu.jpg ขนาด 2500x1686 ไม่เกิน 1 MB ก่อน");
     process.exit(1);
   }
 
@@ -109,7 +116,7 @@ async function main() {
     `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
     {
       method: "POST",
-      headers: { ...auth, "Content-Type": "image/png" },
+      headers: { ...auth, "Content-Type": IMAGE_TYPE },
       body: new Uint8Array(image),
     }
   );

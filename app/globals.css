@@ -440,3 +440,56 @@ html[data-theme="dark"] .hero-veil {
     animation: none;
   }
 }
+
+/* ───────────────────────────────────────────────────────────
+   ตอนสั่งพิมพ์ — ใช้กับหน้าตารางรับ-ส่งรถที่แปะไว้หน้าร้าน
+   ใส่ class "no-print" กับอะไรที่ไม่ควรติดไปบนกระดาษ
+   ─────────────────────────────────────────────────────────── */
+@media print {
+  .no-print,
+  nav,
+  header,
+  footer {
+    display: none !important;
+  }
+
+  /* พิมพ์ด้วยหมึกน้อยที่สุด และบังคับโทนสว่างเสมอ ไม่ว่าจอจะตั้งโหมดมืดไว้ */
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* ตารางบนจอเล็กซ่อนไว้ แต่เวลาพิมพ์ขอใช้ตารางเสมอ อ่านง่ายกว่าการ์ด */
+  .hidden.lg\:block {
+    display: block !important;
+  }
+  .lg\:hidden {
+    display: none !important;
+  }
+
+  /* ไม่ให้แถวขาดคาหน้ากระดาษ */
+  tr,
+  section,
+  li {
+    break-inside: avoid;
+  }
+
+  table {
+    width: 100% !important;
+    font-size: 11pt;
+  }
+
+  /* เงาและขอบมนไม่มีความหมายบนกระดาษ */
+  * {
+    box-shadow: none !important;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

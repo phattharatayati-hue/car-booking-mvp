@@ -16,6 +16,11 @@ import {
   STATUS_STYLE,
   type ScheduleRow,
 } from "@/lib/schedule";
+import { markJobAction } from "./actions";
+import ActionButton from "@/components/ActionButton";
+import AutoRefresh from "@/components/AutoRefresh";
+import PrintButton from "@/components/PrintButton";
+import { NOTICE } from "@/lib/ui";
 
 /**
  * กระดานคิวรับ-ส่งรายวัน
@@ -29,7 +34,7 @@ import {
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string; m?: string }>;
+  searchParams: Promise<{ d?: string; m?: string; ok?: string; error?: string }>;
 }) {
   const me = await currentAdmin();
   if (!me) redirect("/login");
@@ -56,6 +61,10 @@ export default async function SchedulePage({
 
   const tomorrow = bangkokDateStr(new Date(Date.now() + 86400000));
 
+  // ลิงก์กลับมาหน้าเดิมหลังเปลี่ยนสถานะ จะได้ไม่เด้งไปวันนี้ทุกครั้ง
+  const back = monthly ? `/admin/schedule?m=${month}` : `/admin/schedule?d=${date}`;
+  const flash = FLASH[sp.ok ?? ""] ?? FLASH[sp.error ?? ""];
+
   return (
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
@@ -72,16 +81,20 @@ export default async function SchedulePage({
           </p>
         </div>
 
-        <a
-          href={
-            monthly
-              ? `/api/admin/schedule.csv?m=${month}`
-              : `/api/admin/schedule.csv?d=${date}`
-          }
-          className="btn rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-        >
-          ดาวน์โหลด CSV
-        </a>
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <AutoRefresh seconds={60} />
+          <PrintButton />
+          <a
+            href={
+              monthly
+                ? `/api/admin/schedule.csv?m=${month}`
+                : `/api/admin/schedule.csv?d=${date}`
+            }
+            className="btn rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            ดาวน์โหลด CSV
+          </a>
+        </div>
       </div>
 
       {/* ตัวเลขสรุปของวัน */}
@@ -98,7 +111,7 @@ export default async function SchedulePage({
       </div>
 
       {/* เลือกวัน */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      <div className="no-print flex flex-wrap items-center gap-2 mb-5">
         <DayLink href={`/admin/schedule`} active={!monthly && date === today}>
           วันนี้
         </DayLink>
@@ -131,6 +144,18 @@ export default async function SchedulePage({
         </form>
       </div>
 
+      {flash && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className={`no-print mb-5 text-sm px-4 py-3 rounded-xl border ${
+            flash.tone === "ok" ? NOTICE.ok : NOTICE.error
+          }`}
+        >
+          {flash.text}
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500">
           {monthly ? "ไม่มีคิวรับ-ส่งรถในเดือนนี้" : "ไม่มีคิวรับ-ส่งรถในวันนี้"}
@@ -153,15 +178,15 @@ export default async function SchedulePage({
                   )}
                 </span>
               </div>
-              <JobTable rows={d.rows} />
-              <JobCards rows={d.rows} />
+              <JobTable rows={d.rows} back={back} />
+              <JobCards rows={d.rows} back={back} />
             </section>
           ))}
         </div>
       ) : (
         <>
-          <JobTable rows={rows} />
-          <JobCards rows={rows} />
+          <JobTable rows={rows} back={back} />
+          <JobCards rows={rows} back={back} />
         </>
       )}
     </div>
@@ -169,7 +194,7 @@ export default async function SchedulePage({
 }
 
 /** ตารางสำหรับจอใหญ่ */
-function JobTable({ rows }: { rows: ScheduleRow[] }) {
+function JobTable({ rows, back }: { rows: ScheduleRow[]; back: string }) {
   return (
     <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <table className="w-full text-sm">
@@ -184,6 +209,7 @@ function JobTable({ rows }: { rows: ScheduleRow[] }) {
             <Th>สถานะ</Th>
             <Th>คนรับผิดชอบ</Th>
             <Th>หมายเหตุ</Th>
+            <Th className="no-print">เปลี่ยนสถานะ</Th>
           </tr>
         </thead>
         <tbody>
@@ -236,6 +262,9 @@ function JobTable({ rows }: { rows: ScheduleRow[] }) {
                   )}
                 </Td>
                 <Td className="text-slate-500">{r.note ?? "-"}</Td>
+                <Td className="no-print">
+                  <MarkButtons row={r} back={back} />
+                </Td>
               </tr>
             );
           })}
@@ -246,7 +275,7 @@ function JobTable({ rows }: { rows: ScheduleRow[] }) {
 }
 
 /** การ์ดสำหรับจอเล็ก — ตารางเก้าคอลัมน์ใช้บนมือถือไม่ได้ */
-function JobCards({ rows }: { rows: ScheduleRow[] }) {
+function JobCards({ rows, back }: { rows: ScheduleRow[]; back: string }) {
   return (
     <ul className="lg:hidden flex flex-col gap-3">
       {rows.map((r) => {
@@ -295,6 +324,10 @@ function JobCards({ rows }: { rows: ScheduleRow[] }) {
               </Row>
               {r.note && <Row label="หมายเหตุ">{r.note}</Row>}
             </dl>
+
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <MarkButtons row={r} back={back} />
+            </div>
           </li>
         );
       })}
@@ -342,8 +375,77 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="text-left font-medium px-4 py-3 whitespace-nowrap">{children}</th>;
+function Th({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th className={`text-left font-medium px-4 py-3 whitespace-nowrap ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+/** ข้อความยืนยันหลังเปลี่ยนสถานะจากหน้านี้ */
+const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
+  acked: { text: "บันทึกว่ารับทราบงานแล้ว", tone: "ok" },
+  done: { text: "ปิดงานเรียบร้อยแล้ว", tone: "ok" },
+  reset: { text: "ย้อนสถานะกลับเป็นรอรับทราบแล้ว", tone: "ok" },
+  mark: { text: "ข้อมูลไม่ครบ กรุณาลองใหม่", tone: "error" },
+  notfound: { text: "ไม่พบงานนี้ — อาจถูกถอนไปแล้ว", tone: "error" },
+  forbidden: { text: "แก้ได้เฉพาะงานของตัวเองเท่านั้น", tone: "error" },
+};
+
+/**
+ * ปุ่มเปลี่ยนสถานะงานจากหน้าเว็บ — สำรองไว้ให้ตอนคนรับ-ส่งลืมกดในแชท LINE
+ * งานที่ยังไม่มีคนรับเปลี่ยนสถานะไม่ได้ ต้องไปมอบหมายก่อน
+ */
+function MarkButtons({ row, back }: { row: ScheduleRow; back: string }) {
+  if (!row.assignmentId) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+  const st = rowStatus(row);
+  return (
+    <form action={markJobAction} className="flex flex-wrap gap-1.5">
+      <input type="hidden" name="assignmentId" value={row.assignmentId} />
+      <input type="hidden" name="back" value={back} />
+      {st === "waiting" && (
+        <ActionButton
+          name="to"
+          value="acked"
+          pendingText="…"
+          className="min-h-0 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+        >
+          รับทราบ
+        </ActionButton>
+      )}
+      {st !== "done" && (
+        <ActionButton
+          name="to"
+          value="done"
+          pendingText="…"
+          confirm={`ปิดงาน ${HANDOFF_LABEL[row.kind]} เวลา ${formatBangkokTime(row.at)} น.\nของ ${row.customerName}\n\nยืนยันหรือไม่?`}
+          className="min-h-0 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold disabled:opacity-60"
+        >
+          ปิดงาน
+        </ActionButton>
+      )}
+      {st !== "waiting" && (
+        <ActionButton
+          name="to"
+          value="reset"
+          pendingText="…"
+          confirm="ย้อนสถานะงานนี้กลับเป็นรอรับทราบ\n\nยืนยันหรือไม่?"
+          className="min-h-0 text-xs px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-red-600 disabled:opacity-60"
+        >
+          ย้อนสถานะ
+        </ActionButton>
+      )}
+    </form>
+  );
 }
 
 function Td({

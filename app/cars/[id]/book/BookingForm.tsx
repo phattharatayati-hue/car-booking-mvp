@@ -19,6 +19,14 @@ import {
   type CarRateView,
 } from "@/lib/car-rates";
 import {
+  DEFAULT_LEAD_HOURS,
+  earliestPickupDateStr,
+  isTooSoon,
+  leadTimeShort,
+  leadTimeNote,
+  leadTimeMessage,
+} from "@/lib/booking-rules";
+import {
   timeChoicesFor,
   firstFreeTime,
   rangeBusy,
@@ -40,6 +48,7 @@ export default function BookingForm({
   availability,
   pickupPoints,
   lateRule = DEFAULT_LATE_RULE,
+  minLeadHours = DEFAULT_LEAD_HOURS,
   defaultName = "",
   defaultPhone = "",
   defaultEmail = "",
@@ -53,6 +62,8 @@ export default function BookingForm({
   isRequest?: boolean;
   /** กติกาค่าคืนรถล่าช้า — มาจากหน้าตั้งค่าระบบ */
   lateRule?: LateRule;
+  /** ต้องจองล่วงหน้ากี่ชั่วโมง — มาจากหน้าตั้งค่าระบบ (0 = ไม่บังคับ) */
+  minLeadHours?: number;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
   /* เติมให้อัตโนมัติเมื่อลูกค้าเข้าสู่ระบบไว้แล้ว — ยังแก้ไขได้ทุกช่อง */
@@ -63,6 +74,10 @@ export default function BookingForm({
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* วันแรกที่จองได้ตามกฎจองล่วงหน้า — คำนวณครั้งเดียวตอนเปิดหน้า
+     ถ้าผู้ใช้เปิดหน้าค้างไว้ข้ามคืน ฝั่งเซิร์ฟเวอร์ยังตรวจซ้ำให้อยู่ดี */
+  const minPickupDate = earliestPickupDateStr(minLeadHours);
+
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
@@ -145,6 +160,12 @@ export default function BookingForm({
       return;
     }
 
+    if (isTooSoon(new Date(`${startDate}T${startTime}:00+07:00`), minLeadHours)) {
+      setError(leadTimeMessage(minLeadHours));
+      setSubmitting(false);
+      return;
+    }
+
     if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
       setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
       setSubmitting(false);
@@ -210,7 +231,16 @@ export default function BookingForm({
 
       <section>
         <h2 className="text-sm font-semibold text-slate-900 mb-3">ช่วงเวลาเช่า</h2>
+
+        {/* บอกกฎก่อนที่ลูกค้าจะเสียเวลาเลือกวันที่จองไม่ได้ */}
+        {minLeadHours > 0 && (
+          <p className="mb-3 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 leading-relaxed">
+            {leadTimeNote(minLeadHours)}
+          </p>
+        )}
+
         <AvailabilityCalendar
+          minDate={minPickupDate}
           busySpans={busySpans}
           availability={availability}
           startDate={startDate}
@@ -226,7 +256,9 @@ export default function BookingForm({
 
         <p className="mt-3 text-sm text-slate-500">
           {!startDate
-            ? "กดเลือกวันรับรถบนปฏิทิน"
+            ? `กดเลือกวันรับรถบนปฏิทิน${
+                minLeadHours > 0 ? ` · ${leadTimeShort(minLeadHours)}` : ""
+              }`
             : !endDate
             ? "กดเลือกวันคืนรถอีกครั้ง"
             : `เลือกแล้ว ${startDate} ถึง ${endDate}`}

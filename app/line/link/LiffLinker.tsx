@@ -12,6 +12,9 @@ type State =
 
 const SDK_URL = "https://static.line-scdn.net/liff/edge/2/sdk.js";
 
+/** กันวนลูป login — จำไว้ว่าเพิ่งเด้งไปหน้า LINE มาแล้วรอบหนึ่ง */
+const LOGIN_ATTEMPT_KEY = "cb_liff_link_login";
+
 function loadSdk(): Promise<Liff> {
   return new Promise((resolve, reject) => {
     if (window.liff) return resolve(window.liff);
@@ -59,15 +62,32 @@ export default function LiffLinker({
         return;
       }
 
+      // กัน LINE ค้าง — เกิน 12 วินาทีถือว่าไม่สำเร็จ ดีกว่าหมุนค้างไม่จบ
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("เชื่อมต่อ LINE ไม่สำเร็จ (หมดเวลารอ)")), 12_000)
+      );
+
       try {
-        const liff = await loadSdk();
-        await liff.init({ liffId });
+        const liff = await Promise.race([loadSdk(), timeout]);
+        await Promise.race([liff.init({ liffId }), timeout]);
 
         if (!liff.isLoggedIn()) {
           // เด้งไปหน้า login ของ LINE แล้วกลับมาที่หน้านี้
+          // ถ้าเพิ่งเด้งไปแล้วยังไม่ล็อกอิน อย่าเด้งซ้ำ ไม่งั้นวนไม่จบ
+          if (sessionStorage.getItem(LOGIN_ATTEMPT_KEY)) {
+            sessionStorage.removeItem(LOGIN_ATTEMPT_KEY);
+            setState({
+              status: "error",
+              message: "เข้าสู่ระบบ LINE ไม่สำเร็จ กรุณาปิดหน้านี้แล้วเปิดใหม่จากแชท",
+            });
+            return;
+          }
+          sessionStorage.setItem(LOGIN_ATTEMPT_KEY, "1");
           liff.login({ redirectUri: window.location.href });
           return;
         }
+
+        sessionStorage.removeItem(LOGIN_ATTEMPT_KEY);
 
         const idToken = liff.getIDToken();
         if (!idToken) {
@@ -87,7 +107,11 @@ export default function LiffLinker({
         if (!res.ok || !data?.ok) {
           setState({
             status: "error",
-            message: data?.error ?? `ผูกบัญชีไม่สำเร็จ (${res.status})`,
+            message:
+              data?.error ??
+              (res.status >= 500
+                ? "ระบบขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งใน 1-2 นาที"
+                : `ผูกบัญชีไม่สำเร็จ กรุณาลองใหม่ (รหัส ${res.status})`),
           });
           return;
         }
@@ -118,7 +142,7 @@ export default function LiffLinker({
       )}
 
       {state.status === "success" && (
-        <>
+        <div role="status" aria-live="polite">
           <span className="w-14 h-14 rounded-2xl bg-emerald-500 text-white grid place-items-center mx-auto mb-5">
             <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7">
               <path
@@ -141,11 +165,11 @@ export default function LiffLinker({
           >
             กลับไปดูสถานะการจอง
           </Link>
-        </>
+        </div>
       )}
 
       {state.status === "error" && (
-        <>
+        <div role="alert" aria-live="assertive">
           <span className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 grid place-items-center mx-auto mb-5">
             <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7">
               <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
@@ -161,7 +185,7 @@ export default function LiffLinker({
           >
             กลับไปดูสถานะการจอง
           </Link>
-        </>
+        </div>
       )}
     </div>
   );

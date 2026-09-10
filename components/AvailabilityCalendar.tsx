@@ -42,6 +42,7 @@ export default function AvailabilityCalendar({
   onSelect,
   months = 2,
   busySpans = [],
+  minDate,
 }: {
   availability: Record<string, DayStatus>;
   startDate: string;
@@ -50,12 +51,18 @@ export default function AvailabilityCalendar({
   months?: number;
   /** ช่วงที่รถไม่ว่าง — ใช้บอกว่าวันที่เลือกติดช่วงไหน */
   busySpans?: BusySpan[];
+  /** วันแรกที่เลือกได้ ("YYYY-MM-DD") — ใช้กฎจองล่วงหน้าใน lib/booking-rules.ts
+      ไม่ส่งมาจะเลือกได้ตั้งแต่วันนี้ */
+  minDate?: string;
 }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [offset, setOffset] = useState(0);
 
   const todayStr = ymd(today);
+  /* วันที่เลือกได้จริง — ปกติคือวันนี้ แต่หน้าจองส่งวันที่เร็วที่สุดตามกฎจองล่วงหน้ามา
+     วันก่อนหน้านี้จะเป็นสีจาง กดไม่ได้ เหมือนวันที่ผ่านไปแล้ว */
+  const firstSelectable = minDate && minDate > todayStr ? minDate : todayStr;
 
   function statusOf(dateStr: string): DayStatus {
     return availability[dateStr] ?? "free";
@@ -71,7 +78,7 @@ export default function AvailabilityCalendar({
   }
 
   function handleClick(dateStr: string) {
-    if (statusOf(dateStr) === "full" || dateStr < todayStr) return;
+    if (statusOf(dateStr) === "full" || dateStr < firstSelectable) return;
 
     if (!startDate || (startDate && endDate)) {
       onSelect(dateStr, "");
@@ -279,7 +286,7 @@ export default function AvailabilityCalendar({
 
                     const dateStr = ymd(cell);
                     const status = statusOf(dateStr);
-                    const past = dateStr < todayStr;
+                    const past = dateStr < firstSelectable;
                     const isToday = dateStr === todayStr;
                     const disabled = past || status === "full";
 

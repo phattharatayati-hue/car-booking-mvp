@@ -182,6 +182,7 @@ export default async function JobDocumentsPage({
               <img
                 src={`${doc.fileUrl}&t=${encodeURIComponent(token)}`}
                 alt={DOCUMENT_LABEL[doc.kind as DocumentKind] ?? doc.kind}
+                data-no-dim
                 className="w-full h-auto bg-slate-100"
               />
             </figure>

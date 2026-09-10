@@ -34,6 +34,7 @@ import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
 
 const ACTIVE = ACTIVE_BOOKING_STATUSES;
 import { BANK_ACCOUNT } from "@/lib/contact";
+import { earliestPickup, leadTimeShort, URGENT_LINE } from "@/lib/booking-rules";
 
 const BANK_INFO = BANK_ACCOUNT;
 
@@ -113,14 +114,18 @@ async function handlePickCar(replyToken: string, lineUserId: string, carId: stri
 
   const busyText = formatBusyRanges(busy);
 
+  // กฎจองล่วงหน้าตั้งได้ที่ /admin/settings
+  const leadHours = (await getSettings()).minLeadHours;
+
   await replyRaw(replyToken, [
     { type: "text", text: `${car.brand} ${car.name}\n\n${busyText}` },
     datePicker({
       title: `${car.brand} ${car.name}`,
-      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนได้ทุกเวลา นอกเวลาทำการมีค่าบริการเพิ่ม)`,
+      description: `${car.pricePerDay.toLocaleString()} บาท/วัน\n\nเลือกวันและเวลาที่ต้องการรับรถ\n(รับ-คืนได้ทุกเวลา นอกเวลาทำการมีค่าบริการเพิ่ม)\n\n⏱ ${leadTimeShort(leadHours)}\n${URGENT_LINE}`,
       label: "เลือกวัน-เวลารับรถ",
       action: "pick_start",
-      min: pickerMin(new Date()),
+      // ปฏิทินใน LINE เปิดให้เลือกได้ตั้งแต่วันแรกที่จองได้จริง จะได้ไม่เลือกแล้วโดนปฏิเสธทีหลัง
+      min: pickerMin(earliestPickup(leadHours)),
     }),
   ]);
 }

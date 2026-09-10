@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createBooking } from "@/lib/create-booking";
 import { getProfileName } from "@/lib/line";
+import { toBangkokDate, getSettings } from "@/lib/settings";
+import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,36 @@ export async function POST(request: Request) {
 
     const name =
       existing?.fullName || (await getProfileName(lineUserId)) || "ลูกค้า LINE";
+
+    // กันกดจองซ้ำเป็นสองรายการ — เน็ตช้าแล้วลูกค้ากดย้ำ หรือ LIFF ส่งซ้ำเอง
+    // ถ้าคนเดิม รถคันเดิม ช่วงเวลาเดิม เพิ่งจองไปไม่เกิน 15 นาที ให้คืนรายการเดิมไปเลย
+    if (existing) {
+      const start = toBangkokDate(String(startDate), startTime);
+      const end = toBangkokDate(String(endDate), endTime);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        const dupe = await prisma.booking.findFirst({
+          where: {
+            carId,
+            customerId: existing.id,
+            startDate: start,
+            endDate: end,
+            status: { in: [...ACTIVE_BOOKING_STATUSES] },
+            createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          },
+          orderBy: { createdAt: "desc" },
+        });
+        if (dupe) {
+          console.log("line book: duplicate suppressed", { requestId: body.requestId, bookingId: dupe.id });
+          return NextResponse.json({
+            bookingId: dupe.id,
+            isRequest: dupe.status === "REQUESTED",
+            totalPrice: dupe.totalPrice,
+            deposit: (await getSettings()).bookingFee,
+            duplicate: true,
+          });
+        }
+      }
+    }
 
     const result = await createBooking({
       carId,

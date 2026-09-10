@@ -12,6 +12,7 @@ import {
 import { BANK_ACCOUNT } from "@/lib/contact";
 import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
+import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
 
 export type CreateBookingInput = {
   carId: string;
@@ -65,6 +66,10 @@ export async function createBooking(
   }
   if (start.getTime() < Date.now()) {
     return { ok: false, status: 400, error: "เลือกเวลารับรถย้อนหลังไม่ได้" };
+  }
+  // ต้องจองล่วงหน้า — กฎอยู่ที่ lib/booking-rules.ts ที่เดียว
+  if (isTooSoon(start, settings.minLeadHours)) {
+    return { ok: false, status: 400, error: leadTimeMessage(settings.minLeadHours) };
   }
   const car = await prisma.car.findUnique({
     where: { id: carId },

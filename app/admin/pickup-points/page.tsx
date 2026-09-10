@@ -6,6 +6,8 @@ import { audit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import ActionButton from "@/components/ActionButton";
+import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
 
 type PointRow = {
   id: string;
@@ -88,6 +90,13 @@ async function deletePointAction(formData: FormData) {
   redirect("/admin/pickup-points?ok=deleted");
 }
 
+/** ข้อความยืนยันหลังทำรายการ — เดิมขึ้นว่า "บันทึกเรียบร้อยแล้ว" เหมือนกันหมด แม้ตอนลบ */
+const OK_TEXT: Record<string, string> = {
+  added: "เพิ่มจุดรับ-ส่งใหม่เรียบร้อยแล้ว",
+  updated: "แก้ไขจุดรับ-ส่งเรียบร้อยแล้ว",
+  deleted: "ลบจุดรับ-ส่งเรียบร้อยแล้ว",
+};
+
 const ERRORS: Record<string, string> = {
   name: "กรุณากรอกชื่อจุดรับ-ส่ง",
   fee: "ค่าบริการต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
@@ -120,13 +129,21 @@ export default async function PickupPointsPage({
         </p>
       </div>
 
-      {ok && (
-        <div className="mb-5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl">
-          บันทึกเรียบร้อยแล้ว
+      {ok && OK_TEXT[ok] && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className={`mb-5 text-sm px-4 py-3 rounded-xl border ${NOTICE.ok}`}
+        >
+          {OK_TEXT[ok]}
         </div>
       )}
       {error && ERRORS[error] && (
-        <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className={`mb-5 text-sm px-4 py-3 rounded-xl border ${NOTICE.error}`}
+        >
           {ERRORS[error]}
         </div>
       )}
@@ -208,22 +225,20 @@ export default async function PickupPointsPage({
                 <form action={togglePointAction}>
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="isActive" value={String(p.isActive)} />
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
+                  <ActionButton className={BTN.ghost} pendingText="กำลังบันทึก…">
                     {p.isActive ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                  </button>
+                  </ActionButton>
                 </form>
 
                 <form action={deletePointAction}>
                   <input type="hidden" name="id" value={p.id} />
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-700 hover:bg-red-50 transition-colors"
+                  <ActionButton
+                    className={BTN.danger}
+                    pendingText="กำลังลบ…"
+                    confirm={CONFIRM.del(`จุดรับ-ส่ง "${p.name}"`)}
                   >
                     ลบ
-                  </button>
+                  </ActionButton>
                 </form>
               </li>
             ))}

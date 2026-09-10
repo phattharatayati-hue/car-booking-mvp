@@ -1,4 +1,6 @@
 import AssignSubmit from "@/components/AssignSubmit";
+import ActionButton from "@/components/ActionButton";
+import { CONFIRM } from "@/lib/ui";
 import {
   assignBothAction,
   unassignAction,
@@ -167,6 +169,7 @@ export default function AssignmentBox({
                                   <img
                                     src={ph.fileUrl}
                                     alt="สภาพรถ"
+                                    data-no-dim
                                     className="w-full h-full object-cover"
                                   />
                                 </a>
@@ -186,25 +189,26 @@ export default function AssignmentBox({
                               ลองซิงก์ใหม่
                             </button>
                           )}
-                          <button
-                            type="submit"
+                          <ActionButton
                             formAction={resendAction}
                             name="assignmentId"
                             value={a.id}
-                            title="ส่งการ์ดงานเข้าแชท LINE อีกครั้ง โดยไม่แก้ข้อมูลงาน"
-                            className="text-xs text-blue-700 hover:underline"
+                            pendingText="กำลังส่ง…"
+                            confirm={CONFIRM.sendLine(`การ์ดงานถึง ${a.admin.name} อีกครั้ง`)}
+                            className="min-h-0 text-xs text-blue-700 hover:underline disabled:opacity-60"
                           >
                             ส่งซ้ำ
-                          </button>
-                          <button
-                            type="submit"
+                          </ActionButton>
+                          <ActionButton
                             formAction={unassignAction}
                             name="assignmentId"
                             value={a.id}
-                            className="text-xs text-slate-400 hover:text-red-600 transition-colors"
+                            pendingText="กำลังถอน…"
+                            confirm={`ถอน ${a.admin.name} ออกจากงานนี้\nระบบจะแจ้งเจ้าตัวทาง LINE และลบนัดออกจากปฏิทิน\n\nยืนยันหรือไม่?`}
+                            className="min-h-0 text-xs text-slate-400 hover:text-red-600 transition-colors disabled:opacity-60"
                           >
                             ถอน
-                          </button>
+                          </ActionButton>
                         </span>
                       </li>
                     );
@@ -214,7 +218,11 @@ export default function AssignmentBox({
 
               {/* เพิ่มคน — ชื่อฟิลด์ขึ้นต้นด้วยชนิดงาน เพื่อให้ฟอร์มเดียวส่งได้ทั้งสองงาน */}
               <div className="flex flex-col gap-2">
+                <label htmlFor={`${booking.id}-${kind}-admin`} className="sr-only">
+                  ผู้รับงาน
+                </label>
                 <select
+                  id={`${booking.id}-${kind}-admin`}
                   name={`${kind}_adminUserId`}
                   defaultValue=""
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm bg-white"
@@ -228,14 +236,31 @@ export default function AssignmentBox({
                   ))}
                 </select>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
+                  <div>
+                  <label
+                    htmlFor={`${booking.id}-${kind}-date`}
+                    className="block text-[11px] font-medium text-slate-500 mb-1"
+                  >
+                    วันนัด
+                  </label>
                   <input
+                    id={`${booking.id}-${kind}-date`}
                     name={`${kind}_meetDate`}
                     type="date"
                     defaultValue={bangkokDateStr(fallbackAt)}
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs bg-white"
                   />
+                  </div>
+                  <div>
+                  <label
+                    htmlFor={`${booking.id}-${kind}-time`}
+                    className="block text-[11px] font-medium text-slate-500 mb-1"
+                  >
+                    เวลานัด
+                  </label>
                   <input
+                    id={`${booking.id}-${kind}-time`}
                     name={`${kind}_meetTime`}
                     type="text"
                     inputMode="numeric"
@@ -245,10 +270,15 @@ export default function AssignmentBox({
                     title="เวลาแบบ 24 ชั่วโมง เช่น 09:00 หรือ 21:30"
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs bg-white"
                   />
+                  </div>
                 </div>
 
                 {/* เติมจุดนัดจากที่ลูกค้าเลือกไว้ตอนจองให้เลย แก้ทับได้ถ้าตกลงกันใหม่ */}
+                <label htmlFor={`${booking.id}-${kind}-place`} className="sr-only">
+                  จุดนัด
+                </label>
                 <input
+                  id={`${booking.id}-${kind}-place`}
                   name={`${kind}_place`}
                   defaultValue={fallbackPlace ?? ""}
                   placeholder="จุดนัด"
@@ -259,7 +289,11 @@ export default function AssignmentBox({
                     จุดที่ลูกค้าเลือกไว้ตอนจอง — แก้ได้ถ้าตกลงกันใหม่
                   </p>
                 )}
+                <label htmlFor={`${booking.id}-${kind}-note`} className="sr-only">
+                  หมายเหตุถึงคนรับ-ส่งรถ
+                </label>
                 <input
+                  id={`${booking.id}-${kind}-note`}
                   name={`${kind}_note`}
                   placeholder="หมายเหตุ เช่น ลูกค้าขอให้โทรก่อน"
                   className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs"

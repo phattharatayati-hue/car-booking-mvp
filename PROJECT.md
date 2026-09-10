@@ -18,7 +18,7 @@
 | `/cars` | รถทั้งหมด กรองยี่ห้อ เรียงราคา แสดงว่าง/ไม่ว่างวันนี้ |
 | `/cars/[id]/book` | จองรถ — ปฏิทินวันว่าง เลือกเวลา จุดรับ-ส่ง กรอกข้อมูล |
 | `/booking/[id]` | สถานะการจอง อัปโหลดสลิปค่าจอง ส่งเอกสาร เลือกจุดรับ-ส่ง |
-| `/my` | ประวัติการจอง (ยืนยันตัวด้วยเบอร์ + OTP ทาง LINE) |
+| `/my` | ประวัติการจอง (**เข้าด้วย LINE Login เท่านั้น** — เลิกใช้ OTP ทางเบอร์แล้ว) |
 | `/how-to-book` | 5 ขั้นตอนการจอง + คำถามที่พบบ่อย 7 ข้อ |
 | `/line/connect` | เชื่อมต่อ LINE เพื่อรับแจ้งเตือน |
 | `/contact` | เบอร์โทร เวลาทำการ |
@@ -91,7 +91,6 @@ AfterHoursRate   id, label, startMinute, endMinute, fee, isActive
 BookingAssignment id, bookingId→Booking, kind, adminUserId→AdminUser,
                  meetAt, place?, note?, googleEventId?, syncedAt?, syncError?,
                  notifiedAt?  @@unique([bookingId, kind, adminUserId])
-CustomerOtp      phone(id), codeHash, expiresAt, attempts
 LineDraft        id, lineUserId(unique), step, carId?, startDate?, endDate?
 ```
 
@@ -206,7 +205,16 @@ event กันเวลาเดินทาง 30 นาที และเต
 | `lib/pickup-points-server.ts` | ดึงจุดรับ-ส่งจากฐานข้อมูล |
 | `lib/image-resize.ts` | ย่อรูปในเบราว์เซอร์ก่อนอัปโหลด |
 | `lib/contact.ts` | เบอร์โทร เวลาทำการ **เลขบัญชีรับโอน** (แก้ที่เดียวเปลี่ยนทุกที่) |
-| `lib/customer-session.ts` | เซสชันลูกค้าสำหรับหน้า `/my` |
+| `lib/customer-session.ts` | เซสชันลูกค้าสำหรับหน้า `/my` (payload เป็น `{cid, exp}`) |
+| `lib/line-login.ts` | LINE Login ฝั่งเว็บ — state, nonce, ตรวจ id_token |
+| `lib/schedule.ts` | รวมคิวรับ-ส่งของวัน/เดือนให้หน้า `/admin/schedule` (**ห้ามใส่ JSX**) |
+| `lib/device-bookings.ts` | จำการจองไว้ในเครื่องลูกค้า (localStorage ไม่มีวันหมดอายุ) |
+| `lib/google-health.ts` | เช็คว่า token ปฏิทินยังใช้ได้ + แจ้งเตือนเมื่อหลุด |
+| `lib/ui.ts` | **คลาสปุ่มกลาง (`BTN`) กล่องแจ้งผล (`NOTICE`) ข้อความยืนยัน (`CONFIRM`)** |
+| `components/ActionButton.tsx` | ปุ่มส่งฟอร์มที่ถามยืนยันก่อน + กันกดซ้ำ (`useFormStatus`) |
+| `components/AutoRefresh.tsx` | รีเฟรชหน้าเองทุก 60 วิ (หยุดเมื่อแท็บไม่ได้เปิดอยู่) |
+| `components/PrintButton.tsx` | สั่งพิมพ์ — สไตล์อยู่ใน `@media print` ของ `globals.css` |
+| `app/admin/schedule/actions.ts` | เปลี่ยนสถานะงานรับ-ส่งจากหน้าเว็บ (DRIVER แก้ได้แค่งานตัวเอง) |
 
 ---
 
@@ -254,7 +262,7 @@ npm run dev
 | ตัวแปร | ใช้ทำอะไร |
 |---|---|
 | `DATABASE_URL` | Neon Postgres (Sensitive — ต้องเอาจาก Neon dashboard) |
-| `AUTH_SECRET` | NextAuth + เซ็น OTP/เซสชันลูกค้า |
+| `AUTH_SECRET` | NextAuth + เซ็นเซสชันลูกค้า และ state/nonce ของ LINE Login |
 | `BLOB_READ_WRITE_TOKEN` | Vercel Blob |
 | `NEXT_PUBLIC_SITE_URL` | โดเมนเว็บ ใช้ในลิงก์ที่ส่งทาง LINE |
 | `LINE_CHANNEL_ACCESS_TOKEN` | Messaging API |
@@ -327,8 +335,10 @@ Blob store เป็น **Private** ทั้งหมด เข้าถึง�
 
 **ความปลอดภัยอื่น**
 
-- OTP หน้า `/my` เก็บเฉพาะ HMAC ของรหัส อายุ 5 นาที ใช้ครั้งเดียว ผิดได้ 5 ครั้ง ขอใหม่ได้ทุก 60 วิ
-- `/api/my/request-otp` ตอบเหมือนกันเสมอไม่ว่าเบอร์มีในระบบหรือไม่ กันไล่เดาว่าใครเป็นลูกค้า
+- หน้า `/my` เข้าได้ทาง LINE Login อย่างเดียว — ไม่มีทางเข้าด้วยเบอร์โทรอีกแล้ว
+  เพราะการกรอกเบอร์อย่างเดียวเปิดให้ไล่เดาเบอร์คนอื่นเพื่อดูประวัติการจองได้
+- `Customer.lineUserId` (`@unique`) คือตัวตนของลูกค้า — เบอร์โทรเป็นเพียงข้อมูลติดต่อ
+  การจองแบบไม่ล็อกอินจะผูกเข้าบัญชีที่ยืนยัน LINE แล้วไม่ได้ (ดู `lib/create-booking.ts`)
 - เซสชันลูกค้าเป็น cookie httpOnly เซ็น HMAC เทียบแบบ timing-safe
 - LINE webhook ตรวจ signature HMAC-SHA256 ทุก request
 - `idToken` จาก LIFF ตรวจกับ `api.line.me/oauth2/v2.1/verify` ฝั่ง server เสมอ **ไม่เชื่อ userId ที่ client ส่งมา**
@@ -441,6 +451,15 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 - [ ] ระบบรีวิว / คูปองส่วนลด
 - [ ] รายงานยอดขายแบบละเอียด export ได้
 
+**ยกเลิกแล้ว ไม่ต้องทำ**
+
+- ~~ระบบสองภาษา (i18n)~~ — รื้อออกหมดแล้ว เหลือภาษาไทยเดียว
+  (`lib/i18n.ts`, `lib/locale*.ts`, `components/LangToggle.tsx` ถูกลบทิ้ง)
+- ~~OTP ทางเบอร์โทรสำหรับหน้า `/my`~~ — เปลี่ยนไปใช้ LINE Login อย่างเดียว (`model CustomerOtp` ถูกลบ)
+- ~~Bank API / OCR อ่านสลิป~~ — ตกลงกันว่าไม่ทำ
+- ~~ซิงก์ Google Sheets จากหน้าตารางงาน~~ — ใช้ดาวน์โหลด CSV แทน
+- ~~ระบบรีวิว~~
+
 ---
 
 ## 14. ข้อควรระวังเวลาแก้โค้ด
@@ -454,3 +473,9 @@ npm run build          # จับ error ที่ tsc จับไม่ได�
 6. **โฟลเดอร์ Blob ใหม่จะเป็น private อัตโนมัติ** ถ้าต้องการให้สาธารณะต้องเพิ่มใน allowlist ของ `/api/file` เอง
 7. **หน้า LIFF ใหม่ต้องแกะ `liff.state`** ถ้าหน้านั้นไม่ได้เรียก `liff.init` เอง
 8. **เวลาทุกที่ใช้ Asia/Bangkok** ผ่าน helper ใน `lib/settings.ts` อย่าใช้ `new Date()` คำนวณวันตรงๆ
+9. **ปุ่มที่ลบข้อมูลหรือส่ง LINE ออกไป ต้องใช้ `<ActionButton confirm=...>`** ไม่ใช่ `<button>` เปล่า
+   ข้อความยืนยันเอาจาก `CONFIRM` ใน `lib/ui.ts` จะได้เหมือนกันทุกหน้า
+10. **CSS ที่เขียนนอก `@layer` ใน `globals.css` ชนะ utility ของ Tailwind v4 ทุกตัว**
+    กฎ `min-height: 2.75rem` ของปุ่มจึงมีทางหนีเป็น `:not(.min-h-0)` — ปุ่มเล็กต้องใส่ `min-h-0`
+11. **รูปเอกสารที่แอดมิน/คนรับ-ส่งต้องตรวจ ให้ใส่ `data-no-dim`** ไม่งั้นโหมดมืดจะหรี่รูปจนดูไม่ออก
+12. **อะไรที่ไม่ควรติดไปบนกระดาษ ให้ใส่ class `no-print`**

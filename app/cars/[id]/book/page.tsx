@@ -90,6 +90,7 @@ export default async function BookCarPage({
               availability={availability}
               pickupPoints={pickupPoints}
               lateRule={lateRuleFromSettings(settings)}
+              minLeadHours={settings.minLeadHours}
               defaultName={me?.fullName ?? ""}
               defaultPhone={me?.phone ?? ""}
               defaultEmail={me?.email ?? ""}

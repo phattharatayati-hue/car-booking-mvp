@@ -24,6 +24,7 @@ async function saveSettingsAction(formData: FormData) {
   const leadMinutes = Number(formData.get("returnReminderLeadMinutes"));
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
   const bookingFee = Number(formData.get("bookingFee"));
+  const minLeadHours = Number(formData.get("minLeadHours"));
   const securityDeposit = Number(formData.get("securityDeposit"));
   const lateHourlyFee = Number(formData.get("lateHourlyFee"));
   const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
@@ -66,6 +67,10 @@ async function saveSettingsAction(formData: FormData) {
   if (!Number.isInteger(lateRoundUpHours) || lateRoundUpHours < 1 || lateRoundUpHours > 24) {
     redirect("/admin/settings?error=lateHours");
   }
+  // เกิน 30 วันแทบไม่มีใครจองล่วงหน้าขนาดนั้น ถ้าใส่เกินน่าจะพิมพ์ผิดมากกว่าตั้งใจ
+  if (!Number.isInteger(minLeadHours) || minLeadHours < 0 || minLeadHours > 720) {
+    redirect("/admin/settings?error=lead24");
+  }
   // ผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลทเลย
   if (lateGraceMinutes >= lateRoundUpHours * 60) {
     redirect("/admin/settings?error=lateGrace");
@@ -75,6 +80,7 @@ async function saveSettingsAction(formData: FormData) {
     returnReminderOn: on,
     returnReminderMinutesBefore: minutesBefore,
     bookingFee,
+    minLeadHours,
     securityDeposit,
     serviceNote,
     lateHourlyFee,
@@ -101,6 +107,9 @@ async function saveSettingsAction(formData: FormData) {
     }
     if (before.bookingFee !== bookingFee) {
       changes.push(`ค่าจอง: ${before.bookingFee} → ${bookingFee} บาท`);
+    }
+    if (before.minLeadHours !== minLeadHours) {
+      changes.push(`ต้องจองล่วงหน้า: ${before.minLeadHours} → ${minLeadHours} ชม.`);
     }
     if (before.securityDeposit !== securityDeposit) {
       changes.push(`เงินประกัน: ${before.securityDeposit} → ${securityDeposit} บาท`);
@@ -145,6 +154,7 @@ const ERRORS: Record<string, string> = {
   money: "ค่าจองและเงินประกันต้องเป็นตัวเลขจำนวนเต็มไม่ติดลบ",
   late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
+  lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
   lateGrace: "ช่วงผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลท",
 };
 
@@ -234,6 +244,36 @@ export default async function SettingsPage({
                 defaultValue={settings.securityDeposit}
                 className={inputClass}
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">เวลาจองล่วงหน้าขั้นต่ำ</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+            ลูกค้าจะเลือกเวลารับรถที่เร็วกว่านี้ไม่ได้ ทั้งบนเว็บ ใน LINE และในหน้าจองของ LIFF —
+            ปฏิทินจะปิดวันที่เร็วเกินให้อัตโนมัติ และถ้ายังพยายามจอง ระบบจะบอกให้โทรหาแอดมินแทน
+            <br />
+            ตั้งเป็น <b>0</b> ถ้าอยากรับจองแบบทันทีทันใด (ไม่แนะนำ — ทีมงานจะเตรียมรถไม่ทันตอนคิวแน่น)
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="minLeadHours">
+                ต้องจองก่อนรับรถอย่างน้อย (ชั่วโมง)
+              </label>
+              <input
+                id="minLeadHours"
+                name="minLeadHours"
+                type="number"
+                min="0"
+                max="720"
+                required
+                defaultValue={settings.minLeadHours}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                ค่าแนะนำคือ 24 ชั่วโมง · 48 = สองวัน · 0 = ไม่บังคับ
+              </p>
             </div>
           </div>
         </div>
