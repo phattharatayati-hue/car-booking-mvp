@@ -43,7 +43,7 @@ export default function SiteFooter() {
               <Brand href={null} size="md" tone="white" />
             </div>
             <p className="text-sm leading-relaxed text-white/75">
-              {COMPANY.nameTh} — บริการเช่ารถคุณภาพในเชียงใหม่ รถสะอาด ราคาชัดเจน จองออนไลน์ได้ตลอด 24 ชั่วโมง
+              {COMPANY.nameTh} — บริการเช่ารถคุณภาพในเชียงใหม่ รถสะอาด ราคาชัดเจน จองออนไลน์ได้ตลอดคืน
             </p>
           </div>
 

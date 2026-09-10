@@ -327,15 +327,19 @@ export default async function AdminUsersPage({
         {visible.map((admin: AdminRow) => {
           const isSelf = admin.id === me.id;
           return (
-            <div
+            /* พับส่วนจัดการเก็บไว้ — เดิมทุกปุ่มกางค้างตลอด (ตัด LINE, ตัดปฏิทิน,
+               เปลี่ยนประเภทพร้อมคำอธิบายสองบรรทัด, ช่องรหัสผ่านใหม่, ลบ)
+               ทำให้ 4 คนกินไปสองหน้าจอครึ่ง ทั้งที่ปกติแค่มาดูว่าใครผูก LINE แล้วบ้าง
+               ช่องรหัสผ่านที่เปิดค้างไว้ทุกคนก็ไม่ควรอยู่บนจอโดยไม่จำเป็น */
+            <details
               key={admin.id}
-              className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6"
+              className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 group/user"
             >
-              <div className="flex items-center gap-3.5 min-w-0 mb-5">
+              <summary className="list-none cursor-pointer flex flex-wrap items-center gap-3 min-w-0">
                 <span className="w-11 h-11 rounded-full bg-panel text-white grid place-items-center font-semibold shrink-0">
                   {admin.name.slice(0, 1).toUpperCase()}
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-slate-900 flex items-center gap-2 flex-wrap">
                     {admin.name}
                     {isSelf && (
@@ -356,30 +360,47 @@ export default async function AdminUsersPage({
                   </p>
                   <p className="text-sm text-slate-500 truncate">{admin.email}</p>
                 </div>
-              </div>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                <span
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-                    admin.lineUserId
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-slate-100 text-slate-500 border-slate-200"
-                  }`}
-                >
-                  {admin.lineUserId ? "🔔 ผูก LINE แล้ว" : "ยังไม่ผูก LINE"}
+                {/* สถานะย่อบนหัวการ์ด — ตอบคำถามที่เปิดหน้านี้มาถามบ่อยสุด
+                    ว่าใครผูก LINE แล้วบ้าง โดยไม่ต้องกางการ์ด */}
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span
+                    title={admin.lineUserId ? "ผูก LINE แล้ว" : "ยังไม่ผูก LINE"}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                      admin.lineUserId
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-slate-100 text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    LINE {admin.lineUserId ? "✓" : "—"}
+                  </span>
+                  <span
+                    title={
+                      admin.googleConnectedAt
+                        ? `เชื่อมปฏิทินแล้ว${admin.googleEmail ? ` · ${admin.googleEmail}` : ""}`
+                        : "ยังไม่เชื่อมปฏิทิน"
+                    }
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                      admin.googleConnectedAt
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-slate-100 text-slate-400 border-slate-200"
+                    }`}
+                  >
+                    ปฏิทิน {admin.googleConnectedAt ? "✓" : "—"}
+                  </span>
+                  <span className="text-xs font-medium text-slate-400 ml-1">
+                    <span className="group-open/user:hidden">จัดการ ▾</span>
+                    <span className="hidden group-open/user:inline">ปิด ▴</span>
+                  </span>
                 </span>
-                <span
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-                    admin.googleConnectedAt
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-slate-100 text-slate-500 border-slate-200"
-                  }`}
-                >
-                  {admin.googleConnectedAt
-                    ? `📅 เชื่อมปฏิทินแล้ว${admin.googleEmail ? ` · ${admin.googleEmail}` : ""}`
-                    : "ยังไม่เชื่อมปฏิทิน"}
-                </span>
-              </div>
+              </summary>
+
+              <div className="mt-5 pt-5 border-t border-slate-100">
+                {admin.googleEmail && admin.googleConnectedAt && (
+                  <p className="text-xs text-slate-500 mb-4">
+                    ปฏิทิน: {admin.googleEmail}
+                  </p>
+                )}
 
               {(admin.lineUserId || admin.googleConnectedAt) && (
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -452,9 +473,13 @@ export default async function AdminUsersPage({
                     autoComplete="new-password"
                     className="rounded-xl bg-white border border-slate-200 px-3.5 py-2 text-sm w-44 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                   />
-                  <button className="px-3.5 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                  <ActionButton
+                    className={BTN.ghost}
+                    pendingText="กำลังเปลี่ยน…"
+                    confirm={`ตั้งรหัสผ่านใหม่ให้ ${admin.name}\nรหัสเดิมจะใช้ไม่ได้ทันที\n\nยืนยันหรือไม่?`}
+                  >
                     เปลี่ยนรหัสผ่าน
-                  </button>
+                  </ActionButton>
                 </form>
 
                 {!isSelf && admins.length > 1 && (
@@ -470,7 +495,8 @@ export default async function AdminUsersPage({
                   </form>
                 )}
               </div>
-            </div>
+              </div>
+            </details>
           );
         })}
       </div>

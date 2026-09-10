@@ -57,6 +57,17 @@ export default async function HomePage() {
     60
   );
 
+  /* รุ่นไหนมีหลายคันในรายการนี้ — การ์ดของรุ่นนั้นจะโชว์ทะเบียนกำกับ
+     ไม่งั้นลูกค้าเห็น "Toyota Yaris Ativ 1,200 ฿/วัน" สองใบติดกันแล้วนึกว่าบั๊ก */
+  const nameCount = new Map<string, number>();
+  for (const c of cars as { brand: string; name: string }[]) {
+    const key = `${c.brand} ${c.name}`;
+    nameCount.set(key, (nameCount.get(key) ?? 0) + 1);
+  }
+  const dupNames = new Set(
+    [...nameCount.entries()].filter(([, n]) => n > 1).map(([k]) => k)
+  );
+
   function availabilityFor(carId: string) {
     const map = availabilityMap.get(carId) ?? {};
     return {
@@ -268,6 +279,7 @@ export default async function HomePage() {
                 key={car.id}
                 car={car}
                 availability={availabilityFor(car.id)}
+                showPlate={dupNames.has(`${car.brand} ${car.name}`)}
               />
             ))}
           </div>

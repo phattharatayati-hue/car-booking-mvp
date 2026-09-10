@@ -11,11 +11,15 @@ import Link from "next/link";
 export default function MyLogin({
   addFriendUrl,
   lineButton,
+  lineReady = true,
   notice,
 }: {
   addFriendUrl: string;
   /** ปุ่มเข้าสู่ระบบด้วย LINE — ส่งมาจากฝั่งเซิร์ฟเวอร์ เพราะต้องอ่านค่า env */
   lineButton?: React.ReactNode;
+  /** LINE Login เปิดใช้อยู่ไหม — ต้องส่งเป็น boolean ไม่ใช่เช็คจาก lineButton
+      เพราะ JSX element เป็น truthy เสมอแม้คอมโพเนนต์ข้างในจะ return null */
+  lineReady?: boolean;
   notice?: string | null;
 }) {
   return (
@@ -31,10 +35,19 @@ export default function MyLogin({
         </p>
       )}
 
-      {lineButton ?? (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          ยังไม่ได้เปิดใช้การเข้าสู่ระบบด้วย LINE กรุณาติดต่อแอดมิน
-        </p>
+      {lineReady ? (
+        lineButton
+      ) : (
+        <div
+          role="alert"
+          className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3 leading-relaxed"
+        >
+          <p className="font-semibold">ตอนนี้เข้าสู่ระบบด้วย LINE ไม่ได้ชั่วคราว</p>
+          <p className="mt-1">
+            ยังดูการจองได้จากช่อง “ค้นด้วยรหัสจอง” ด้านล่าง หรือทักแชท LINE ของร้านได้เลย ·
+            ถ้าคุณเป็นแอดมิน ให้ตรวจค่า LINE Login ในหน้าตั้งค่าของ Vercel
+          </p>
+        </div>
       )}
 
       <div className="mt-6 pt-5 border-t border-slate-100 text-sm text-slate-500 leading-relaxed">

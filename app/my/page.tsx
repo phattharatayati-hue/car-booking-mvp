@@ -9,6 +9,7 @@ import LogoutButton from "./LogoutButton";
 import { prisma } from "@/lib/prisma";
 import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
+import { lineLoginReady } from "@/lib/line-login";
 import { safeNext } from "@/lib/line-login";
 import { lineAddFriendUrl } from "@/lib/line-public";
 import { formatBangkokDateTime } from "@/lib/settings";
@@ -41,6 +42,11 @@ export default async function MyBookingsPage({
           <Crumbs />
           <MyLogin
             addFriendUrl={lineAddFriendUrl()}
+            /* ส่งสถานะมาด้วย ไม่ใช่ส่งแค่ปุ่ม — ถ้า LINE Login ปิดอยู่
+               LineLoginButton จะคืน null แต่ตัว JSX element ยังเป็น truthy
+               ทำให้ fallback ไม่เคยทำงาน หน้าเลยขึ้นเป็นช่องว่างเปล่า ๆ
+               ลูกค้าไม่รู้ว่าเข้าไม่ได้เพราะอะไร และแอดมินก็ไม่รู้ว่าระบบล่ม */
+            lineReady={lineLoginReady()}
             lineButton={<LineLoginButton next={safeNext(sp.next)} />}
             notice={sp.e ? LOGIN_ERROR[sp.e] ?? null : null}
           />

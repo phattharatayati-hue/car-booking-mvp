@@ -37,26 +37,6 @@ export default async function FeesPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-        {/* โปสเตอร์ฉบับทางการของบริษัท — แตะเพื่อดูขนาดเต็ม */}
-        <a
-          href="/fees-poster.jpg"
-          target="_blank"
-          rel="noreferrer"
-          className="block rounded-3xl overflow-hidden border border-slate-200 bg-white hover:border-slate-300 transition-colors"
-        >
-          <Image
-            src="/fees-poster.jpg"
-            alt="ตารางค่าปรับและค่าบริการเพิ่มเติม รถเช่า ภูพิงค์ คาร์ เร้นท์"
-            width={1080}
-            height={1935}
-            priority
-            className="w-full h-auto"
-          />
-        </a>
-        <p className="mt-2 mb-8 text-center text-xs text-slate-500">
-          แตะที่ภาพเพื่อดูขนาดเต็ม · ด้านล่างเป็นข้อมูลเดียวกันในรูปแบบข้อความ อ่านง่ายบนมือถือ
-        </p>
-
         {/* เงินประกัน — สิ่งที่ลูกค้าอยากรู้ที่สุด อยู่บนสุด */}
         <div className="rounded-3xl border border-blue-100 bg-blue-50 p-6 sm:p-8">
           <div className="flex items-start gap-5 flex-wrap">
@@ -178,6 +158,31 @@ export default async function FeesPage() {
           ค่ามัดจำการจอง {settings.bookingFee.toLocaleString()} บาท เป็นส่วนหนึ่งของค่าเช่า
           คิดแยกจากเงินประกันความเสียหาย
         </p>
+
+        {/* โปสเตอร์ฉบับทางการ — ย้ายมาไว้ท้ายหน้า
+
+            เดิมอยู่บนสุด ต้องไถผ่านรูปยาวเกือบสองเท่าของจอก่อนถึงเนื้อหาที่อ่านได้จริง
+            ทั้งที่ตัวเลขในรูปเป็นภาพนิ่ง ค้นหาไม่เจอ ซูมแล้วเบลอ และแก้ราคาทีต้องทำรูปใหม่
+            เนื้อหาข้อความด้านบนคือฉบับจริงที่ผูกกับระบบ รูปเป็นแค่ไว้ส่งต่อในแชท */}
+        <details className="mt-10 rounded-3xl border border-slate-200 bg-white overflow-hidden">
+          <summary className="list-none cursor-pointer px-6 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            ดูฉบับภาพสำหรับบันทึกหรือส่งต่อในแชท ▾
+          </summary>
+          <div className="px-4 pb-4">
+            <a href="/fees-poster.jpg" target="_blank" rel="noreferrer" className="block">
+              <Image
+                src="/fees-poster.jpg"
+                alt="ตารางค่าปรับและค่าบริการเพิ่มเติม รถเช่า ภูพิงค์ คาร์ เร้นท์"
+                width={1080}
+                height={1935}
+                className="w-full h-auto rounded-2xl border border-slate-200"
+              />
+            </a>
+            <p className="mt-2 text-center text-xs text-slate-500">
+              แตะที่ภาพเพื่อดูขนาดเต็ม · ถ้าตัวเลขในภาพไม่ตรงกับด้านบน ให้ยึดตามข้อความด้านบน
+            </p>
+          </div>
+        </details>
       </div>
     </PublicShell>
   );

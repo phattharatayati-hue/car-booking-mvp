@@ -16,21 +16,27 @@ type CarCardProps = {
   /** ว่างไหมใน "วันแรกที่จองได้" (ไม่ใช่วันนี้ — มีกฎจองล่วงหน้า ดู lib/booking-rules.ts)
       พร้อมวันว่างถัดไปถ้าวันนั้นเต็ม */
   availability?: { busyToday: boolean; nextFree: string | null; from?: string };
+  /** มีรถรุ่นเดียวกันหลายคันในรายการไหม — ถ้าใช่ต้องโชว์ทะเบียนกำกับ
+      ไม่งั้นลูกค้าเห็นชื่อรุ่นกับราคาเหมือนกันเป๊ะสองใบแล้วนึกว่าระบบแสดงซ้ำ */
+  showPlate?: boolean;
 };
 
-export default function CarCard({ car, availability }: CarCardProps) {
+export default function CarCard({ car, availability, showPlate = false }: CarCardProps) {
   const isRequest = needsApproval(car);
 
   /* เลี่ยงคำว่า "ว่างวันนี้" เพราะจองวันนี้ไม่ได้อยู่แล้วเมื่อมีกฎจองล่วงหน้า
      บอกวันที่ไปตรง ๆ ชัดกว่าและไม่มีทางผิด */
+  /* คำต้องต่างกันด้วย ไม่ใช่ต่างแค่สีจุด
+       "ว่าง 12 ก.ย."       = ว่างตั้งแต่วันแรกที่จองได้เลย (เขียว)
+       "ว่างเร็วสุด 15 ก.ย." = วันแรกเต็ม ต้องรอถึงวันนั้น (เหลือง) */
   const freeLabel = !availability
     ? null
-    : !availability.busyToday && availability.from
-    ? `ว่าง ${thaiDay(availability.from)}`
     : !availability.busyToday
-    ? "ว่าง"
+    ? availability.from
+      ? `ว่าง ${thaiDay(availability.from)}`
+      : "ว่าง"
     : availability.nextFree
-    ? `ว่าง ${new Date(`${availability.nextFree}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}`
+    ? `ว่างเร็วสุด ${thaiDay(availability.nextFree)}`
     : "ไม่ว่างช่วงนี้";
 
   return (
@@ -72,7 +78,14 @@ export default function CarCard({ car, availability }: CarCardProps) {
 
       <div className="p-5 flex flex-col flex-1">
         <p className="text-xs text-slate-500 mb-0.5">{car.brand}</p>
-        <h3 className="font-semibold text-slate-900 text-lg leading-snug">{car.name}</h3>
+        <h3 className="font-semibold text-slate-900 text-lg leading-snug">
+          {car.name}
+          {showPlate && (
+            <span className="ml-2 align-middle text-xs font-mono font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+              {car.licensePlate}
+            </span>
+          )}
+        </h3>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-slate-500">
           {freeLabel && (
