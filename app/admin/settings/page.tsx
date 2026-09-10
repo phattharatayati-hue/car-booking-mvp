@@ -16,6 +16,7 @@ import {
 } from "@/lib/settings";
 import AdminTabs from "@/components/AdminTabs";
 import { SETTINGS_TABS } from "@/components/adminTabSets";
+import { lineLoginReady, callbackUrl } from "@/lib/line-login";
 
 async function saveSettingsAction(formData: FormData) {
   "use server";
@@ -179,6 +180,14 @@ export default async function SettingsPage({
   const pendingCount = await prisma.booking.count({
     where: { status: "CONFIRMED", returnReminderSentAt: null },
   });
+
+  const loginReady = lineLoginReady();
+  const cbUrl = callbackUrl();
+  const ENV_CHECKS = [
+    { name: "LINE_LOGIN_CHANNEL_ID", ok: Boolean(process.env.LINE_LOGIN_CHANNEL_ID) },
+    { name: "LINE_LOGIN_CHANNEL_SECRET", ok: Boolean(process.env.LINE_LOGIN_CHANNEL_SECRET) },
+    { name: "AUTH_SECRET", ok: Boolean(process.env.AUTH_SECRET) },
+  ];
 
   return (
     <div className="max-w-2xl">
@@ -477,6 +486,32 @@ export default async function SettingsPage({
         <h2 className="font-semibold text-slate-900 text-sm mb-1">สถานะปัจจุบัน</h2>
         <p className="text-sm text-slate-600">
           การจองที่ยืนยันแล้วและยังไม่ได้ส่งเตือน: {pendingCount} รายการ
+        </p>
+      </div>
+
+      <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 className="font-semibold text-slate-900 text-sm mb-1">เข้าสู่ระบบด้วย LINE (หน้า /my)</h2>
+        <p className="text-sm text-slate-600 mb-3">
+          ต้องมีครบทั้งสามค่าใน Environment Variables ของ Vercel (ตัว Production) แล้ว Redeploy หนึ่งครั้ง
+        </p>
+        <ul className="text-sm space-y-1">
+          {ENV_CHECKS.map((c) => (
+            <li key={c.name} className="flex items-center gap-2">
+              <span className={c.ok ? "text-emerald-600" : "text-red-600"}>{c.ok ? "✓" : "✕"}</span>
+              <code className="text-xs">{c.name}</code>
+              <span className="text-slate-500 text-xs">{c.ok ? "ตั้งค่าแล้ว" : "ยังไม่มีค่า"}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-sm mt-3">
+          สรุป:{" "}
+          <strong className={loginReady ? "text-emerald-700" : "text-red-700"}>
+            {loginReady ? "พร้อมใช้งาน" : "ยังใช้ไม่ได้"}
+          </strong>
+        </p>
+        <p className="text-xs text-slate-500 mt-2 break-all">
+          Callback URL ที่ต้องใส่ใน LINE Developers Console →{" "}
+          <code className="text-xs">{cbUrl}</code>
         </p>
       </div>
     </div>
