@@ -9,6 +9,9 @@ export async function POST(
 ) {
   const { id } = await params;
   const body = await request.json();
+  /* amount คือ "ยอดที่ลูกค้าแจ้งว่าโอน" ไม่ใช่ยอดที่ระบบเรียกเก็บ
+     เก็บไว้เพื่อให้แอดมินเทียบกับสลิปได้ว่าโอนมาตรงกับค่าจองไหม
+     จึงต้องรับค่าจากลูกค้า แต่ต้องตรวจให้อยู่ในช่วงที่สมเหตุสมผลก่อน */
   const { slipImageUrl, amount } = body;
 
   if (!slipImageUrl) {
@@ -23,17 +26,35 @@ export async function POST(
     return NextResponse.json({ error: "ไม่พบรายการจอง" }, { status: 404 });
   }
 
+  /* สลิปที่แอดมินยืนยันไปแล้วห้ามถูกทับ
+     ไม่งั้นลูกค้าอัปใหม่ทีหลังแล้วสถานะจะถอยกลับเป็น "รอตรวจ" เงียบ ๆ
+     ทั้งที่แอดมินตรวจและรับเงินไปแล้ว */
+  if (booking.deposit?.status === "CONFIRMED") {
+    return NextResponse.json(
+      { error: "สลิปนี้ได้รับการยืนยันแล้ว หากต้องการแก้ไข กรุณาติดต่อแอดมิน" },
+      { status: 409 }
+    );
+  }
+
+  const declared = Math.floor(Number(amount));
+  if (!Number.isFinite(declared) || declared < 1 || declared > 1_000_000) {
+    return NextResponse.json(
+      { error: "ยอดที่โอนไม่ถูกต้อง กรุณากรอกเป็นตัวเลขบาท" },
+      { status: 400 }
+    );
+  }
+
   const deposit = await prisma.deposit.upsert({
     where: { bookingId: id },
     create: {
       bookingId: id,
-      amount: Number(amount) || 0,
+      amount: declared,
       slipImageUrl,
       status: "PENDING",
     },
     update: {
       slipImageUrl,
-      amount: Number(amount) || 0,
+      amount: declared,
       status: "PENDING",
     },
   });

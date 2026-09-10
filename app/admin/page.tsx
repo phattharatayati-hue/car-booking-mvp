@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { bangkokDayRange, bangkokDateStr, formatBangkokTime } from "@/lib/settings";
+import { bangkokDayRange, bangkokDateStr, formatBangkokTime, getSettings } from "@/lib/settings";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 import {
   ACTIVE_BOOKING_STATUSES,
@@ -21,7 +21,7 @@ export default async function AdminDashboard() {
     carsCount,
     totalBookings,
     revenueAgg,
-    depositAgg,
+    confirmedDeposits,
     recent,
   ] =
     await Promise.all([
@@ -33,12 +33,12 @@ export default async function AdminDashboard() {
         _sum: { totalPrice: true },
         where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
       }),
-      /* ค่าจองที่รับเข้ามาแล้วจริง — นับจากสลิปที่แอดมินยืนยัน ไม่ใช่จากยอดจอง
-         ค่าเช่าจ่ายตอนรับรถ จึงยังไม่ใช่เงินในมือ ณ ตอนนี้ */
-      prisma.deposit.aggregate({
-        _sum: { amount: true },
-        where: { status: "CONFIRMED" },
-      }),
+      /* จำนวนใบที่แอดมินยืนยันสลิปแล้ว — เอาไปคูณกับค่าจองต่อใบ
+
+         ไม่ใช้ผลรวมของ deposit.amount เพราะฟิลด์นั้นคือ "ยอดที่ลูกค้าแจ้งว่าโอน"
+         ซึ่งลูกค้าพิมพ์เอง อาจพิมพ์ผิดหรือโอนมาไม่ตรง จึงไม่ใช่ตัวเลขที่เอามาบอก
+         ว่าร้านได้เงินเท่าไรได้ ค่าจองต่อใบเป็นค่าคงที่จากหน้าตั้งค่าระบบ */
+      prisma.deposit.count({ where: { status: "CONFIRMED" } }),
       prisma.booking.findMany({
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -49,7 +49,8 @@ export default async function AdminDashboard() {
   /* แยกสองตัวเลขให้ชัด ไม่งั้นคนอ่านจะเข้าใจว่ายอดจองคือเงินที่ได้แล้ว
      ซึ่งต่างกันเป็นสิบเท่า เพราะค่าเช่าเก็บตอนรับรถ */
   const bookingValue = revenueAgg._sum.totalPrice ?? 0;
-  const depositReceived = depositAgg._sum.amount ?? 0;
+  const settings = await getSettings();
+  const depositReceived = confirmedDeposits * settings.bookingFee;
 
   // งานรับ-ส่งรถของฉันวันนี้ + งานที่ยังไม่มีคนรับ
   const session = await auth();
@@ -215,7 +216,8 @@ export default async function AdminDashboard() {
               {depositReceived.toLocaleString()} ฿
             </p>
             <p className="text-white/60 text-xs mt-1.5 leading-relaxed">
-              เงินที่เข้ามาแล้วจริง จากสลิปค่าจองที่ยืนยัน
+              {confirmedDeposits.toLocaleString()} ใบ × {settings.bookingFee.toLocaleString()} บาท ·
+              นับจากสลิปที่แอดมินยืนยันแล้ว
             </p>
           </div>
           <div className="sm:border-l sm:border-white/15 sm:pl-6">
