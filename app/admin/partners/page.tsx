@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import AddPartnerForm from "@/components/AddPartnerForm";
+import ActionButton from "@/components/ActionButton";
+import { BTN, CONFIRM } from "@/lib/ui";
 
 type PartnerRow = {
   id: string;
@@ -169,11 +171,17 @@ export default async function PartnersPage({
               <div className="min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h2 className="font-semibold text-slate-900">{p.name}</h2>
-                  {!p.isActive && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                      ปิดใช้งาน
-                    </span>
-                  )}
+                  {/* โชว์ป้ายสถานะทั้งสองแบบ ไม่ใช่เฉพาะตอนปิด
+                      เดิมมีแต่คำว่า "ปิดใช้งาน" สองที่ (ป้ายกับปุ่ม) จนแยกไม่ออกว่าอันไหนคือสถานะ */}
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full border ${
+                      p.isActive
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-slate-100 text-slate-500 border-slate-200"
+                    }`}
+                  >
+                    {p.isActive ? "เปิดใช้งานอยู่" : "ปิดใช้งานอยู่"}
+                  </span>
                 </div>
                 <p className="text-sm text-slate-600 mt-1">
                   <a href={`tel:${p.phone}`} className="hover:text-blue-700">
@@ -188,16 +196,28 @@ export default async function PartnersPage({
                 <form action={togglePartnerAction}>
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="isActive" value={String(p.isActive)} />
-                  <button className="text-sm font-medium text-blue-700 hover:underline">
-                    {p.isActive ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                  </button>
+                  <ActionButton
+                    className={BTN.ghost}
+                    pendingText="กำลังบันทึก…"
+                    confirm={
+                      p.isActive
+                        ? `ปิดเจ้าของรถ ${p.name}\nรถในคลัง ${p.cars.length} คันจะหายจากหน้าเว็บทันที และลูกค้าจะจองไม่ได้\n\nยืนยันหรือไม่?`
+                        : `เปิดเจ้าของรถ ${p.name} กลับมาใช้งาน\nรถในคลัง ${p.cars.length} คันจะกลับขึ้นหน้าเว็บ\n\nยืนยันหรือไม่?`
+                    }
+                  >
+                    {p.isActive ? "ปิดการใช้งาน" : "เปิดการใช้งาน"}
+                  </ActionButton>
                 </form>
                 {p.cars.length === 0 && (
                   <form action={deletePartnerAction}>
                     <input type="hidden" name="id" value={p.id} />
-                    <button className="text-sm font-medium text-slate-400 hover:text-red-600">
+                    <ActionButton
+                      className={BTN.danger}
+                      pendingText="กำลังลบ…"
+                      confirm={CONFIRM.del(`เจ้าของรถ ${p.name} (${p.phone})`)}
+                    >
                       ลบ
-                    </button>
+                    </ActionButton>
                   </form>
                 )}
               </div>

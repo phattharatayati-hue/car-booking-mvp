@@ -434,13 +434,19 @@ export default async function AdminBookingsPage({
           ? { status: active as never }
           : {};
 
-  // ค้นหาได้จาก ชื่อ/เบอร์ลูกค้า, ทะเบียนรถ หรือรหัสจอง 8 ตัวหน้า
+  /* ค้นหาได้จาก ชื่อ/เบอร์ลูกค้า, ทะเบียนรถ หรือรหัสจอง 8 ตัวหน้า
+
+     ข้อเบอร์โทรต้องใส่เฉพาะตอนคำค้นมีตัวเลขจริง — ถ้าคำค้นไม่มีตัวเลข
+     (เช่นรหัสจอง "cmtiwkst") การตัดอักขระออกจะเหลือสตริงว่าง
+     แล้ว contains: "" แปลเป็น LIKE '%%' ซึ่งตรงกับทุกแถว
+     พอต่อกันด้วย OR ก็ลากทุกใบเข้ามาหมดจนดูเหมือนค้นหาไม่ทำงาน */
+  const digits = term.replace(/\D/g, "");
   const searchWhere = term
     ? {
         OR: [
           { id: { startsWith: term.toLowerCase() } },
           { customer: { fullName: { contains: term, mode: "insensitive" as const } } },
-          { customer: { phone: { contains: term.replace(/\D/g, "") } } },
+          ...(digits ? [{ customer: { phone: { contains: digits } } }] : []),
           { car: { licensePlate: { contains: term, mode: "insensitive" as const } } },
         ],
       }
@@ -829,8 +835,15 @@ export default async function AdminBookingsPage({
                           </form>
                         )}
 
+                        {/* เอกสารที่ผ่านแล้วไม่ต้องกางฟอร์มปฏิเสธค้างไว้
+                            สามช่องควบคุมต่อใบ คูณสามใบ = เก้าช่องบนการ์ดที่ไม่ต้องทำอะไรแล้ว
+                            พับเป็นลิงก์เล็ก ๆ กดแล้วค่อยกาง ส่วนใบที่ยังไม่ตรวจกางไว้ให้เลย */}
                         {status !== "REJECTED" && (
-                          <form action={rejectDocumentAction} className="mt-2 flex flex-col gap-2">
+                          <details open={status !== "APPROVED"} className="mt-2 group/rej">
+                            <summary className="list-none cursor-pointer text-[11px] font-medium text-slate-400 hover:text-red-600 group-open/rej:hidden">
+                              ไม่ผ่าน…
+                            </summary>
+                          <form action={rejectDocumentAction} className="flex flex-col gap-2">
                             <input type="hidden" name="documentId" value={doc.id} />
                             <label htmlFor={`reason-${doc.id}`} className="sr-only">
                               เหตุผลที่ไม่ผ่าน
@@ -860,6 +873,7 @@ export default async function AdminBookingsPage({
                               ไม่ผ่าน
                             </ActionButton>
                           </form>
+                          </details>
                         )}
                       </div>
                     );

@@ -8,6 +8,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getAllAfterHoursRates } from "@/lib/after-hours-server";
 import { timeOptions } from "@/lib/settings";
+import ActionButton from "@/components/ActionButton";
+import { CONFIRM } from "@/lib/ui";
 import {
   toMinuteOfDay,
   fromMinuteOfDay,
@@ -198,6 +200,9 @@ export default async function AfterHoursPage({
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h2 className="font-semibold text-slate-900">ช่วงเวลาที่คิดค่าบริการ</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            แต่ละแถวมีปุ่มบันทึกของตัวเอง — แก้หลายแถวต้องกดบันทึกทีละแถว
+          </p>
         </div>
 
         {rates.length === 0 ? (
@@ -210,7 +215,7 @@ export default async function AfterHoursPage({
               <form
                 key={r.id}
                 action={saveRateAction}
-                className="px-5 py-4 grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-end"
+                className="px-5 py-4 grid gap-3 sm:grid-cols-[minmax(9rem,1.4fr)_auto_auto_auto_auto] sm:items-end"
               >
                 <input type="hidden" name="id" value={r.id} />
                 <div>
@@ -282,19 +287,22 @@ export default async function AfterHoursPage({
                     />
                     เปิด
                   </label>
-                  <button
-                    type="submit"
-                    className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors"
+                  <ActionButton
+                    className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                    pendingText="กำลังบันทึก…"
                   >
                     บันทึก
-                  </button>
-                  <button
-                    type="submit"
+                  </ActionButton>
+                  <ActionButton
                     formAction={deleteRateAction}
-                    className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-200 text-sm transition-colors"
+                    pendingText="กำลังลบ…"
+                    confirm={CONFIRM.del(`ช่วง "${r.label}" (${fromMinuteOfDay(
+                      r.startMinute
+                    )}-${fromMinuteOfDay(r.endMinute)} น. ${r.fee} บาท)`)}
+                    className="px-3 py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-red-700 hover:border-red-200 text-sm transition-colors disabled:opacity-60"
                   >
                     ลบ
-                  </button>
+                  </ActionButton>
                 </div>
 
                 {r.endMinute <= r.startMinute && (
