@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import AddCarForm from "@/components/AddCarForm";
+import { BTN } from "@/lib/ui";
 
 type CarRow = {
   id: string;
@@ -42,21 +43,110 @@ async function toggleStatusAction(formData: FormData) {
   revalidatePath("/admin/cars");
 }
 
-export default async function AdminCarsPage() {
+const CAR_FILTERS = [
+  { key: "all", label: "ทั้งหมด" },
+  { key: "AVAILABLE", label: "เปิดให้เช่า" },
+  { key: "UNAVAILABLE", label: "ปิดใช้งาน" },
+] as const;
+
+export default async function AdminCarsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string }>;
+}) {
   await requireStaff();
 
-  const cars = await prisma.car.findMany({ orderBy: { createdAt: "desc" } });
+  const { status, q } = await searchParams;
+  const active = status === "AVAILABLE" || status === "UNAVAILABLE" ? status : null;
+  const term = (q ?? "").trim();
+
+  const cars = await prisma.car.findMany({
+    where: {
+      ...(active ? { status: active } : {}),
+      ...(term
+        ? {
+            OR: [
+              { brand: { contains: term, mode: "insensitive" as const } },
+              { name: { contains: term, mode: "insensitive" as const } },
+              { licensePlate: { contains: term, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    },
+    /* เรียงคันที่เปิดให้เช่าขึ้นก่อน แล้วค่อยเรียงตามยี่ห้อ-รุ่น
+       เดิมเรียงตามวันที่สร้าง ทำให้คันที่ปิดใช้งานแทรกปนกับคันที่ใช้งานอยู่ */
+    orderBy: [{ status: "asc" }, { brand: "asc" }, { name: "asc" }],
+  });
+
+  const [totalCount, activeCount] = await Promise.all([
+    prisma.car.count(),
+    prisma.car.count({ where: { status: "AVAILABLE" } }),
+  ]);
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-7">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">จัดการรถ</h1>
           <p className="text-slate-500 text-sm mt-1">
-            มีรถในระบบ {cars.length} คัน
+            มีรถในระบบ {totalCount} คัน · เปิดให้เช่า {activeCount} คัน
+            {totalCount > activeCount && (
+              <span className="text-slate-400">
+                {" "}
+                · ปิดใช้งาน {totalCount - activeCount} คัน
+              </span>
+            )}
           </p>
         </div>
         <AddCarForm />
+      </div>
+
+      {/* ค้นหา + กรอง — 15 คันขึ้นไปแล้วไถหาเองไม่ไหว */}
+      <form method="get" className="flex flex-wrap gap-2 mb-4">
+        {active && <input type="hidden" name="status" value={active} />}
+        <label htmlFor="car-search" className="sr-only">
+          ค้นหารถ
+        </label>
+        <input
+          id="car-search"
+          name="q"
+          defaultValue={term}
+          placeholder="ค้นหา ยี่ห้อ / รุ่น / ทะเบียน"
+          className="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+        />
+        <button type="submit" className={BTN.primary}>
+          ค้นหา
+        </button>
+        {term && (
+          <Link
+            href={active ? `/admin/cars?status=${active}` : "/admin/cars"}
+            className={BTN.ghost}
+          >
+            ล้าง
+          </Link>
+        )}
+      </form>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {CAR_FILTERS.map((f) => {
+          const isActive = (status ?? "all") === f.key;
+          return (
+            <Link
+              key={f.key}
+              href={`/admin/cars?${new URLSearchParams({
+                ...(f.key === "all" ? {} : { status: f.key }),
+                ...(term ? { q: term } : {}),
+              }).toString()}`}
+              className={`px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                isActive
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {f.label}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -150,7 +240,9 @@ export default async function AdminCarsPage() {
               {cars.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-5 py-16 text-center text-slate-500">
-                    ยังไม่มีรถในระบบ — กด “เพิ่มรถ” เพื่อเริ่มต้น
+                    {term || active
+                      ? "ไม่พบรถที่ตรงกับที่ค้นหา"
+                      : "ยังไม่มีรถในระบบ — กด “เพิ่มรถ” เพื่อเริ่มต้น"}
                   </td>
                 </tr>
               )}

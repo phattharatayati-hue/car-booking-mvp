@@ -50,11 +50,14 @@ export const AUDIT_LABEL: Record<string, string> = {
   "booking.request_reject": "ปฏิเสธคำขอ",
   "booking.cancel": "ยกเลิกการจอง",
   "booking.document_view": "เปิดดูเอกสารลูกค้า",
+  "booking.document_purge": "ลบเอกสารลูกค้าที่หมดระยะเก็บ",
 
   "assignment.assign": "มอบหมายงานรับ-ส่งรถ",
   "assignment.unassign": "ถอนคนออกจากงาน",
   "assignment.resync": "ซิงก์ปฏิทินใหม่",
   "assignment.resend": "ส่งแจ้งเตือนงานซ้ำ",
+  "assignment.reading_save": "บันทึกสภาพรถหน้างาน",
+  "assignment.done": "ปิดงานรับ-ส่งรถ",
 
   "car.status_toggle": "เปลี่ยนสถานะรถ",
   "car.rate_save": "บันทึกเรทราคาตามช่วงวัน",

@@ -6,6 +6,7 @@ import { jobViewOpen } from "@/lib/driver-jobs";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 import { DOCUMENT_LABEL, type DocumentKind } from "@/lib/documents";
 import { formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
+import JobReport from "./JobReport";
 
 /**
  * หน้าเอกสารลูกค้าสำหรับคนรับ-ส่งรถ
@@ -46,6 +47,7 @@ export default async function JobDocumentsPage({
     where: { viewToken: token },
     include: {
       admin: { select: { id: true, name: true, role: true } },
+      photos: { orderBy: { createdAt: "asc" } },
       booking: {
         include: {
           car: true,
@@ -146,6 +148,45 @@ export default async function JobDocumentsPage({
             </div>
           </dl>
         </header>
+
+        <JobReport
+          token={token}
+          doneAt={job.doneAt ? job.doneAt.toISOString() : null}
+          odometer={job.odometer}
+          fuelLevel={job.fuelLevel}
+          photoCount={job.photos.length}
+          isPickup={job.kind === "PICKUP"}
+        />
+
+        {job.photos.length > 0 && (
+          <section className="bg-white rounded-2xl border border-slate-200 px-5 py-5">
+            <h2 className="font-semibold text-slate-900 mb-3">
+              รูปที่ส่งไปแล้ว{" "}
+              <span className="text-slate-400 font-normal text-sm">
+                ({job.photos.length} รูป)
+              </span>
+            </h2>
+            <div className="grid grid-cols-3 gap-2">
+              {job.photos.map((ph) => (
+                <a
+                  key={ph.id}
+                  href={`${ph.fileUrl}&t=${encodeURIComponent(token)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${ph.fileUrl}&t=${encodeURIComponent(token)}`}
+                    alt="สภาพรถ"
+                    data-no-dim
+                    className="w-full h-full object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-900 leading-relaxed">
           <p className="font-semibold">ใช้เทียบกับตัวจริงเท่านั้น</p>

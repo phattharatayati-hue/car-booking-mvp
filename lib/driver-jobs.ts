@@ -1,8 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
-import { put } from "@vercel/blob";
-import { pushMessage, pushRaw, getMessageContent, siteUrl } from "@/lib/line";
+import { pushMessage, pushRaw, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
 import {
@@ -190,22 +189,15 @@ async function jobFlex(job: Job, headline?: string) {
         "ขอดูบัตรประชาชนและใบขับขี่ตัวจริง",
         "ถ่ายรูปรอบคันก่อนส่งมอบ",
         "จดเลขไมล์และระดับน้ำมัน",
+        "ส่งรูปและปิดงานที่ปุ่มด้านล่าง",
       ]),
     ],
+    /* ปุ่มเดียวพาไปหน้างาน — ดูเอกสาร ส่งรูป จดเลขไมล์ ปิดงาน อยู่ที่นั่นทั้งหมด
+       เดิมให้ส่งรูปเข้าแชทแล้วระบบต้องเดาว่าเป็นของงานไหน ซึ่งเดาผิดได้จริง
+       ลิงก์นี้ผูกกับงานชิ้นเดียว จึงไม่มีทางเข้าผิดใบ */
     buttons: [
-      btnGold("ดูเอกสารลูกค้า", `${siteUrl()}/job/${token}`),
+      btnGold("เปิดหน้างาน (เอกสาร · ส่งรูป · ปิดงาน)", `${siteUrl()}/job/${token}`),
       ackButton,
-      {
-        type: "button",
-        style: "secondary",
-        height: "sm",
-        action: {
-          type: "postback",
-          label: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
-          data: `action=job_done&id=${job.id}`,
-          displayText: job.kind === "DELIVERY" ? "ส่งรถแล้ว" : "รับรถคืนแล้ว",
-        },
-      },
     ],
   });
 }
@@ -363,7 +355,7 @@ export async function closeJob(
     `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
     `รหัสจอง: ${job.bookingId.slice(0, 8).toUpperCase()}`,
     "",
-    "ส่งรูปสภาพรถเข้าแชทนี้ได้เลย ระบบจะเก็บแนบไว้กับงานนี้ให้",
+    "ส่งรูปสภาพรถได้ที่หน้างาน (ปุ่มในการ์ดงาน) ระบบจะเก็บแนบไว้กับงานนี้ให้",
     ...(job.kind === "PICKUP"
       ? ["", "สถานะการจองเปลี่ยนเป็น “เสร็จสิ้น” แล้ว"]
       : []),
@@ -393,86 +385,57 @@ async function recentJob(adminUserId: string): Promise<Job | null> {
  *   ไมล์ 45120 น้ำมัน ครึ่งถัง
  * คืน null ถ้าข้อความไม่เข้ารูปแบบนี้ (ให้ webhook ไปตรวจคำสั่งอื่นต่อ)
  */
+/**
+ * คนรับ-ส่งรถส่งรูปหรือพิมพ์เลขไมล์เข้าแชท
+ *
+ * เดิมระบบพยายาม "เดา" ว่าเป็นของงานไหน โดยหางานในช่วง ±วันสองวันแล้วเรียงเอาอันล่าสุด
+ * ซึ่งเดาผิดจริง — ปิดงาน ATIV-01 แล้วรูปไปเข้า CROSS-01 เพราะคนนั้นมีหลายงานในช่วงเดียวกัน
+ * เลขไมล์ผิดคันอันตรายกว่ารูปอีก เพราะเถียงกับลูกค้าไม่ออก
+ *
+ * ตอนนี้จึงไม่รับทางแชทแล้ว แต่พาไปหน้างานที่ผูกกับงานชิ้นเดียวแทน
+ * คืน null ถ้าคนส่งไม่ใช่พนักงาน (ให้ webhook ไปตรวจว่าเป็นสลิปของลูกค้าต่อ)
+ */
+async function pointToJobPage(lineUserId: string): Promise<string | null> {
+  const admin = await prisma.adminUser.findFirst({ where: { lineUserId } });
+  if (!admin) return null;
+
+  const job = await recentJob(admin.id);
+  if (!job) {
+    return "ไม่พบงานรับ-ส่งรถที่กำลังจะถึงครับ\nพิมพ์ “งานของฉัน” เพื่อดูคิวงาน";
+  }
+
+  const token = await viewTokenFor(job);
+
+  return [
+    "ส่งรูปและเลขไมล์ทางแชทไม่ได้แล้วครับ",
+    "",
+    "เปิดหน้างานแล้วส่งจากตรงนั้นแทน ระบบจะเก็บเข้างานให้ถูกใบเสมอ",
+    `งาน${HANDOFF_LABEL[job.kind as HandoffKind]} · ${job.booking.car.licensePlate}`,
+    "",
+    `${siteUrl()}/job/${token}`,
+    "",
+    "ถ้าไม่ใช่งานนี้ พิมพ์ “งานของฉัน” เพื่อเลือกงานที่ถูกต้อง",
+  ].join("\n");
+}
+
+/** รูปที่พนักงานส่งเข้าแชท — ตอบกลับด้วยลิงก์หน้างาน */
+export async function saveJobPhoto(
+  lineUserId: string,
+  _messageId: string
+): Promise<string | null> {
+  return pointToJobPage(lineUserId);
+}
+
+/** เลขไมล์/น้ำมันที่พิมพ์เข้าแชท — ตอบกลับด้วยลิงก์หน้างาน */
 export async function saveJobReading(
   lineUserId: string,
   text: string
 ): Promise<string | null> {
-  const odoMatch = text.match(/(?:ไมล์|เลขไมล์|odo)\s*:?\s*([\d,]{3,9})/i);
-  const fuelMatch = text.match(/(?:น้ำมัน|fuel)\s*:?\s*(.{1,20})/i);
-  if (!odoMatch && !fuelMatch) return null;
-
-  const admin = await prisma.adminUser.findFirst({ where: { lineUserId } });
-  if (!admin) return null;
-
-  const job = await recentJob(admin.id);
-  if (!job) {
-    return "ไม่พบงานรับ-ส่งรถที่จะบันทึกครับ\nพิมพ์ “งานของฉัน” เพื่อดูคิวงาน";
-  }
-
-  const odometer = odoMatch ? Number(odoMatch[1].replace(/,/g, "")) : undefined;
-  const fuelLevel = fuelMatch ? fuelMatch[1].trim().replace(/[.,]$/, "") : undefined;
-
-  await prisma.bookingAssignment.update({
-    where: { id: job.id },
-    data: {
-      ...(odometer !== undefined && Number.isFinite(odometer) ? { odometer } : {}),
-      ...(fuelLevel ? { fuelLevel } : {}),
-    },
-  });
-
-  return [
-    "📝 บันทึกแล้ว",
-    `งาน${HANDOFF_LABEL[job.kind as HandoffKind]} · ${job.booking.car.licensePlate}`,
-    ...(odometer !== undefined ? [`เลขไมล์ ${odometer.toLocaleString()} กม.`] : []),
-    ...(fuelLevel ? [`น้ำมัน ${fuelLevel}`] : []),
-  ].join("\n");
+  const looksLikeReading = /(?:ไมล์|เลขไมล์|odo|น้ำมัน|fuel)/i.test(text);
+  if (!looksLikeReading) return null;
+  return pointToJobPage(lineUserId);
 }
 
-/**
- * คนรับงานส่งรูปสภาพรถเข้าแชท — แนบกับงานล่าสุดของเขา
- * คืน null ถ้าคนส่งไม่ใช่คนรับงาน (ให้ตัวเรียกไปจัดการเป็นสลิปลูกค้าต่อ)
- */
-export async function saveJobPhoto(
-  lineUserId: string,
-  messageId: string
-): Promise<string | null> {
-  const admin = await prisma.adminUser.findFirst({ where: { lineUserId } });
-  if (!admin) return null;
-
-  const job = await recentJob(admin.id);
-
-  if (!job) {
-    return "ไม่พบงานรับ-ส่งรถที่จะแนบรูปครับ\nพิมพ์ “งานของฉัน” เพื่อดูคิวงาน";
-  }
-
-  const content = await getMessageContent(messageId);
-  if (!content) return "ดาวน์โหลดรูปไม่สำเร็จ กรุณาส่งใหม่ครับ";
-
-  try {
-    const ext = content.contentType.includes("png") ? "png" : "jpg";
-    const blob = await put(
-      `handoff/${job.id}-${messageId}.${ext}`,
-      content.buffer,
-      { access: "private", addRandomSuffix: true, contentType: content.contentType }
-    );
-
-    await prisma.handoffPhoto.create({
-      data: { assignmentId: job.id, fileUrl: `/api/file?p=${encodeURIComponent(blob.pathname)}` },
-    });
-
-    const count = await prisma.handoffPhoto.count({ where: { assignmentId: job.id } });
-    return [
-      `📷 เก็บรูปไว้แล้ว (${count} รูป)`,
-      `งาน${HANDOFF_LABEL[job.kind as HandoffKind]} · ${job.booking.car.licensePlate}`,
-      "ส่งเพิ่มได้เรื่อย ๆ ครับ",
-    ].join("\n");
-  } catch (err) {
-    console.error("saveJobPhoto failed:", err);
-    return "บันทึกรูปไม่สำเร็จ กรุณาลองใหม่ครับ";
-  }
-}
-
-/** คำแนะนำสำหรับคนรับ-ส่งรถ — คืน null ถ้าคนที่ทักมาไม่ใช่พนักงาน */
 export async function driverHelpText(lineUserId: string): Promise<string | null> {
   const admin = await prisma.adminUser.findFirst({ where: { lineUserId } });
   if (!admin || admin.role !== "DRIVER") return null;

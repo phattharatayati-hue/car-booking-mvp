@@ -12,17 +12,26 @@ async function jobTokenAllows(token: string, pathname: string): Promise<boolean>
   try {
     const job = await prisma.bookingAssignment.findUnique({
       where: { viewToken: token },
-      select: { meetAt: true, bookingId: true },
+      select: { id: true, meetAt: true, bookingId: true },
     });
     if (!job || !jobViewOpen(job.meetAt)) return false;
 
     const url = `/api/file?p=${encodeURIComponent(pathname)}`;
 
+    // เอกสารลูกค้าที่ตรวจผ่านแล้วของการจองนี้
     const doc = await prisma.bookingDocument.findFirst({
       where: { bookingId: job.bookingId, fileUrl: url, status: "APPROVED" },
       select: { id: true },
     });
-    return Boolean(doc);
+    if (doc) return true;
+
+    // รูปสภาพรถที่ตัวเองเป็นคนส่งเข้ามาในงานชิ้นนี้ — ต้องเปิดย้อนดูได้
+    // ผูกกับ assignment ไม่ใช่ booking เพื่อไม่ให้คนรับงานขาหนึ่งเห็นรูปของอีกขา
+    const photo = await prisma.handoffPhoto.findFirst({
+      where: { assignmentId: job.id, fileUrl: url },
+      select: { id: true },
+    });
+    return Boolean(photo);
   } catch (err) {
     console.error("job token check failed:", err);
     return false;

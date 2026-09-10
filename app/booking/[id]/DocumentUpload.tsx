@@ -60,7 +60,7 @@ export default function DocumentUpload({
 
     try {
       const form = new FormData();
-      form.append("file", await shrinkImage(file, { maxEdge: 2000, quality: 0.9 }));
+      form.append("file", await shrinkImage(file, { maxEdge: 1800, quality: 0.85, targetBytes: 700_000 }));
       form.append("kind", "document");
       const upRes = await fetch("/api/upload", { method: "POST", body: form });
       const upData = await upRes.json().catch(() => null);

@@ -15,7 +15,15 @@ import {
 export default async function AdminDashboard() {
   await requireStaff();
 
-  const [pendingCount, confirmedCount, carsCount, totalBookings, revenueAgg, recent] =
+  const [
+    pendingCount,
+    confirmedCount,
+    carsCount,
+    totalBookings,
+    revenueAgg,
+    depositAgg,
+    recent,
+  ] =
     await Promise.all([
       prisma.booking.count({ where: { status: "PENDING_DEPOSIT" } }),
       prisma.booking.count({ where: { status: "CONFIRMED" } }),
@@ -25,6 +33,12 @@ export default async function AdminDashboard() {
         _sum: { totalPrice: true },
         where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
       }),
+      /* ค่าจองที่รับเข้ามาแล้วจริง — นับจากสลิปที่แอดมินยืนยัน ไม่ใช่จากยอดจอง
+         ค่าเช่าจ่ายตอนรับรถ จึงยังไม่ใช่เงินในมือ ณ ตอนนี้ */
+      prisma.deposit.aggregate({
+        _sum: { amount: true },
+        where: { status: "CONFIRMED" },
+      }),
       prisma.booking.findMany({
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -32,7 +46,10 @@ export default async function AdminDashboard() {
       }),
     ]);
 
-  const revenue = revenueAgg._sum.totalPrice ?? 0;
+  /* แยกสองตัวเลขให้ชัด ไม่งั้นคนอ่านจะเข้าใจว่ายอดจองคือเงินที่ได้แล้ว
+     ซึ่งต่างกันเป็นสิบเท่า เพราะค่าเช่าเก็บตอนรับรถ */
+  const bookingValue = revenueAgg._sum.totalPrice ?? 0;
+  const depositReceived = depositAgg._sum.amount ?? 0;
 
   // งานรับ-ส่งรถของฉันวันนี้ + งานที่ยังไม่มีคนรับ
   const session = await auth();
@@ -75,10 +92,10 @@ export default async function AdminDashboard() {
 
   const stats = [
     {
-      label: "รอตรวจสลิปค่าจอง",
+      label: "รอตรวจเอกสาร",
       value: pendingCount,
       accent: "bg-amber-50 text-amber-700",
-      href: "/admin/bookings",
+      href: "/admin/bookings?status=review",
       icon: (
         <path
           d="M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
@@ -135,7 +152,7 @@ export default async function AdminDashboard() {
       label: "งานรับ-ส่งของฉันวันนี้",
       value: myJobs.length,
       accent: "bg-blue-50 text-blue-700",
-      href: "/admin/bookings",
+      href: "/admin/schedule",
       icon: (
         <>
           <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.7" />
@@ -144,10 +161,11 @@ export default async function AdminDashboard() {
       ),
     },
     {
-      label: "งานที่ยังไม่มีคนรับ",
+      // ระบุช่วงเวลาบนป้ายเลย ไม่งั้นดูขัดกับตัวเลขในหน้าตารางที่นับทั้งเดือน
+      label: "ยังไม่มีคนรับ (7 วันข้างหน้า)",
       value: unassignedCount,
       accent: unassignedCount > 0 ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-400",
-      href: "/admin/bookings",
+      href: "/admin/bookings?status=unassigned",
       icon: (
         <>
           <path
@@ -188,10 +206,28 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      {/* การ์ดรายได้ — พื้นเขียวเข้มตลอดทั้งสองโหมด จึงใช้สีชุดที่ไม่สลับ */}
+      {/* การ์ดเงิน — พื้นเขียวเข้มตลอดทั้งสองโหมด จึงใช้สีชุดที่ไม่สลับ */}
       <div className="bg-panel rounded-2xl p-6 mb-6 text-white">
-        <p className="text-white/75 text-sm">รายได้จากการจองที่ยืนยันแล้ว</p>
-        <p className="text-4xl font-bold mt-1.5">{revenue.toLocaleString()} ฿</p>
+        <div className="grid sm:grid-cols-2 gap-6">
+          <div>
+            <p className="text-white/75 text-sm">ค่าจองที่รับแล้ว</p>
+            <p className="text-4xl font-bold mt-1.5">
+              {depositReceived.toLocaleString()} ฿
+            </p>
+            <p className="text-white/60 text-xs mt-1.5 leading-relaxed">
+              เงินที่เข้ามาแล้วจริง จากสลิปค่าจองที่ยืนยัน
+            </p>
+          </div>
+          <div className="sm:border-l sm:border-white/15 sm:pl-6">
+            <p className="text-white/75 text-sm">มูลค่าการจอง</p>
+            <p className="text-4xl font-bold mt-1.5 text-gold-fixed">
+              {bookingValue.toLocaleString()} ฿
+            </p>
+            <p className="text-white/60 text-xs mt-1.5 leading-relaxed">
+              ยอดรวมของการจองที่ยืนยันและเสร็จสิ้น — ส่วนค่าเช่าเก็บตอนลูกค้ารับรถ
+            </p>
+          </div>
+        </div>
       </div>
 
       {myJobs.length > 0 && (

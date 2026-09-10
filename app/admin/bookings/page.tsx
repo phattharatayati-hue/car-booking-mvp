@@ -613,9 +613,12 @@ export default async function AdminBookingsPage({
       )}
 
       <div className="flex flex-col gap-4">
-        {bookings.map((b: BookingRow) => {
+        {bookings.map((b: BookingRow, i: number) => {
           const label = STATUS_LABEL[b.status] ?? b.status;
           const cls = STATUS_CLASS[b.status] ?? STATUS_CLASS.PENDING_DEPOSIT;
+          /* ลำดับนับต่อเนื่องข้ามหน้า — หน้า 2 เริ่มที่ 21 ไม่ใช่ 1
+             จะได้คุยกันรู้เรื่องว่า "ใบที่ 23" คือใบไหน */
+          const seq = (current - 1) * PAGE_SIZE + i + 1;
           return (
             <div
               key={b.id}
@@ -624,6 +627,9 @@ export default async function AdminBookingsPage({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="shrink-0 w-7 h-7 grid place-items-center rounded-lg bg-slate-100 text-slate-500 text-xs font-bold tabular-nums">
+                      {seq}
+                    </span>
                     <h3 className="font-semibold text-slate-900">
                       {b.car.brand} {b.car.name}
                     </h3>

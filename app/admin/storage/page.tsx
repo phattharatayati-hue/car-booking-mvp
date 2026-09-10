@@ -1,11 +1,38 @@
 export const dynamic = "force-dynamic";
 
 import { list } from "@vercel/blob";
-import { requireStaff } from "@/lib/roles";
+import { requireStaff, currentAdmin } from "@/lib/roles";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { formatBangkokDateTime } from "@/lib/settings";
+import { revalidatePath } from "next/cache";
+import ActionButton from "@/components/ActionButton";
+import { BTN, NOTICE } from "@/lib/ui";
+import {
+  countStaleDocuments,
+  purgeStaleDocuments,
+  RETENTION_DAYS,
+} from "@/lib/document-retention";
+
+/**
+ * ลบเอกสารที่หมดระยะเก็บด้วยมือ — ปกติ cron รายสัปดาห์จัดการให้อยู่แล้ว
+ * ปุ่มนี้ไว้ใช้ตอนอยากลบทันทีโดยไม่รอถึงรอบ เช่นลูกค้าขอให้ลบข้อมูล
+ */
+async function purgeDocumentsAction() {
+  "use server";
+  const me = await currentAdmin();
+  if (!me) redirect("/login");
+  if (me.role === "DRIVER") redirect("/admin/storage?error=forbidden");
+
+  const result = await purgeStaleDocuments({
+    id: me.id,
+    name: me.name,
+    role: me.role,
+  });
+
+  revalidatePath("/admin/storage");
+  redirect(`/admin/storage?ok=purged&n=${result.removed}`);
+}
 
 /**
  * โควตาพื้นที่ Blob (GB) — ตั้งผ่าน env `BLOB_QUOTA_GB`
@@ -68,7 +95,12 @@ async function loadAllBlobs() {
   return all;
 }
 
-export default async function StoragePage() {
+export default async function StoragePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ok?: string; error?: string; n?: string }>;
+}) {
+  const sp = await searchParams;
   await requireStaff();
 
   const session = await auth();
@@ -114,16 +146,9 @@ export default async function StoragePage() {
   const monthsLeft =
     recentBytes > 0 ? Math.max(0, (QUOTA_BYTES - totalBytes) / recentBytes) : null;
 
-  // เอกสารที่ลบได้แล้ว — การจองที่จบไปเกิน 90 วัน
-  const staleCutoff = new Date(Date.now() - 90 * 86400000);
-  const staleDocs = await prisma.bookingDocument.count({
-    where: {
-      booking: {
-        status: { in: ["COMPLETED", "CANCELLED", "REJECTED"] },
-        endDate: { lt: staleCutoff },
-      },
-    },
-  });
+  // เอกสารที่ลบได้แล้ว — เงื่อนไขอยู่ที่ lib/document-retention.ts ที่เดียว
+  // จะได้ไม่มีทางที่ตัวเลขบนหน้ากับของที่ปุ่มลบจริงเป็นคนละชุด
+  const staleDocs = await countStaleDocuments();
 
   const barColor =
     usedPct >= 90 ? "bg-red-500" : usedPct >= 70 ? "bg-amber-500" : "bg-blue-600";
@@ -136,6 +161,25 @@ export default async function StoragePage() {
           รูปรถ สลิปค่าจอง และเอกสารลูกค้าทั้งหมดที่เก็บใน Vercel Blob
         </p>
       </div>
+
+      {sp.ok === "purged" && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className={`mb-5 text-sm px-4 py-3 rounded-xl border ${NOTICE.ok}`}
+        >
+          ลบเอกสารที่หมดระยะเก็บแล้ว {sp.n ?? 0} ใบ
+        </div>
+      )}
+      {sp.error === "forbidden" && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className={`mb-5 text-sm px-4 py-3 rounded-xl border ${NOTICE.error}`}
+        >
+          บัญชีของคุณไม่มีสิทธิ์ลบเอกสาร
+        </div>
+      )}
 
       {loadError && (
         <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
@@ -255,11 +299,37 @@ export default async function StoragePage() {
 
       {/* เอกสารที่ลบได้ */}
       <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="font-semibold text-slate-900">เอกสารที่ลบได้แล้ว</h2>
+        <h2 className="font-semibold text-slate-900">เอกสารส่วนบุคคลของลูกค้า</h2>
         <p className="text-sm text-slate-500 mt-1 leading-relaxed">
-          เอกสารของการจองที่ปิดงานไปแล้วเกิน 90 วัน (จบงาน ยกเลิก หรือถูกปฏิเสธ):{" "}
-          <strong className="text-slate-900">{staleDocs} ใบ</strong>
-          {staleDocs > 0 && " — เก็บบัตรประชาชนและใบขับขี่ไว้นานกว่าที่จำเป็นเป็นความเสี่ยงโดยไม่ได้ประโยชน์"}
+          ระบบลบเอกสารของการจองที่ปิดงานไปแล้วเกิน {RETENTION_DAYS} วันให้อัตโนมัติ
+          (จบงาน ยกเลิก หรือถูกปฏิเสธ) — ทำทุกวันจันทร์ตี 4
+          เก็บบัตรประชาชนและใบขับขี่ไว้นานกว่าที่จำเป็นเป็นความเสี่ยงโดยไม่ได้ประโยชน์
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <p className="text-sm text-slate-600">
+            รอลบตอนนี้:{" "}
+            <strong className={staleDocs > 0 ? "text-amber-700" : "text-slate-900"}>
+              {staleDocs} ใบ
+            </strong>
+          </p>
+
+          {staleDocs > 0 && (
+            <form action={purgeDocumentsAction} className="ml-auto">
+              <ActionButton
+                className={BTN.danger}
+                pendingText="กำลังลบ…"
+                confirm={`ลบเอกสารลูกค้า ${staleDocs} ใบถาวร ย้อนกลับไม่ได้\n\nเป็นเอกสารของการจองที่จบไปแล้วเกิน ${RETENTION_DAYS} วัน\nตัวการจองและยอดเงินยังอยู่ครบ\n\nยืนยันหรือไม่?`}
+              >
+                ลบเอกสารที่หมดระยะเก็บ
+              </ActionButton>
+            </form>
+          )}
+        </div>
+
+        <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+          ปุ่มนี้ทำสิ่งเดียวกับที่ระบบทำอัตโนมัติ ใช้ตอนอยากลบทันทีโดยไม่รอถึงรอบ ·
+          ทุกครั้งที่ลบจะถูกบันทึกไว้ในประวัติการใช้งาน
         </p>
       </div>
 

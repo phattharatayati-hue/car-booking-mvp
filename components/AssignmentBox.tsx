@@ -155,7 +155,13 @@ export default function AssignmentBox({
                             </span>
                           )}
                           {a.photos.length > 0 && (
-                            <span className="flex flex-wrap gap-1.5 mt-1.5">
+                            /* ขยายจาก 48px เป็น 88px — เดิมเล็กจนดูไม่ออกว่ารูปอะไร
+                               แอดมินต้องดูรอยขีดข่วนจากรูปพวกนี้เวลามีข้อโต้แย้ง */
+                            <span className="block mt-2">
+                              <span className="block text-[11px] text-slate-400 mb-1">
+                                รูปสภาพรถ {a.photos.length} รูป — กดเพื่อดูขนาดเต็ม
+                              </span>
+                              <span className="flex flex-wrap gap-2">
                               {a.photos.map((ph) => (
                                 <a
                                   key={ph.id}
@@ -163,7 +169,7 @@ export default function AssignmentBox({
                                   target="_blank"
                                   rel="noreferrer"
                                   title="รูปสภาพรถจากคนรับ-ส่งรถ"
-                                  className="block w-12 h-12 rounded-lg overflow-hidden border border-slate-200 bg-white"
+                                  className="block w-[88px] h-[88px] rounded-lg overflow-hidden border border-slate-200 bg-white hover:border-blue-400 transition-colors"
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
@@ -174,6 +180,7 @@ export default function AssignmentBox({
                                   />
                                 </a>
                               ))}
+                              </span>
                             </span>
                           )}
                         </span>

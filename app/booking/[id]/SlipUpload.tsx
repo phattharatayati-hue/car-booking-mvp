@@ -70,7 +70,7 @@ export default function SlipUpload({
 
     try {
       const uploadForm = new FormData();
-      uploadForm.append("file", await shrinkImage(file, { maxEdge: 2000, quality: 0.9 }));
+      uploadForm.append("file", await shrinkImage(file, { maxEdge: 1600, quality: 0.85, targetBytes: 500_000 }));
       uploadForm.append("kind", "slip");
       const uploadRes = await fetch("/api/upload", { method: "POST", body: uploadForm });
       const uploadData = await uploadRes.json().catch(() => null);

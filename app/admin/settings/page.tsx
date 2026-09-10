@@ -132,19 +132,20 @@ async function saveSettingsAction(formData: FormData) {
     changes.push("สร้างค่าตั้งต้นของระบบ");
   }
 
-  await audit({
-    action: "settings.save",
-    summary:
-      changes.length > 0
-        ? `บันทึกตั้งค่าระบบ — ${changes.length} รายการ`
-        : "บันทึกตั้งค่าระบบ (ไม่มีค่าเปลี่ยน)",
-    entity: "settings",
-    entityId: SETTINGS_ID,
-    detail: changes.join(" · ") || undefined,
-  });
+  /* เขียนประวัติเฉพาะตอนมีค่าเปลี่ยนจริง
+     กด Save โดยไม่แก้อะไรแล้วยังเขียน log ทำให้รายการที่มีความหมายถูกกลบ */
+  if (changes.length > 0) {
+    await audit({
+      action: "settings.save",
+      summary: `บันทึกตั้งค่าระบบ — ${changes.length} รายการ`,
+      entity: "settings",
+      entityId: SETTINGS_ID,
+      detail: changes.join(" · "),
+    });
+  }
 
   revalidatePath("/admin/settings");
-  redirect("/admin/settings?ok=saved");
+  redirect(`/admin/settings?ok=${changes.length > 0 ? "saved" : "nochange"}`);
 }
 
 const ERRORS: Record<string, string> = {
@@ -187,12 +188,22 @@ export default async function SettingsPage({
       </div>
 
       {ok && (
-        <div className="mb-5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl">
-          บันทึกการตั้งค่าเรียบร้อยแล้ว
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl"
+        >
+          {ok === "nochange"
+            ? "ไม่มีค่าไหนเปลี่ยน จึงไม่ได้บันทึกอะไรเพิ่ม"
+            : "บันทึกการตั้งค่าเรียบร้อยแล้ว"}
         </div>
       )}
       {error && ERRORS[error] && (
-        <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl"
+        >
           {ERRORS[error]}
         </div>
       )}
