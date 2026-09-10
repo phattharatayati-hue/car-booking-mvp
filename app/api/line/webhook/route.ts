@@ -232,7 +232,7 @@ async function handleEvent(event: LineEvent) {
       });
 
       if (booking) {
-        await replyMessage(replyToken, formatBooking(booking));
+        await replyMessage(replyToken, formatBooking(booking, site));
         return;
       }
     }
@@ -271,7 +271,7 @@ async function handleEvent(event: LineEvent) {
       return;
     }
 
-    await replyMessage(replyToken, formatBooking(booking));
+    await replyMessage(replyToken, formatBooking(booking, site));
     return;
   }
 
@@ -290,7 +290,7 @@ type BookingForDisplay = {
   deposit: { status: string } | null;
 };
 
-function formatBooking(booking: BookingForDisplay) {
+function formatBooking(booking: BookingForDisplay, site: string) {
   const lines = [
     `📋 การจอง ${booking.id.slice(0, 8).toUpperCase()}`,
     "",
@@ -310,6 +310,10 @@ function formatBooking(booking: BookingForDisplay) {
   } else {
     lines.push("", "✅ ยืนยันค่าจองเรียบร้อยแล้ว");
   }
+
+  // ลิงก์เข้าหน้าการจอง — ที่เดียวที่อัปโหลดเอกสารได้ เดิมไม่มีลิงก์เลย
+  // ลูกค้าเลยหาทางส่งเอกสารไม่เจอ ต้องไถหาลิงก์เก่าในแชทเอง
+  lines.push("", "ดูรายละเอียดและส่งเอกสาร:", `${site}/booking/${booking.id}`);
 
   return lines.join("\n");
 }

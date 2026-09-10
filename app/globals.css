@@ -334,8 +334,23 @@ input[type="month"] {
      โดยเฉพาะในกริดสองคอลัมน์บนจอแคบ */
   min-width: 0;
   max-width: 100%;
+  /* บังคับให้กว้างตามช่องที่แม่ให้ ไม่ใช่ตามความกว้างธรรมชาติของตัวเอง
+     iOS ใน LIFF คิดความกว้าง input วันที่จากรูปแบบวันที่เต็ม ซึ่งกว้างกว่าคอลัมน์ */
+  width: 100%;
   box-sizing: border-box;
   text-overflow: ellipsis;
+}
+
+/* ต้นเหตุจริงของช่องวันที่ล้นจอในกริดสองคอลัมน์:
+   ลูกของ grid/flex มีค่าเริ่มต้น min-width:auto จึงหดต่ำกว่าความกว้างธรรมชาติ
+   ของลูกไม่ได้ คอลัมน์เลยถูกดันจนกริดทะลุการ์ด แม้ตัว input จะตั้ง max-width:100% แล้ว
+   กฎนี้ปลดล็อกเฉพาะกล่องที่ห่อช่องพวกนี้อยู่ ไม่กระทบกริดอื่น */
+:where(.grid, .flex) > :has(> select),
+:where(.grid, .flex) > :has(> input[type="date"]),
+:where(.grid, .flex) > :has(> input[type="time"]),
+:where(.grid, .flex) > :has(> input[type="datetime-local"]),
+:where(.grid, .flex) > :has(> input[type="month"]) {
+  min-width: 0;
 }
 
 /* iOS จัดค่าในช่องวันที่ไว้กึ่งกลาง ทำให้ชนไอคอนแม้เว้น padding แล้ว */

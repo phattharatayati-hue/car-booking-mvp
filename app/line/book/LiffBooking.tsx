@@ -456,7 +456,7 @@ export default function LiffBooking({
 
       {/* เลือกจากปฏิทินด้านบน หรือกรอกวันตรงนี้ก็ได้ */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="sd">
             วันรับรถ
           </label>
@@ -473,7 +473,7 @@ export default function LiffBooking({
             className="w-full rounded-xl bg-white border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="ed">
             วันคืนรถ
           </label>
@@ -486,10 +486,10 @@ export default function LiffBooking({
             className="w-full rounded-xl bg-white border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
         </div>
-        <p className="col-span-2 -mt-1 text-xs text-slate-500">
+        <p className="col-span-full -mt-1 text-xs text-slate-500">
           เช่าวันเดียว ใส่วันเดียวกับวันรับรถได้เลย
         </p>
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="st">
             เวลารับรถ
           </label>
@@ -512,7 +512,7 @@ export default function LiffBooking({
             </p>
           )}
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="et">
             เวลาคืนรถ
           </label>
@@ -539,7 +539,7 @@ export default function LiffBooking({
 
       {pickupPoints.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="pp">
               จุดรับรถ
             </label>
@@ -555,7 +555,7 @@ export default function LiffBooking({
               <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="rp">
               จุดคืนรถ
             </label>
@@ -571,7 +571,7 @@ export default function LiffBooking({
               <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
             </select>
           </div>
-          <p className="col-span-2 text-xs text-slate-500">
+          <p className="col-span-full text-xs text-slate-500">
             ถ้าต้องการจุดอื่น เลือก “{OTHER_PLACE}” แล้วแอดมินจะติดต่อกลับไปนัดครับ
           </p>
         </div>

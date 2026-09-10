@@ -46,22 +46,20 @@ const richMenu = {
   name: "เมนูหลัก - ระบบจองรถ",
   chatBarText: "เมนู",
   areas: [
-    // แถวบน — "จองรถ" เริ่มขั้นตอนจองในแชทเลย ไม่เด้งออกเว็บ
+    /* แถวบน — ก่อนจอง
+       "จองรถเลย" เริ่มขั้นตอนจองในแชทเลย ไม่เด้งออกเว็บ */
     {
       bounds: cell(0, 0),
       action: { type: "postback", label: "จองรถ", data: "action=start_booking", displayText: "จองรถ" },
     },
     { bounds: cell(1, 0), action: { type: "uri", label: "รถทั้งหมด", uri: `${SITE}/cars` } },
-    {
-      bounds: cell(2, 0),
-      action: { type: "message", label: "เช็คสถานะ", text: "เช็คสถานะ" },
-    },
-    // แถวล่าง — เรียงตามรูป: ค่าปรับ · วิธีการจอง · ติดต่อเรา
-    { bounds: cell(0, 1), action: { type: "uri", label: "ค่าปรับ", uri: `${SITE}/fees` } },
-    {
-      bounds: cell(1, 1),
-      action: { type: "uri", label: "วิธีการจอง", uri: `${SITE}/how-to-book` },
-    },
+    /* ค่าบริการตอบในแชทเลย เร็วกว่าเปิดเว็บ — คีย์เวิร์ด "ค่าปรับ" อยู่ใน webhook แล้ว */
+    { bounds: cell(2, 0), action: { type: "message", label: "ค่าบริการ", text: "ค่าปรับ" } },
+
+    /* แถวล่าง — หลังจอง */
+    { bounds: cell(0, 1), action: { type: "message", label: "เช็คสถานะ", text: "เช็คสถานะ" } },
+    /* ทางเข้าอัปโหลดเอกสาร/ดูประวัติ — ต้อง login ด้วย LINE ที่หน้านี้ */
+    { bounds: cell(1, 1), action: { type: "uri", label: "การจองของฉัน", uri: `${SITE}/my` } },
     {
       bounds: cell(2, 1),
       action: { type: "message", label: "ติดต่อเรา", text: "ติดต่อแอดมิน" },

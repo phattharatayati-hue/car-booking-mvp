@@ -265,7 +265,7 @@ export default function BookingForm({
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4 mt-4">
-          <div>
+          <div className="min-w-0">
             <label className={labelClass} htmlFor="startTime">เวลารับรถ</label>
             <select
               id="startTime"
@@ -325,7 +325,7 @@ export default function BookingForm({
                 <option value={OTHER_PLACE}>{OTHER_PLACE}</option>
               </select>
             </div>
-            <p className="sm:col-span-2 text-xs text-slate-500 -mt-1">
+            <p className="sm:col-span-full text-xs text-slate-500 -mt-1">
               ถ้าต้องการจุดอื่นนอกรายการ เลือก “{OTHER_PLACE}” แล้วแอดมินจะติดต่อกลับไปนัดจุดรับ-ส่งครับ
             </p>
           </div>
