@@ -531,12 +531,13 @@ export default async function AdminBookingsPage({
         <label htmlFor="booking-search" className="sr-only">
           ค้นหาการจอง
         </label>
+        {/* max-w-md กันไม่ให้ flex-1 ดูดพื้นที่จนช่องเรียงลำดับกับปุ่มถูกดันตกบรรทัด */}
         <input
           id="booking-search"
           name="q"
           defaultValue={term}
           placeholder="ค้นหา ชื่อ / เบอร์ / ทะเบียน / รหัสจอง"
-          className="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          className="flex-1 min-w-[200px] max-w-md rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         />
         <label htmlFor="booking-sort" className="sr-only">
           เรียงลำดับ
@@ -768,16 +769,16 @@ export default async function AdminBookingsPage({
 
                     if (!doc) {
                       return (
+                        /* ไม่มีอะไรให้ดูก็ไม่ต้องกินพื้นที่เท่าช่องที่มีรูป
+                           เดิมสูงเท่ากันหมด ทำให้การ์ดยาวขึ้นฟรี ๆ ครึ่งหนึ่ง */
                         <div
                           key={kind}
-                          className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3"
+                          className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-2"
                         >
-                          <p className="text-[11px] font-medium text-slate-500 mb-2">
+                          <span className="text-[11px] font-medium text-slate-500 leading-tight">
                             {DOCUMENT_LABEL[kind]}
-                          </p>
-                          <div className="h-24 grid place-items-center text-xs text-slate-400">
-                            ยังไม่ส่ง
-                          </div>
+                          </span>
+                          <span className="text-xs text-slate-400 shrink-0">ยังไม่ส่ง</span>
                         </div>
                       );
                     }
@@ -958,10 +959,12 @@ export default async function AdminBookingsPage({
 
               {b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
                 <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                  {/* slate-500 ไม่ใช่ 400 — เดิมจางจนหาไม่เจอตอนต้องใช้จริง
+                      แต่ยังไม่เด่นจนกดพลาด */}
                   <form action={cancelBookingAction}>
                     <input type="hidden" name="bookingId" value={b.id} />
                     <ActionButton
-                      className="min-h-0 text-xs text-slate-400 hover:text-red-600 underline underline-offset-4 transition-colors disabled:opacity-60"
+                      className="min-h-0 text-xs text-slate-500 hover:text-red-600 underline underline-offset-4 transition-colors disabled:opacity-60"
                       pendingText="กำลังยกเลิก…"
                       confirm={CONFIRM.cancelBooking}
                     >

@@ -112,7 +112,7 @@ export default async function AdminCarsPage({
           name="q"
           defaultValue={term}
           placeholder="ค้นหา ยี่ห้อ / รุ่น / ทะเบียน"
-          className="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          className="flex-1 min-w-[200px] max-w-md rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         />
         <button type="submit" className={BTN.primary}>
           ค้นหา

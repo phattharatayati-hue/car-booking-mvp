@@ -459,8 +459,12 @@ export default function LiffBooking({
         </p>
       )}
 
-      {/* เลือกจากปฏิทินด้านบน หรือกรอกวันตรงนี้ก็ได้ */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
+      {/* เลือกจากปฏิทินด้านบน หรือกรอกวันตรงนี้ก็ได้
+
+          ช่องวันที่ต้องการที่กว้างกว่าช่องอื่นมาก (iOS แสดงวันเต็มรูปแบบ)
+          จึงขึ้นสองคอลัมน์ที่ 480px ไม่ใช่ 360px เหมือนช่องเวลา/จุดรับ-ส่ง
+          บนมือถือทั่วไปจะเรียงลงมาเป็นคอลัมน์เดียว อ่านง่ายกว่าและไม่มีทางล้น */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[480px]:grid-cols-2 gap-3">
         <div className="min-w-0">
           <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="sd">
             วันรับรถ

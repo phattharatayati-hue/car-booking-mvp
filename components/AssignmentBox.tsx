@@ -1,6 +1,7 @@
 import AssignSubmit from "@/components/AssignSubmit";
 import ActionButton from "@/components/ActionButton";
 import { CONFIRM } from "@/lib/ui";
+import ThaiDateHint from "@/components/ThaiDateHint";
 import {
   assignBothAction,
   unassignAction,
@@ -57,12 +58,40 @@ export default function AssignmentBox({
   admins: AdminOption[];
   assignments: AssignmentRow[];
 }) {
+  /* พับกล่องนี้เก็บเมื่อไม่มีอะไรต้องทำแล้ว — มอบหมายครบทั้งสองขาและปิดงานหมด
+     เดิมกางเต็มตลอด ทำให้การ์ดหนึ่งใบยาวหลายหน้าจอ ต้องไถผ่านใบที่เสร็จแล้วนาน
+     ใช้ <details> ของ HTML แทน state จะได้ไม่ต้องแปลงหน้านี้เป็น client component */
+  const byKind = HANDOFF_KINDS.map((k) => assignments.filter((a) => a.kind === k));
+  const allAssigned = byKind.every((rows) => rows.length > 0);
+  const allDone = assignments.length > 0 && assignments.every((a) => a.doneAt);
+  const settled = allAssigned && allDone;
+
+  const summary = settled
+    ? `มอบหมายครบและปิดงานแล้ว — ${assignments.map((a) => a.admin.name).join(" · ")}`
+    : allAssigned
+      ? "มอบหมายครบแล้ว รอปิดงาน"
+      : "ยังมอบหมายไม่ครบ";
+
   return (
-    <div className="mt-5 pt-5 border-t border-slate-100">
-      <div className="flex items-baseline justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-900">คนส่งและรับรถ</h3>
-        <span className="text-xs text-slate-400">กรอกทั้งสองงาน แล้วกดมอบหมายครั้งเดียว</span>
-      </div>
+    <details open={!settled} className="mt-5 pt-5 border-t border-slate-100 group">
+      <summary className="flex flex-wrap items-baseline justify-between gap-2 mb-3 cursor-pointer list-none">
+        <h3 className="text-sm font-semibold text-slate-900">
+          คนส่งและรับรถ
+          <span
+            className={`ml-2 text-xs font-medium ${
+              settled ? "text-emerald-700" : allAssigned ? "text-slate-500" : "text-amber-700"
+            }`}
+          >
+            {summary}
+          </span>
+        </h3>
+        <span className="text-xs text-slate-400">
+          <span className="group-open:hidden">กดเพื่อดูรายละเอียด</span>
+          <span className="hidden group-open:inline">
+            กรอกทั้งสองงาน แล้วกดมอบหมายครั้งเดียว
+          </span>
+        </span>
+      </summary>
 
       {/* ฟอร์มเดียวครอบทั้งงานส่งและงานรับคืน — ปุ่มมอบหมายอยู่ล่างสุดปุ่มเดียว
           ปุ่มถอน/ซิงก์ใหม่ใช้ formAction ของตัวเอง จึงไม่ต้องซ้อนฟอร์ม (HTML ห้ามซ้อน) */}
@@ -258,6 +287,9 @@ export default function AssignmentBox({
                     defaultValue={bangkokDateStr(fallbackAt)}
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs bg-white"
                   />
+                  {/* ช่องวันที่ของเบราว์เซอร์แสดงเป็น MM/DD/YYYY บนเครื่องภาษาอังกฤษ
+                      กำกับเป็นวันไทยไว้ ไม่งั้นมอบหมายผิดวันได้ง่าย */}
+                  <ThaiDateHint inputId={`${booking.id}-${kind}-date`} />
                   </div>
                   <div>
                   <label
@@ -319,6 +351,6 @@ export default function AssignmentBox({
           — นัด 09:00 น. จะลงปฏิทินเป็น 08:30-09:30 น.
         </p>
       </form>
-    </div>
+    </details>
   );
 }

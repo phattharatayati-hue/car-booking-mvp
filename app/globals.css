@@ -353,12 +353,49 @@ input[type="month"] {
   min-width: 0;
 }
 
-/* iOS จัดค่าในช่องวันที่ไว้กึ่งกลาง ทำให้ชนไอคอนแม้เว้น padding แล้ว */
+/* ตัวเลือกในป็อปอัปของ select
+   เบราว์เซอร์วาดป็อปอัปนี้นอก DOM ปกติ จึงไม่รับสีที่สืบทอดมาอย่างที่ควร
+   แม้ธีมจะตั้ง color-scheme: dark ไว้แล้ว ผลคือในโหมดมืดตัวเลือกที่ไม่ได้เลือกอยู่
+   กลายเป็นเทาเข้มบนพื้นเข้มจนอ่านไม่ออก ต้องกำหนดสีให้ option ตรง ๆ */
+html[data-theme="dark"] select option,
+html[data-theme="dark"] select optgroup {
+  background-color: var(--surface);
+  color: var(--foreground);
+}
+html[data-theme="dark"] select option:disabled {
+  color: var(--color-slate-400);
+}
+
+/* ต้นเหตุจริงของช่องวันที่ที่ยังล้นอยู่แม้ตั้ง width/min-width ที่ตัว input แล้ว
+   บน iOS ความกว้างธรรมชาติไม่ได้อยู่ที่ตัว input แต่อยู่ที่ shadow DOM ข้างใน
+   (::-webkit-datetime-edit และ ::-webkit-date-and-time-value ซึ่งเป็น nowrap)
+   ตัวแม่จึงหดไม่ได้ต่ำกว่าความกว้างของลูกที่มองไม่เห็น ต้องกดความกว้างที่ลูกด้วย */
 input[type="date"]::-webkit-date-and-time-value,
 input[type="time"]::-webkit-date-and-time-value,
 input[type="datetime-local"]::-webkit-date-and-time-value,
 input[type="month"]::-webkit-date-and-time-value {
+  /* iOS จัดค่าไว้กึ่งกลาง ทำให้ชนไอคอนแม้เว้น padding แล้ว */
   text-align: left;
+  width: 100%;
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="datetime-local"]::-webkit-datetime-edit,
+input[type="month"]::-webkit-datetime-edit {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ปิดหน้าตาเริ่มต้นของ iOS ที่มาพร้อมความกว้างตายตัว — ขอบและพื้นเรากำหนดเองอยู่แล้ว */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* ทำให้ปฏิทินของ input[type=date] กดง่ายขึ้น */
