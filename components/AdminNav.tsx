@@ -51,6 +51,23 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/handoffs",
+    label: "ภาพสภาพรถ",
+    icon: (
+      <>
+        <rect x="3" y="6" width="18" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+        <circle cx="12" cy="12.5" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+        <path
+          d="M8.5 6l1.2-2h4.6L15.5 6"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  {
     href: "/admin/calendar",
     label: "ปฏิทินการจอง",
     icon: (
