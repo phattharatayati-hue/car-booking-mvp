@@ -259,6 +259,26 @@ export default async function BookingStatusPage({
           </div>
         )}
 
+        {/* อัปสลิปแล้วแต่แอดมินยังไม่ตรวจ — ตั้งใจไม่ยิง LINE ตอนนี้เพื่อไม่ให้เปลืองข้อความ
+            สถานะจึงต้องชัดบนหน้าเว็บแทน ลูกค้าจะได้ไม่ทักมาถามว่าได้รับสลิปหรือยัง */}
+        {booking.deposit?.status === "PENDING" && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-5">
+            <p className="font-semibold text-blue-900 text-sm mb-1">
+              ได้รับสลิปแล้ว กำลังตรวจสอบ
+            </p>
+            <p className="text-sm text-blue-900/90 leading-relaxed">
+              คิวรถถูกกันไว้ให้คุณเรียบร้อยแล้ว ไม่ถูกยกเลิกอัตโนมัติอีก
+              <br />
+              แอดมินจะตรวจสลิปในเวลาทำการ
+              {booking.customer.lineUserId
+                ? " แล้วแจ้งผลกลับทาง LINE"
+                : " — กลับมาดูสถานะที่หน้านี้ได้ตลอด"}
+              <br />
+              ระหว่างรอ เตรียมเอกสารประกอบการเช่าด้านล่างไว้ได้เลยครับ
+            </p>
+          </div>
+        )}
+
         {booking.status === "REQUESTED" && (
           <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 mb-5">
             <p className="font-semibold text-violet-900 text-sm mb-1">

@@ -108,18 +108,29 @@ const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
 
 function Countdown({ dueAt }: { dueAt: Date | null }) {
   if (!dueAt) return <span className="text-slate-400">ยังไม่แจ้งบัญชี</span>;
+
+  /* โชว์ "เวลาที่ต้องโอนให้เสร็จ" คู่กับเวลาที่เหลือเสมอ
+     เพราะกำหนดนับเป็นชั่วโมงทำการ แต่เวลาที่เหลือนับตามนาฬิกาจริง
+     รายการที่สัญญาไว้ 1 ชั่วโมงจึงขึ้นว่า "เหลือ 12 ชม." ได้ถ้าแจ้งมาตอนดึก
+     ซึ่งอ่านแล้วนึกว่าระบบคิดผิด ถ้าไม่บอกเวลาปลายทางกำกับไว้ */
   const mins = Math.round((dueAt.getTime() - Date.now()) / 60000);
-  if (mins < 0) {
-    return (
-      <span className="text-red-600 font-semibold">
-        เลยกำหนด {Math.abs(mins) >= 60 ? `${Math.floor(Math.abs(mins) / 60)} ชม.` : `${Math.abs(mins)} นาที`}
-      </span>
-    );
-  }
+  const span = (m: number) =>
+    m >= 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${m} นาที`;
+
   return (
-    <span className={mins <= 60 ? "text-amber-600 font-semibold" : "text-slate-600"}>
-      เหลือ {mins >= 60 ? `${Math.floor(mins / 60)} ชม. ${mins % 60} นาที` : `${mins} นาที`}
-    </span>
+    <>
+      <span className="text-slate-500">ถึง {formatBangkokDateTime(dueAt)}</span>
+      <br />
+      {mins < 0 ? (
+        <span className="text-red-600 font-semibold">
+          เลยกำหนด {span(Math.abs(mins))}
+        </span>
+      ) : (
+        <span className={mins <= 60 ? "text-amber-600 font-semibold" : "text-slate-600"}>
+          เหลือ {span(mins)}
+        </span>
+      )}
+    </>
   );
 }
 

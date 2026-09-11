@@ -646,13 +646,19 @@ export default async function AdminBookingsPage({
      (เช่นรหัสจอง "cmtiwkst") การตัดอักขระออกจะเหลือสตริงว่าง
      แล้ว contains: "" แปลเป็น LIKE '%%' ซึ่งตรงกับทุกแถว
      พอต่อกันด้วย OR ก็ลากทุกใบเข้ามาหมดจนดูเหมือนค้นหาไม่ทำงาน */
+  /* เงื่อนไขเบอร์โทรต้องใส่เฉพาะตอนคำค้น "เป็นเบอร์จริง ๆ" ไม่ใช่แค่มีตัวเลขปนอยู่
+
+     เดิมเช็คแค่ว่ามีตัวเลขไหม ซึ่งพังกับรหัสจองที่มีเลขปน — ค้น "cmtx0ir"
+     จะได้ digits = "0" แล้ว phone contains "0" ตรงกับเบอร์โทรแทบทุกเบอร์
+     ผลคือค้นรหัสจองแล้วได้ทั้ง 43 ใบกลับมา เหมือนค้นหาไม่ทำงาน */
   const digits = term.replace(/\D/g, "");
+  const looksLikePhone = /^[\d\s-]{4,}$/.test(term);
   const searchWhere = term
     ? {
         OR: [
           { id: { startsWith: term.toLowerCase() } },
           { customer: { fullName: { contains: term, mode: "insensitive" as const } } },
-          ...(digits ? [{ customer: { phone: { contains: digits } } }] : []),
+          ...(looksLikePhone ? [{ customer: { phone: { contains: digits } } }] : []),
           { car: { licensePlate: { contains: term, mode: "insensitive" as const } } },
         ],
       }
