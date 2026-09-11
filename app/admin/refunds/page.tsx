@@ -24,7 +24,8 @@ import { BTN, NOTICE } from "@/lib/ui";
 
 async function markPaidAction(formData: FormData) {
   "use server";
-  const session = await requireStaff();
+  // requireStaff() คืนแถว AdminUser มาตรง ๆ ไม่ใช่ session ของ Auth.js
+  const me = await requireStaff();
 
   const bookingId = String(formData.get("bookingId") ?? "");
   if (!bookingId) redirect("/admin/refunds?error=missing");
@@ -59,7 +60,7 @@ async function markPaidAction(formData: FormData) {
       deductAmount,
       deductReason,
       paidAt: now,
-      paidBy: session.user?.email ?? null,
+      paidBy: me.email,
     },
   });
 
