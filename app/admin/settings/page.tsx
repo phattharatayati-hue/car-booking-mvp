@@ -207,7 +207,7 @@ export default async function SettingsPage({
   ];
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-4xl">
       <AdminTabs tabs={SETTINGS_TABS} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">ตั้งค่าระบบ</h1>

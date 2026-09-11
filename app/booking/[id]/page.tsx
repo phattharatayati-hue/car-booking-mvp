@@ -49,9 +49,7 @@ export default async function BookingStatusPage({
      ตัวที่บังคับจริงคือ sweepUnpaidHolds() ใน lib/unpaid-hold.ts */
   const awaitingSlip = booking.status === "PENDING_DEPOSIT" && !booking.deposit;
   const minutesLeft =
-    awaitingSlip && settings.holdMinutes > 0
-      ? minutesLeftToPay(booking.createdAt, settings.holdMinutes)
-      : null;
+    awaitingSlip && booking.holdUntil ? minutesLeftToPay(booking.holdUntil) : null;
 
   const steps = isRequest
     ? ["ส่งคำขอ", "ร้านยืนยัน", "อัปโหลดสลิป", "จองสำเร็จ"]
@@ -253,7 +251,7 @@ export default async function BookingStatusPage({
             </p>
             <p className="text-sm text-amber-900/90 leading-relaxed">
               ระบบกันคิวรถคันนี้ไว้ให้คุณ {settings.holdMinutes} นาที
-              นับจากเวลาที่กดจอง หากยังไม่ได้อัปสลิปภายในเวลาดังกล่าว
+              หากยังไม่ได้อัปสลิปภายในเวลาดังกล่าว
               ระบบจะยกเลิกการจองอัตโนมัติเพื่อปล่อยคิวให้ลูกค้าท่านอื่น
               <br />
               จองใหม่ได้เสมอถ้ารถยังว่างครับ

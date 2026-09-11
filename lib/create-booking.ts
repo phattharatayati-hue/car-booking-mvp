@@ -8,7 +8,7 @@ import { flexNewBookingAdmin, flexBookingRequested } from "@/lib/line-flex";
 import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
-import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
+import { sweepUnpaidHolds, holdUntilFrom } from "@/lib/unpaid-hold";
 
 export type CreateBookingInput = {
   carId: string;
@@ -170,6 +170,9 @@ export async function createBooking(
       pickupPlace,
       returnPlace,
       status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
+      // นาฬิกากันคิวเริ่มเดินเมื่อลูกค้าโอนได้จริงเท่านั้น
+      // ใบที่ต้องรอเจ้าของรถตอบจะตั้งเวลาให้ตอนแอดมินกดอนุมัติแทน
+      holdUntil: isRequest ? null : holdUntilFrom(settings.holdMinutes),
     },
   });
 

@@ -19,14 +19,23 @@ import {
   type DocumentKind,
   type DocumentStatus,
 } from "@/lib/documents";
-import { STATUS_LABEL, STATUS_CLASS, ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
+import {
+  STATUS_LABEL,
+  STATUS_CLASS,
+  ACTIVE_BOOKING_STATUSES,
+  isActiveStatus,
+} from "@/lib/booking-status";
 import AssignmentBox from "@/components/AssignmentBox";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
-import { sweepUnpaidHolds, waitingForSlipWhere } from "@/lib/unpaid-hold";
+import { sweepUnpaidHolds, waitingForSlipWhere, holdUntilFrom } from "@/lib/unpaid-hold";
 import { syncAssignment } from "@/lib/calendar-sync";
 import { notifyJob } from "@/lib/driver-jobs";
 import { SWAP_REASONS } from "@/lib/car-swap";
+import SwapPriceHint from "@/components/SwapPriceHint";
+import { quoteBooking } from "@/lib/pricing";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
+import { lateRuleFromSettings } from "@/lib/settings";
 
 type BookingRow = {
   id: string;
@@ -257,9 +266,16 @@ async function approveRequestAction(formData: FormData) {
   const bookingId = formData.get("bookingId") as string;
   const adminNote = String(formData.get("adminNote") ?? "").trim() || null;
 
+  // เพิ่งเปิดให้โอนได้ตอนนี้ นาฬิกากันคิวจึงเริ่มเดินตอนนี้ ไม่ใช่ตอนลูกค้ากดจอง
+  const { holdMinutes } = await getSettings();
+
   const booking = await prisma.booking.update({
     where: { id: bookingId },
-    data: { status: "PENDING_DEPOSIT", adminNote },
+    data: {
+      status: "PENDING_DEPOSIT",
+      adminNote,
+      holdUntil: holdUntilFrom(holdMinutes),
+    },
     include: { car: true },
   });
 
@@ -399,7 +415,7 @@ async function swapCarAction(formData: FormData) {
   });
   if (!booking) redirect("/admin/bookings?error=swap");
   if (booking.carId === carId) redirect("/admin/bookings?error=swap_same");
-  if (!ACTIVE_BOOKING_STATUSES.includes(booking.status as never)) {
+  if (!isActiveStatus(booking.status)) {
     redirect("/admin/bookings?error=swap_closed");
   }
   if (booking.assignments.some((a) => a.doneAt)) {
@@ -678,7 +694,19 @@ export default async function AdminBookingsPage({
     };
   }, null);
 
-  const [fleet, busy] = swapRange
+  type SwapCar = {
+    id: string;
+    brand: string;
+    name: string;
+    licensePlate: string;
+    pricePerDay: number;
+  };
+  type BusyRow = { id: string; carId: string; startDate: Date; endDate: Date };
+
+  const afterHoursRates = swapRange ? await getAfterHoursRates() : [];
+  const lateRule = lateRuleFromSettings(await getSettings());
+
+  const [fleet, busy]: [SwapCar[], BusyRow[]] = swapRange
     ? await Promise.all([
         prisma.car.findMany({
           where: { status: "AVAILABLE" },
@@ -711,7 +739,21 @@ export default async function AdminBookingsPage({
         )
         .map((o) => o.carId)
     );
-    return fleet.filter((c) => c.id !== b.carId && !taken.has(c.id));
+    /* แนบราคาที่ควรเป็นของรถแต่ละคันมาด้วย — ใช้ quoteBooking ตัวเดียวกับตอนลูกค้าจอง
+       จะได้รวมค่าธรรมเนียมนอกเวลาให้ถูกต้อง ไม่ใช่แค่ ราคา/วัน × จำนวนวัน
+       (ยังไม่รวมเรทพิเศษรายวันของรถคันนั้น จึงเรียกว่า "ราคาโดยประมาณ") */
+    return fleet
+      .filter((c) => c.id !== b.carId && !taken.has(c.id))
+      .map((c) => ({
+        ...c,
+        suggest: quoteBooking({
+          start: b.startDate,
+          end: b.endDate,
+          pricePerDay: c.pricePerDay,
+          rates: afterHoursRates,
+          lateRule,
+        }).total,
+      }));
   }
 
   // รายชื่อแอดมินสำหรับเลือกผู้รับงาน
@@ -1136,7 +1178,7 @@ export default async function AdminBookingsPage({
 
               {/* เปลี่ยนรถ + แก้บันทึก — ปิดไว้เป็นปกติเพราะเป็นงานนาน ๆ ครั้ง
                   แต่ต้องอยู่ในการ์ดเดียวกับใบจอง จะได้ไม่ต้องเปิดหน้าอื่นตอนคุยโทรศัพท์กับลูกค้าอยู่ */}
-              {ACTIVE_BOOKING_STATUSES.includes(b.status as never) && (
+              {isActiveStatus(b.status) && (
                 <details className="mt-3 group/edit">
                   <summary className="cursor-pointer list-none text-sm font-medium text-slate-600 hover:text-slate-900 select-none">
                     <span className="inline-block transition-transform group-open/edit:rotate-90">
@@ -1163,8 +1205,8 @@ export default async function AdminBookingsPage({
                         placeholder="เช่น โทรแจ้งลูกค้าแล้ว รับทราบ"
                         className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm"
                       />
-                      <ActionButton className={BTN.smOk} pendingText="กำลังบันทึก…">
-                        บันทึก
+                      <ActionButton className={BTN.smGhost} pendingText="กำลังบันทึก…">
+                        บันทึกโน้ต
                       </ActionButton>
                     </form>
 
@@ -1208,7 +1250,7 @@ export default async function AdminBookingsPage({
                                   เลือกรถ…
                                 </option>
                                 {swapOptions(b).map((c) => (
-                                  <option key={c.id} value={c.id}>
+                                  <option key={c.id} value={c.id} data-suggest={c.suggest}>
                                     {c.brand} {c.name} · {c.licensePlate} ·{" "}
                                     {c.pricePerDay.toLocaleString()} ฿/วัน
                                   </option>
@@ -1254,6 +1296,11 @@ export default async function AdminBookingsPage({
                                 defaultValue={b.totalPrice}
                                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                               />
+                              <SwapPriceHint
+                                selectId={`car-${b.id}`}
+                                priceId={`price-${b.id}`}
+                                currentPrice={b.totalPrice}
+                              />
                               <p className="text-xs text-slate-400 mt-1">
                                 ค่าเดิมใส่ไว้ให้แล้ว — ลดให้ลูกค้าได้ถ้าเปลี่ยนไปคันที่ถูกกว่า
                               </p>
@@ -1297,7 +1344,7 @@ export default async function AdminBookingsPage({
                           )}
 
                           <ActionButton
-                            className={BTN.smOk}
+                            className={BTN.warn}
                             pendingText="กำลังเปลี่ยน…"
                             confirm="ยืนยันเปลี่ยนรถของใบจองนี้? ระบบจะส่งการ์ดงานใหม่ให้คนที่รับงานไว้แล้ว"
                           >

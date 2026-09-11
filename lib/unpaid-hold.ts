@@ -16,13 +16,24 @@ import { getSettings } from "@/lib/settings";
  * ต้องเห็นคิวรถล่าสุด (สร้างการจอง, ดูปฏิทินว่าง, เปิดหน้าหลังบ้าน)
  */
 
-/** ใบจองที่ยังไม่มีสลิปและหมดเวลากันคิวแล้ว */
-export function expiredUnpaidWhere(holdMinutes: number) {
-  const cutoff = new Date(Date.now() - holdMinutes * 60000);
+/** เวลาหมดอายุของใบที่เพิ่งเข้าสถานะ "รอโอน" — null ถ้าปิดการยกเลิกอัตโนมัติไว้ */
+export function holdUntilFrom(holdMinutes: number): Date | null {
+  if (holdMinutes <= 0) return null;
+  return new Date(Date.now() + holdMinutes * 60000);
+}
+
+/**
+ * ใบจองที่ยังไม่มีสลิปและหมดเวลากันคิวแล้ว
+ *
+ * ยึดจาก holdUntil ไม่ใช่ createdAt — เพราะรถพาร์ทเนอร์ต้องรอเจ้าของรถตอบก่อน
+ * ถ้านับจากวันที่กดจอง ใบที่เพิ่งอนุมัติหลังรอสองวันจะถูกยกเลิกทิ้งทันที
+ * ทั้งที่ลูกค้ายังไม่มีโอกาสโอนเลยสักนาที
+ */
+export function expiredUnpaidWhere() {
   return {
     status: "PENDING_DEPOSIT" as const,
     deposit: { is: null },
-    createdAt: { lt: cutoff },
+    holdUntil: { not: null, lt: new Date() },
   };
 }
 
@@ -41,15 +52,15 @@ export function waitingForSlipWhere() {
 export async function sweepUnpaidHolds(holdMinutes?: number): Promise<number> {
   try {
     const minutes = holdMinutes ?? (await getSettings()).holdMinutes;
-    if (minutes <= 0) return 0;
 
     const { count } = await prisma.booking.updateMany({
-      where: expiredUnpaidWhere(minutes),
+      where: expiredUnpaidWhere(),
       data: {
         status: "CANCELLED",
         // เขียนลง cancelReason ไม่ใช่ adminNote — adminNote เป็นที่ของแอดมิน
         // ถ้าเขียนทับ บันทึกที่แอดมินพิมพ์ไว้เองจะหายเงียบ ๆ
         cancelReason: `ไม่ได้อัปสลิปค่าจองภายใน ${minutes} นาที`,
+        holdUntil: null,
       },
     });
     return count;
@@ -61,9 +72,8 @@ export async function sweepUnpaidHolds(holdMinutes?: number): Promise<number> {
 }
 
 /** เหลือเวลาอีกกี่นาทีก่อนใบจองนี้จะถูกยกเลิก (ติดลบ = เลยเวลาแล้ว) */
-export function minutesLeftToPay(createdAt: Date, holdMinutes: number): number {
-  const deadline = createdAt.getTime() + holdMinutes * 60000;
-  return Math.ceil((deadline - Date.now()) / 60000);
+export function minutesLeftToPay(holdUntil: Date): number {
+  return Math.ceil((holdUntil.getTime() - Date.now()) / 60000);
 }
 
 /** ข้อความบอกลูกค้าว่าต้องโอนภายในกี่นาที */

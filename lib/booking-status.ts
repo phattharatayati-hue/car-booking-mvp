@@ -5,6 +5,11 @@ export const ACTIVE_BOOKING_STATUSES = [
   "CONFIRMED",
 ] as const;
 
+/** สถานะนี้ยังนับว่าใบจองมีชีวิตอยู่ไหม — ใช้ตัดสินว่าจะให้แก้ไขใบจองได้หรือเปล่า */
+export function isActiveStatus(status: string): boolean {
+  return (ACTIVE_BOOKING_STATUSES as readonly string[]).includes(status);
+}
+
 export const STATUS_LABEL: Record<string, string> = {
   REQUESTED: "รอเช็คกับเจ้าของรถ",
   REJECTED: "รถไม่ว่าง",

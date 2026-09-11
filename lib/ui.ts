@@ -17,6 +17,10 @@ export const BTN = {
   ok: `${BASE} px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/25`,
   /** ปฏิเสธ/ลบ — ทุกปุ่มกลุ่มนี้ต้องมี confirm เสมอ */
   danger: `${BASE} px-4 py-2.5 bg-white border border-red-200 text-red-700 hover:bg-red-50`,
+  /** งานที่มีผลข้างเคียง เช่น สลับรถแล้วยิงการ์ดงานใหม่ให้คนขับ — ไม่ถึงกับอันตราย แต่ต้องคิดก่อนกด */
+  warn: `${BASE} px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white shadow-sm shadow-amber-600/25`,
+  /** ปุ่มรองขนาดเล็ก ความกว้างตามเนื้อหา — ใช้กับงานเบา ๆ เช่นบันทึกโน้ต */
+  smGhost: `${BASE} px-3 py-2 text-xs bg-white border border-slate-200 text-slate-700 hover:bg-slate-50`,
   /** ปุ่มรอง */
   ghost: `${BASE} px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50`,
   /** ปุ่มเล็กในการ์ดเอกสาร (ยังกดง่ายเพราะกว้างเต็มการ์ด) */
