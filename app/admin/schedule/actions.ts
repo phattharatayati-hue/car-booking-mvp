@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { currentAdmin } from "@/lib/roles";
 import { audit } from "@/lib/audit";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
+import { completeReturn } from "@/lib/return-flow";
 
 /**
  * เปลี่ยนสถานะงานรับ-ส่งจากหน้าเว็บ
@@ -46,6 +47,17 @@ export async function markJobAction(formData: FormData) {
         : { ackedAt: null, doneAt: null };
 
   await prisma.bookingAssignment.update({ where: { id: assignmentId }, data });
+
+  /* ปิดงาน "รับรถคืน" จากหน้านี้ต้องให้ผลเหมือนกับปิดจากลิงก์งานของคนขับ
+     เดิมหน้านี้แค่ปักธง doneAt เฉย ๆ ใบจองจึงค้างเป็น CONFIRMED
+     และลูกค้าไม่ได้ข้อความขอเลขบัญชีคืนเงินประกันเลย */
+  if (to === "done" && job.kind === "PICKUP") {
+    await prisma.booking.update({
+      where: { id: job.bookingId },
+      data: { status: "COMPLETED" },
+    });
+    await completeReturn(job.bookingId);
+  }
 
   const label = HANDOFF_LABEL[job.kind as HandoffKind] ?? job.kind;
   await audit({

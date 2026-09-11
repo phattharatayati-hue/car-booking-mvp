@@ -33,6 +33,10 @@ async function saveSettingsAction(formData: FormData) {
   const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
   const lateGraceMinutes = Number(formData.get("lateGraceMinutes"));
   const holdMinutes = Number(formData.get("holdMinutes"));
+  const refundReviewedHours = Number(formData.get("refundReviewedHours"));
+  const refundNormalHours = Number(formData.get("refundNormalHours"));
+  const refundOpenHour = Number(formData.get("refundOpenHour"));
+  const refundCloseHour = Number(formData.get("refundCloseHour"));
   const unpaidDigestOn = formData.get("unpaidDigestOn") === "on";
 
   if (
@@ -80,6 +84,28 @@ async function saveSettingsAction(formData: FormData) {
   if (!Number.isInteger(holdMinutes) || holdMinutes < 0 || holdMinutes > 1440) {
     redirect("/admin/settings?error=hold");
   }
+  if (
+    !Number.isInteger(refundReviewedHours) ||
+    !Number.isInteger(refundNormalHours) ||
+    refundReviewedHours < 1 ||
+    refundNormalHours < 1 ||
+    refundReviewedHours > 72 ||
+    refundNormalHours > 72 ||
+    refundReviewedHours > refundNormalHours
+  ) {
+    redirect("/admin/settings?error=refundHours");
+  }
+  // ต้องมีช่วงทำการอย่างน้อย 1 ชั่วโมง ไม่งั้นนาฬิกาคิวจะเดินไม่ได้เลย
+  if (
+    !Number.isInteger(refundOpenHour) ||
+    !Number.isInteger(refundCloseHour) ||
+    refundOpenHour < 0 ||
+    refundOpenHour > 23 ||
+    refundCloseHour <= refundOpenHour ||
+    refundCloseHour > 24
+  ) {
+    redirect("/admin/settings?error=refundOffice");
+  }
   // ผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลทเลย
   if (lateGraceMinutes >= lateRoundUpHours * 60) {
     redirect("/admin/settings?error=lateGrace");
@@ -97,6 +123,10 @@ async function saveSettingsAction(formData: FormData) {
     lateGraceMinutes,
     holdMinutes,
     unpaidDigestOn,
+    refundReviewedHours,
+    refundNormalHours,
+    refundOpenHour,
+    refundCloseHour,
   };
 
   const before = await prisma.settings.findUnique({ where: { id: SETTINGS_ID } });
@@ -125,6 +155,24 @@ async function saveSettingsAction(formData: FormData) {
     if (before.unpaidDigestOn !== unpaidDigestOn) {
       changes.push(
         `สรุปใบที่ยังไม่โอน: ${before.unpaidDigestOn ? "เปิด" : "ปิด"} → ${unpaidDigestOn ? "เปิด" : "ปิด"}`
+      );
+    }
+    if (before.refundReviewedHours !== refundReviewedHours) {
+      changes.push(
+        `คืนเงินประกัน (รีวิวแล้ว): ${before.refundReviewedHours} → ${refundReviewedHours} ชม.`
+      );
+    }
+    if (before.refundNormalHours !== refundNormalHours) {
+      changes.push(
+        `คืนเงินประกัน (ปกติ): ${before.refundNormalHours} → ${refundNormalHours} ชม.`
+      );
+    }
+    if (
+      before.refundOpenHour !== refundOpenHour ||
+      before.refundCloseHour !== refundCloseHour
+    ) {
+      changes.push(
+        `เวลาทำการคืนเงิน: ${before.refundOpenHour}:00-${before.refundCloseHour}:00 → ${refundOpenHour}:00-${refundCloseHour}:00`
       );
     }
     if (before.minLeadHours !== minLeadHours) {
@@ -175,6 +223,8 @@ const ERRORS: Record<string, string> = {
   late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
+  refundHours: "เวลาคืนเงินประกันต้องเป็นจำนวนเต็ม 1-72 ชั่วโมง และแบบรีวิวแล้วต้องไม่นานกว่าแบบปกติ",
+  refundOffice: "เวลาทำการไม่ถูกต้อง — เวลาเลิกต้องหลังเวลาเปิด และอยู่ในช่วง 0-24 น.",
   hold: "เวลากันคิวรอสลิปต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่ยกเลิกเอง)",
   lateGrace: "ช่วงผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลท",
 };
@@ -289,12 +339,18 @@ export default async function SettingsPage({
         </div>
 
         <div className="pt-5 border-t border-slate-100">
-          <h2 className="font-semibold text-slate-900">เวลาจองล่วงหน้าขั้นต่ำ</h2>
+          <h2 className="font-semibold text-slate-900">
+            เวลาจองล่วงหน้า และการกันคิวรอสลิป
+          </h2>
           <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
             ลูกค้าจะเลือกเวลารับรถที่เร็วกว่านี้ไม่ได้ ทั้งบนเว็บ ใน LINE และในหน้าจองของ LIFF —
             ปฏิทินจะปิดวันที่เร็วเกินให้อัตโนมัติ และถ้ายังพยายามจอง ระบบจะบอกให้โทรหาแอดมินแทน
             <br />
             ตั้งเป็น <b>0</b> ถ้าอยากรับจองแบบทันทีทันใด (ไม่แนะนำ — ทีมงานจะเตรียมรถไม่ทันตอนคิวแน่น)
+            <br />
+            <br />
+            ส่วนช่องขวาคือคนละเรื่องกัน — นับหลังลูกค้ากดจองแล้ว ว่าจะกันคิวรถไว้ให้นานแค่ไหน
+            ระหว่างรอสลิปโอน
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
@@ -356,6 +412,92 @@ export default async function SettingsPage({
               </span>
             </label>
           </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">คืนเงินประกันหลังคืนรถ</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+            พอคนไปรับรถคืนกดปิดงาน ระบบจะส่ง LINE บอกลูกค้าว่ารับคืนรถเรียบร้อย
+            พร้อมปุ่มรีวิวและปุ่มแจ้งเลขบัญชี แล้วรายการจะโผล่ในเมนู{" "}
+            <Link href="/admin/refunds" className="text-blue-600 underline">
+              คืนเงินประกัน
+            </Link>
+            <br />
+            <br />
+            เวลาที่ตั้งไว้นี้คือสิ่งที่<strong>เขียนบอกลูกค้าในข้อความ</strong> จึงควรตั้งให้ทำได้จริง
+            ระบบนับเฉพาะชั่วโมงในเวลาทำการ นอกเวลานาฬิกาหยุดเดิน —
+            ลูกค้าคืนรถสี่ทุ่มแล้วรีวิวทันที กำหนดจะไปเริ่มนับตอนเปิดทำการเช้าวันถัดไป
+            ไม่ใช่ตีห้าที่ไม่มีใครโอนได้
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="refundReviewedHours">
+                รีวิวแล้ว — คืนภายใน (ชั่วโมงทำการ)
+              </label>
+              <input
+                id="refundReviewedHours"
+                name="refundReviewedHours"
+                type="number"
+                min="1"
+                max="72"
+                required
+                defaultValue={settings.refundReviewedHours}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="refundNormalHours">
+                ไม่ได้รีวิว — คืนภายใน (ชั่วโมงทำการ)
+              </label>
+              <input
+                id="refundNormalHours"
+                name="refundNormalHours"
+                type="number"
+                min="1"
+                max="72"
+                required
+                defaultValue={settings.refundNormalHours}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="refundOpenHour">
+                เวลาทำการ เริ่ม (นาฬิกา)
+              </label>
+              <input
+                id="refundOpenHour"
+                name="refundOpenHour"
+                type="number"
+                min="0"
+                max="23"
+                required
+                defaultValue={settings.refundOpenHour}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="refundCloseHour">
+                เวลาทำการ เลิก (นาฬิกา)
+              </label>
+              <input
+                id="refundCloseHour"
+                name="refundCloseHour"
+                type="number"
+                min="1"
+                max="24"
+                required
+                defaultValue={settings.refundCloseHour}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                ใส่ 20 = สองทุ่ม · 24 = เที่ยงคืน
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+            ระบบตรวจไม่ได้ว่าลูกค้ารีวิวจริงไหม — ใช้วิธีให้ลูกค้าติ๊กเองว่ารีวิวแล้ว
+            รายการที่ติ๊กจะขึ้นมาอยู่ต้นคิวพร้อมป้ายกำกับ
+          </p>
         </div>
 
         <div className="pt-5 border-t border-slate-100">

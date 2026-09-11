@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { purgeStaleDocuments, CRON_ACTOR, RETENTION_DAYS } from "@/lib/document-retention";
+import {
+  purgeStaleDocuments,
+  purgeRefundAccounts,
+  CRON_ACTOR,
+  RETENTION_DAYS,
+} from "@/lib/document-retention";
 
 export const dynamic = "force-dynamic";
 
@@ -19,5 +24,13 @@ export async function GET(request: Request) {
   }
 
   const result = await purgeStaleDocuments(CRON_ACTOR);
-  return NextResponse.json({ ok: true, retentionDays: RETENTION_DAYS, ...result });
+  // ลบเลขบัญชีรับเงินคืนที่หมดเหตุผลให้เก็บแล้วไปในรอบเดียวกัน
+  const refundAccounts = await purgeRefundAccounts(CRON_ACTOR);
+
+  return NextResponse.json({
+    ok: true,
+    retentionDays: RETENTION_DAYS,
+    refundAccounts,
+    ...result,
+  });
 }

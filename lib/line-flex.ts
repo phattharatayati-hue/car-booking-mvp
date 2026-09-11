@@ -823,3 +823,92 @@ export function flexUnassignedAdmin(d: {
     buttons: [btn("มอบหมายงาน", d.adminUrl)],
   });
 }
+
+/**
+ * รับคืนรถเรียบร้อย + ขอเลขบัญชีเพื่อคืนเงินประกัน
+ *
+ * ส่งครั้งเดียวตอนคนไปรับรถคืนกดปิดงาน — เป็นข้อความสุดท้ายของการเช่ารอบนั้น
+ * จึงรวมทั้งคำขอบคุณ ปุ่มรีวิว และปุ่มแจ้งบัญชีไว้ในใบเดียว ไม่ยิงหลายข้อความ
+ */
+export function flexReturnComplete(d: {
+  bookingId: string;
+  carLabel: string;
+  plate: string;
+  refundAmount: number;
+  reviewedHours: number;
+  normalHours: number;
+  openHour: number;
+  closeHour: number;
+  reviewUrl: string;
+  refundUrl: string;
+}) {
+  const hours = (h: number) => (h === 1 ? "1 ชั่วโมง" : `${h} ชั่วโมง`);
+  const office = `${String(d.openHour).padStart(2, "0")}:00-${String(d.closeHour).padStart(2, "0")}:00 น.`;
+
+  return card({
+    altText: `รับคืนรถ ${code(d.bookingId)} เรียบร้อย — แจ้งบัญชีเพื่อรับเงินประกัน ${d.refundAmount.toLocaleString()} บาทคืน`,
+    title: "รับคืนรถเรียบร้อยแล้ว",
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    tone: "ok",
+    body: [
+      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      kv("ทะเบียน", d.plate),
+      {
+        type: "text",
+        text: "ตรวจสภาพรถเรียบร้อย ไม่พบความเสียหาย ขอบคุณที่ใช้บริการครับ",
+        size: "sm",
+        color: INK,
+        wrap: true,
+      },
+      line,
+      amountBox("เงินประกันที่จะคืนให้", d.refundAmount, "กดปุ่มด้านล่างเพื่อแจ้งพร้อมเพย์หรือเลขบัญชี"),
+      sectionTitle("คืนเงินเร็วแค่ไหน"),
+      bullets([
+        `รีวิวให้ร้านแล้วแจ้งบัญชี — โอนคืนภายใน ${hours(d.reviewedHours)}`,
+        `ไม่สะดวกรีวิว — โอนคืนตามลำดับคิว ไม่เกิน ${hours(d.normalHours)}`,
+      ]),
+      noteBox([
+        `นับเฉพาะเวลาทำการ ${office} — แจ้งนอกเวลาทำการจะเริ่มนับตอนเปิดทำการวันถัดไปครับ`,
+      ]),
+    ],
+    buttons: [
+      btn("แจ้งบัญชีรับเงินคืน", d.refundUrl),
+      btnGold("รีวิวให้ร้าน", d.reviewUrl),
+    ],
+  });
+}
+
+/** โอนเงินประกันคืนแล้ว */
+export function flexRefundPaid(d: {
+  bookingId: string;
+  amount: number;
+  deductAmount: number;
+  deductReason?: string | null;
+  accountTail: string;
+  bookingUrl: string;
+}) {
+  return card({
+    altText: `โอนเงินประกันคืนแล้ว ${d.amount.toLocaleString()} บาท (${code(d.bookingId)})`,
+    title: "โอนเงินประกันคืนแล้ว",
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    tone: "ok",
+    body: [
+      amountBox("โอนคืนแล้ว", d.amount, `เข้าบัญชีลงท้าย ${d.accountTail}`),
+      ...(d.deductAmount > 0
+        ? [
+            line,
+            sectionTitle("รายการที่หักไว้"),
+            kv("หักทั้งหมด", `${d.deductAmount.toLocaleString()} บาท`),
+            ...(d.deductReason
+              ? [{ type: "text", text: d.deductReason, size: "xs", color: INK, wrap: true }]
+              : []),
+          ]
+        : []),
+      noteBox([
+        "เงินอาจเข้าบัญชีช้ากว่านี้เล็กน้อยตามระบบของธนาคาร ถ้าเกิน 24 ชั่วโมงแล้วยังไม่เข้า ทักมาได้เลยครับ",
+      ]),
+    ],
+    buttons: [btn("ดูรายละเอียดการจอง", d.bookingUrl)],
+  });
+}
+

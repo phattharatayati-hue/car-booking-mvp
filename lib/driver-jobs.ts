@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { pushMessage, pushRaw, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
+import { getPickupPoints } from "@/lib/pickup-points-server";
 import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
 import {
   card,
@@ -18,6 +19,28 @@ import {
 /** ลิงก์ค้นหาจุดนัดใน Google Maps */
 function mapsLink(place: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
+}
+
+/**
+ * บรรทัดจุดนัดในข้อความหาคนรับงาน
+ *
+ * ใส่ลิงก์แผนที่เฉพาะจุดที่คนขับอาจไม่รู้ว่าอยู่ตรงไหน
+ * จุดประจำที่ตั้งไว้ในระบบ (สนามบิน อาเขต สถานีรถไฟ) ทุกคนไปเป็นอยู่แล้ว
+ * ลิงก์ Maps ที่มีภาษาไทยจะถูกเข้ารหัสเป็น %E0%B8... ยาวเต็มจอในแชท
+ * กลบข้อมูลที่ต้องอ่านจริง ๆ อย่างเวลานัดกับทะเบียนรถจนหาไม่เจอ
+ */
+async function placeLines(place: string | null): Promise<string[]> {
+  if (!place) return [];
+
+  try {
+    const points = await getPickupPoints();
+    if (points.some((p) => p.name === place)) return [`จุดนัด: ${place}`];
+  } catch (err) {
+    // อ่านรายการจุดไม่ได้ก็ใส่ลิงก์ไปตามเดิม ดีกว่าไม่มีอะไรให้กด
+    console.error("placeLines: getPickupPoints failed", err);
+  }
+
+  return [`จุดนัด: ${place}`, `🗺 ${mapsLink(place)}`];
 }
 
 /** เวลาที่ควรออกเดินทาง = เวลานัด ลบเวลาเผื่อเดินทาง */
@@ -50,6 +73,7 @@ export async function jobText(job: Job): Promise<string> {
   const kind = job.kind as HandoffKind;
   const money = await moneyDue(job);
   const car = job.booking.car;
+  const place = await placeLines(job.place);
 
   return [
     `🚗 ${HANDOFF_LABEL[kind]} — ${formatBangkokDateTime(job.meetAt)}`,
@@ -61,7 +85,7 @@ export async function jobText(job: Job): Promise<string> {
     "",
     `ลูกค้า: ${job.booking.customer.fullName}`,
     `โทร: ${job.booking.customer.phone}`,
-    ...(job.place ? [`จุดนัด: ${job.place}`, `🗺 ${mapsLink(job.place)}`] : []),
+    ...place,
     ...(money
       ? [
           "",
@@ -307,13 +331,15 @@ export async function ackJob(assignmentId: string, lineUserId: string): Promise<
     data: { ackedAt: new Date() },
   });
 
+  const ackPlace = await placeLines(job.place);
+
   return [
     `✅ รับทราบงาน${HANDOFF_LABEL[job.kind as HandoffKind]}แล้ว`,
     "",
     `นัด ${formatBangkokDateTime(job.meetAt)}`,
     `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น.`,
     `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
-    ...(job.place ? ["", `จุดนัด: ${job.place}`, `🗺 ${mapsLink(job.place)}`] : []),
+    ...(ackPlace.length ? ["", ...ackPlace] : []),
     "",
     "เมื่อทำงานเสร็จ กดปุ่มปิดงานที่การ์ดได้เลยครับ",
   ].join("\n");

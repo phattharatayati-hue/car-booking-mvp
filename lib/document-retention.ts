@@ -98,3 +98,35 @@ export async function purgeStaleDocuments(actor: AuditActor): Promise<PurgeResul
 
   return { removed: count, blobsDeleted, blobsFailed };
 }
+
+/**
+ * ลบเลขบัญชีลูกค้าทิ้งหลังโอนเงินประกันคืนเสร็จแล้วตามกำหนด
+ *
+ * เก็บไว้แค่ว่าโอนแล้ว เมื่อไหร่ ยอดเท่าไร ซึ่งพอสำหรับเป็นหลักฐาน
+ * ส่วนเลขบัญชีกับชื่อบัญชีไม่มีเหตุผลให้ค้างอยู่ต่อ ถ้าฐานข้อมูลรั่ววันไหน
+ * จะได้ไม่มีเลขบัญชีของลูกค้าเก่าติดไปด้วย
+ */
+export async function purgeRefundAccounts(actor: AuditActor): Promise<number> {
+  const { ACCOUNT_RETENTION_DAYS } = await import("@/lib/refund");
+  const cutoff = new Date(Date.now() - ACCOUNT_RETENTION_DAYS * 86400000);
+
+  const { count } = await prisma.depositRefund.updateMany({
+    where: { paidAt: { lt: cutoff }, purgedAt: null, accountNo: { not: null } },
+    data: {
+      accountNo: null,
+      accountName: null,
+      bankName: null,
+      purgedAt: new Date(),
+    },
+  });
+
+  if (count > 0) {
+    await auditAs(actor, {
+      action: "booking.refund_purge",
+      summary: `ลบเลขบัญชีรับเงินคืนที่โอนเสร็จเกิน ${ACCOUNT_RETENTION_DAYS} วัน จำนวน ${count} รายการ`,
+      entity: "settings",
+    });
+  }
+
+  return count;
+}

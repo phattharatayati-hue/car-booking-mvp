@@ -1205,9 +1205,16 @@ export default async function AdminBookingsPage({
                         placeholder="เช่น โทรแจ้งลูกค้าแล้ว รับทราบ"
                         className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm"
                       />
-                      <ActionButton className={BTN.smGhost} pendingText="กำลังบันทึก…">
-                        บันทึกโน้ต
-                      </ActionButton>
+                      {/* สองฟอร์มอยู่ในกล่องเดียวกัน — ถ้าพิมพ์โน้ตแล้วกด "เปลี่ยนรถ" เลย
+                          ข้อความที่พิมพ์จะไม่ถูกส่งไปด้วย ต้องบอกให้ชัดตรงนี้ */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ActionButton className={BTN.smGhost} pendingText="กำลังบันทึก…">
+                          บันทึกโน้ต
+                        </ActionButton>
+                        <span className="text-xs text-slate-400">
+                          ต้องกดปุ่มนี้ก่อน ถ้าจะเปลี่ยนรถด้วย
+                        </span>
+                      </div>
                     </form>
 
                     <div className="pt-4 border-t border-slate-200">

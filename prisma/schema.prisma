@@ -164,6 +164,8 @@ model Booking {
   /// กันคิวรถให้ถึงเวลานี้ ถ้ายังไม่อัปสลิประบบจะยกเลิกให้ (null = ไม่ยกเลิกเอง)
   /// ตั้งตอนเข้าสถานะ PENDING_DEPOSIT ไม่ใช่ตอนสร้างใบ เพราะรถพาร์ทเนอร์ต้องรอเจ้าของตอบก่อน
   holdUntil    DateTime?
+  /// ส่งข้อความ "รับคืนรถเรียบร้อย + ขอเลขบัญชีคืนเงินประกัน" ไปแล้วเมื่อไหร่ — ส่งครั้งเดียว
+  returnNotifiedAt DateTime?
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
   /// แจ้งลูกค้าว่ายืนยันสลิปแล้วแต่เอกสารยังไม่ครบ — ส่งได้ครั้งเดียว
   depositNotifiedAt    DateTime?
@@ -172,6 +174,7 @@ model Booking {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
+  refund      DepositRefund?
   documents   BookingDocument[]
   assignments BookingAssignment[]
 }
@@ -222,6 +225,14 @@ model Settings {
   holdMinutes        Int      @default(30)
   /// สรุปใบจองที่ยังไม่โอนให้แอดมินวันละครั้ง (แทนการยิงทุกใบตอนกดจอง)
   unpaidDigestOn     Boolean  @default(true)
+
+  /// คืนเงินประกันภายในกี่ชั่วโมงทำการ เมื่อลูกค้าแจ้งว่ารีวิวให้ร้านแล้ว
+  refundReviewedHours Int     @default(1)
+  /// คืนเงินประกันภายในกี่ชั่วโมงทำการ กรณีปกติ
+  refundNormalHours   Int     @default(12)
+  /// เวลาทำการที่ใช้นับคิวคืนเงิน — นอกเวลานี้นาฬิกาหยุดเดิน
+  refundOpenHour      Int     @default(8)
+  refundCloseHour     Int     @default(20)
 }
 
 /// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)
@@ -366,4 +377,55 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@index([entity, entityId])
+}
+
+
+/** วิธีที่ลูกค้าอยากรับเงินประกันคืน */
+enum RefundMethod {
+  PROMPTPAY
+  BANK
+}
+
+/**
+ * การคืนเงินประกันหลังลูกค้าคืนรถ
+ *
+ * แถวถูกสร้างตอนคนไปรับรถคืนกดปิดงาน แล้วลูกค้ามากรอกเลขบัญชีเองทีหลัง
+ * (ร้านไม่เก็บเลขบัญชีลูกค้าไว้ล่วงหน้า และลบทิ้งหลังโอนเสร็จตามกำหนดใน lib/refund.ts)
+ */
+model DepositRefund {
+  id        String  @id @default(cuid())
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId String  @unique
+
+  /// เงินประกันเต็มจำนวนที่เก็บไว้ตอนรับรถ
+  depositAmount Int
+  /// ยอดที่หักไว้ เช่น ค่าปรับหรือค่าน้ำมันที่ขาด
+  deductAmount  Int     @default(0)
+  deductReason  String?
+
+  /// ลูกค้าแจ้งว่ารีวิวให้ร้านแล้ว — ระบบเชื่อตามที่แจ้ง ไม่มีทางตรวจสอบอัตโนมัติ
+  reviewed    Boolean @default(false)
+
+  method      RefundMethod?
+  accountName String?
+  accountNo   String?
+  /// ชื่อธนาคาร — พร้อมเพย์ไม่ต้องมี
+  bankName    String?
+
+  /// ลูกค้ากรอกเลขบัญชีเข้ามาเมื่อไหร่ — นาฬิกาคิวเริ่มนับตรงนี้
+  submittedAt DateTime?
+  /// กำหนดที่ต้องโอนคืนให้เสร็จ คำนวณตามเวลาทำการ (ดู lib/refund.ts)
+  dueAt       DateTime?
+
+  paidAt  DateTime?
+  paidBy  String?
+  slipUrl String?
+
+  /// ลบเลขบัญชีทิ้งแล้วเมื่อไหร่ — เก็บแค่ประวัติว่าโอนแล้ว
+  purgedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paidAt, dueAt])
 }

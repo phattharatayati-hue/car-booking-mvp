@@ -54,6 +54,18 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/refunds",
+    group: "daily",
+    label: "คืนเงินประกัน",
+    icon: (
+      <>
+        <rect x="2.5" y="6" width="19" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+        <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M6 12h.01M18 12h.01" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
     href: "/admin/handoffs",
     group: "daily",
     label: "ภาพสภาพรถ",

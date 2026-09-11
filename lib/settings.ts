@@ -22,6 +22,13 @@ export type AppSettings = {
   holdMinutes: number;
   /** ส่งสรุปใบจองที่ยังไม่โอนให้แอดมินวันละครั้งไหม */
   unpaidDigestOn: boolean;
+  /** คืนเงินประกันภายในกี่ชั่วโมงทำการ เมื่อลูกค้าแจ้งว่ารีวิวแล้ว */
+  refundReviewedHours: number;
+  /** คืนเงินประกันภายในกี่ชั่วโมงทำการ กรณีปกติ */
+  refundNormalHours: number;
+  /** เวลาทำการที่ใช้นับคิวคืนเงินประกัน */
+  refundOpenHour: number;
+  refundCloseHour: number;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -37,6 +44,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lateGraceMinutes: 0,
   holdMinutes: 30,
   unpaidDigestOn: true,
+  refundReviewedHours: 1,
+  refundNormalHours: 12,
+  refundOpenHour: 8,
+  refundCloseHour: 20,
 };
 
 /** อ่านค่าตั้งค่า — ถ้ายังไม่มีแถวจะสร้างให้อัตโนมัติ */
@@ -59,6 +70,10 @@ export async function getSettings(): Promise<AppSettings> {
       lateGraceMinutes: row.lateGraceMinutes,
       holdMinutes: row.holdMinutes,
       unpaidDigestOn: row.unpaidDigestOn,
+      refundReviewedHours: row.refundReviewedHours,
+      refundNormalHours: row.refundNormalHours,
+      refundOpenHour: row.refundOpenHour,
+      refundCloseHour: row.refundCloseHour,
     };
   } catch (err) {
     console.error("getSettings failed:", err);
@@ -163,5 +178,15 @@ export function lateRuleFromSettings(s: AppSettings) {
     hourlyFee: s.lateHourlyFee,
     roundUpHours: s.lateRoundUpHours,
     graceMinutes: s.lateGraceMinutes,
+  };
+}
+
+/** แปลงค่าตั้งค่าเป็นกติกาคิวคืนเงินประกัน (ดู lib/refund.ts) */
+export function refundWindowFromSettings(s: AppSettings) {
+  return {
+    reviewedHours: s.refundReviewedHours,
+    normalHours: s.refundNormalHours,
+    openHour: s.refundOpenHour,
+    closeHour: s.refundCloseHour,
   };
 }

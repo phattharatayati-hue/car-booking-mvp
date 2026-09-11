@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auditAs } from "@/lib/audit";
 import { jobViewOpen } from "@/lib/driver-jobs";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
+import { completeReturn } from "@/lib/return-flow";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +143,8 @@ export async function POST(
         where: { id: job.bookingId },
         data: { status: "COMPLETED" },
       });
+      // เปิดรายการคืนเงินประกัน + ส่งข้อความสุดท้ายให้ลูกค้า (กันซ้ำอยู่ข้างใน)
+      await completeReturn(job.bookingId);
     }
 
     await auditAs(actor, {

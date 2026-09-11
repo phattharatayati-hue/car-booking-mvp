@@ -662,22 +662,19 @@ export function DocumentsDiagram() {
 /** ส่งสลิปได้ 2 ทาง */
 export function SlipDiagram() {
   return (
-    <Frame title="ส่งสลิปได้ 2 ทาง เลือกทางไหนก็ได้" viewBox="0 0 940 230">
+    /* ทางเดียวเท่านั้น — เดิมมีทางที่สองคือส่งรูปเข้าแชท LINE แล้วระบบจับคู่ให้เอง
+       แต่การจับคู่นั้นเดาใบจองจากเวลาที่ส่ง ซึ่งเคยทำให้สลิปไปติดผิดใบ
+       จึงเอาออกและเหลือทางเดียวที่ผูกกับใบจองแน่นอน */
+    <Frame title="ส่งสลิปทางเดียว ผ่านหน้าติดตามการจอง" viewBox="0 0 940 180">
       <Defs />
-      <Box x={20} y={80} w={200} h={76} label="โอนเงินแล้ว" sub="เก็บสลิปไว้ในเครื่อง" fill="#fff" stroke={LINE} color={NAVY} />
-      <Arrow x1={222} y1={100} x2={280} y2={62} />
-      <Arrow x1={222} y1={136} x2={280} y2={174} />
-
-      <Box x={284} y={28} w={250} h={70} label="อัปโหลดในหน้าสถานะการจอง" sub="กดลิงก์ที่ได้หลังจอง" />
-      <Box x={284} y={140} w={250} h={70} label="ส่งรูปเข้าแชท LINE ของร้าน" sub="ระบบจับคู่ให้อัตโนมัติ" />
-
-      <Arrow x1={536} y1={62} x2={600} y2={100} />
-      <Arrow x1={536} y1={174} x2={600} y2={136} />
-
-      <Box x={604} y={80} w={200} h={76} label="แอดมินตรวจสลิป" sub="ปกติไม่เกิน 30 นาที" fill={GOLD_TINT} stroke={GOLD_LINE} color="#8A6E12" />
-      <Arrow x1={806} y1={118} x2={856} y2={118} />
-      <circle cx={888} cy={118} r={28} fill={OK_TINT} stroke="#CDE8DD" strokeWidth="2" />
-      <path d="M876 118l8 9 15-17" stroke={OK} strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Box x={20} y={52} w={200} h={76} label="โอนเงินแล้ว" sub="เก็บสลิปไว้ในเครื่อง" fill="#fff" stroke={LINE} color={NAVY} />
+      <Arrow x1={222} y1={90} x2={280} y2={90} />
+      <Box x={284} y={52} w={250} h={76} label="แนบสลิปในหน้าติดตามการจอง" sub="กดลิงก์ที่ได้หลังจอง" />
+      <Arrow x1={536} y1={90} x2={600} y2={90} />
+      <Box x={604} y={52} w={200} h={76} label="แอดมินตรวจสลิป" sub="ปกติไม่เกิน 30 นาที" fill={GOLD_TINT} stroke={GOLD_LINE} color="#8A6E12" />
+      <Arrow x1={806} y1={90} x2={856} y2={90} />
+      <circle cx={888} cy={90} r={28} fill={OK_TINT} stroke="#CDE8DD" strokeWidth="2" />
+      <path d="M876 90l8 9 15-17" stroke={OK} strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </Frame>
   );
 }
