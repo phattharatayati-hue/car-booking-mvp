@@ -24,7 +24,7 @@ export async function POST(
 
     const booking = await prisma.booking.findUnique({
       where: { id },
-      include: { car: true, customer: true },
+      include: { car: true, customer: true, deposit: true },
     });
     if (!booking) {
       return NextResponse.json({ error: "ไม่พบการจองนี้" }, { status: 404 });
@@ -33,6 +33,20 @@ export async function POST(
       return NextResponse.json(
         { error: "การจองนี้ปิดแล้ว ไม่สามารถส่งเอกสารได้" },
         { status: 400 }
+      );
+    }
+
+    /* ต้องมีสลิปค่าจองก่อนถึงจะส่งเอกสารได้
+       เคยมีคนส่งรูปบัตรประชาชนกับใบขับขี่เข้ามาแล้วไม่เช่าจริง
+       เก็บเอกสารของคนที่ไม่ได้เป็นลูกค้าไว้เป็นภาระและเสี่ยง PDPA เปล่า ๆ
+       ด่านนี้อยู่ฝั่งเซิร์ฟเวอร์ เพราะซ่อนปุ่มอย่างเดียวกันคนยิง API ตรงไม่ได้ */
+    if (!booking.deposit) {
+      return NextResponse.json(
+        {
+          error:
+            "กรุณาโอนค่าจองและอัปสลิปก่อน แล้วช่องส่งเอกสารจะเปิดให้อัตโนมัติ",
+        },
+        { status: 409 }
       );
     }
 

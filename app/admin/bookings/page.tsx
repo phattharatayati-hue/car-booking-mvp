@@ -23,6 +23,10 @@ import { STATUS_LABEL, STATUS_CLASS, ACTIVE_BOOKING_STATUSES } from "@/lib/booki
 import AssignmentBox from "@/components/AssignmentBox";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
+import { sweepUnpaidHolds, waitingForSlipWhere } from "@/lib/unpaid-hold";
+import { syncAssignment } from "@/lib/calendar-sync";
+import { notifyJob } from "@/lib/driver-jobs";
+import { SWAP_REASONS } from "@/lib/car-swap";
 
 type BookingRow = {
   id: string;
@@ -34,6 +38,8 @@ type BookingRow = {
   pickupPlace: string | null;
   returnPlace: string | null;
   adminNote: string | null;
+  cancelReason: string | null;
+  carId: string;
   car: {
     brand: string;
     name: string;
@@ -343,18 +349,175 @@ async function cancelBookingAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
+/** แก้บันทึกภายในของใบจองใด ๆ — เดิมพิมพ์ได้เฉพาะตอนกดอนุมัติ/ปฏิเสธคำขอเท่านั้น */
+async function saveNoteAction(formData: FormData) {
+  "use server";
+  await requireStaff();
+  const bookingId = String(formData.get("bookingId") ?? "");
+  if (!bookingId) redirect("/admin/bookings?error=note");
+
+  const raw = String(formData.get("adminNote") ?? "").trim();
+  if (raw.length > 1000) redirect("/admin/bookings?error=note_long");
+  const adminNote = raw || null;
+
+  await prisma.booking.update({ where: { id: bookingId }, data: { adminNote } });
+
+  await audit({
+    action: "booking.note",
+    summary: `แก้บันทึกภายในของการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: adminNote ?? "(ลบบันทึกออก)",
+  });
+
+  revalidatePath("/admin/bookings");
+  redirect("/admin/bookings?ok=note");
+}
+
+/**
+ * เปลี่ยนรถที่ใช้จริงของใบจอง — เช่น รถที่ลูกค้าจองต้องเข้าเช็คระยะ ชน หรือคิวแทรก
+ *
+ * สามอย่างที่ต้องตามไปแก้ ไม่งั้นคนขับจะไปเอารถผิดคัน
+ *   1. การ์ดงานใน LINE ที่ส่งไปแล้ว — ยิงฉบับใหม่ทับด้วย notifyJob(mode "updated")
+ *   2. event ใน Google Calendar — syncAssignment() เขียนทับ event เดิม
+ *   3. ออดิต — เก็บว่าเปลี่ยนจากคันไหนเป็นคันไหน เพราะอะไร ใครสั่ง
+ *
+ * ห้ามเปลี่ยนถ้ามีงานที่ปิดไปแล้ว (doneAt) เพราะรูปสภาพรถก่อนส่งมอบที่ถ่ายไว้
+ * จะกลายเป็นของรถคนละคัน ตอนรับคืนจะเทียบไม่ได้ว่าใครทำรอยไว้
+ */
+async function swapCarAction(formData: FormData) {
+  "use server";
+  await requireStaff();
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const carId = String(formData.get("carId") ?? "");
+  if (!bookingId || !carId) redirect("/admin/bookings?error=swap");
+
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { car: true, customer: true, assignments: true },
+  });
+  if (!booking) redirect("/admin/bookings?error=swap");
+  if (booking.carId === carId) redirect("/admin/bookings?error=swap_same");
+  if (!ACTIVE_BOOKING_STATUSES.includes(booking.status as never)) {
+    redirect("/admin/bookings?error=swap_closed");
+  }
+  if (booking.assignments.some((a) => a.doneAt)) {
+    redirect("/admin/bookings?error=swap_done");
+  }
+
+  // รถใหม่ต้องเปิดใช้งานและว่างจริงในช่วงเดียวกัน — เช็คซ้ำฝั่งเซิร์ฟเวอร์
+  // เพราะ dropdown ถูกคำนวณตอนโหลดหน้า อาจมีคนจองแทรกระหว่างที่เปิดหน้าค้างไว้
+  const car = await prisma.car.findUnique({ where: { id: carId } });
+  if (!car || car.status !== "AVAILABLE") redirect("/admin/bookings?error=swap_car");
+
+  const clash = await prisma.booking.findFirst({
+    where: {
+      carId,
+      id: { not: bookingId },
+      status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+      startDate: { lt: booking.endDate },
+      endDate: { gt: booking.startDate },
+    },
+  });
+  if (clash) redirect("/admin/bookings?error=swap_busy");
+
+  const priceRaw = Math.floor(Number(formData.get("totalPrice")));
+  const totalPrice =
+    Number.isFinite(priceRaw) && priceRaw >= 0 && priceRaw <= 10_000_000
+      ? priceRaw
+      : booking.totalPrice;
+
+  const reasonKey = String(formData.get("reason") ?? "");
+  const reasonLabel = SWAP_REASONS.find((r) => r.key === reasonKey)?.label ?? "ไม่ระบุเหตุผล";
+  const extra = String(formData.get("swapNote") ?? "").trim();
+
+  const oldLabel = `${booking.car.brand} ${booking.car.name} (${booking.car.licensePlate})`;
+  const newLabel = `${car.brand} ${car.name} (${car.licensePlate})`;
+  const stamp = formatBangkokDateTime(new Date());
+
+  const line = [
+    `[${stamp}] เปลี่ยนรถ ${oldLabel} → ${newLabel}`,
+    `เหตุผล: ${reasonLabel}`,
+    extra ? `หมายเหตุ: ${extra}` : null,
+    totalPrice !== booking.totalPrice
+      ? `ปรับราคา ${booking.totalPrice.toLocaleString()} → ${totalPrice.toLocaleString()} บาท`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  // ต่อท้ายบันทึกเดิม ไม่ทับ — ประวัติการสลับรถของใบเดียวอาจมีหลายรอบ
+  const adminNote = [booking.adminNote, line].filter(Boolean).join("\n");
+
+  await prisma.booking.update({
+    where: { id: bookingId },
+    data: { carId, totalPrice, adminNote },
+  });
+
+  await audit({
+    action: "booking.car_swap",
+    summary: `เปลี่ยนรถของการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: line,
+  });
+
+  /* ยิงการ์ดงานใหม่ให้คนที่รับงานไว้แล้ว + เขียนทับ event ในปฏิทิน
+     ทำทีละงาน และไม่ให้ตัวใดตัวหนึ่งพังแล้วหยุดทั้งชุด */
+  let renotified = 0;
+  for (const a of booking.assignments) {
+    try {
+      await syncAssignment(a.id);
+    } catch (err) {
+      console.error("swap: syncAssignment failed", a.id, err);
+    }
+    try {
+      const r = await notifyJob(a.id, "updated");
+      if (r === "sent") renotified++;
+    } catch (err) {
+      console.error("swap: notifyJob failed", a.id, err);
+    }
+  }
+
+  if (formData.get("notifyCustomer") === "on") {
+    await notifyCustomer(
+      bookingId,
+      [
+        "🚗 แจ้งเปลี่ยนรถสำหรับการจองของคุณ",
+        "",
+        `จากเดิม: ${oldLabel}`,
+        `เปลี่ยนเป็น: ${newLabel}`,
+        `เหตุผล: ${reasonLabel}`,
+        totalPrice !== booking.totalPrice
+          ? `ยอดค่าเช่าใหม่: ${totalPrice.toLocaleString()} บาท`
+          : "ยอดค่าเช่าเท่าเดิม",
+        "",
+        `ดูรายละเอียด: ${siteUrl()}/booking/${bookingId}`,
+      ].join("\n")
+    );
+  }
+
+  revalidatePath("/admin/bookings");
+  redirect(
+    `/admin/bookings?ok=swapped${renotified > 0 ? `&n=${renotified}` : ""}`
+  );
+}
+
 const PAGE_SIZE = 20;
 
 /**
  * ตัวกรอง — ทุกช่องต้องตอบคำถามว่า "แล้วต้องไปทำอะไรต่อ" ให้ได้
  *
  * สองช่องแรกหลัง "ทั้งหมด" ไม่ใช่สถานะใน DB แต่เป็นกองงานที่ค้างอยู่ที่แอดมิน
+ *   awaiting — กดจองมาแล้วยังไม่อัปสลิป ระบบไม่ยิง LINE ให้ตอนกดจอง จึงต้องมาดูที่นี่
  *   review — มีของให้เปิดดู (สลิปหรือเอกสารลูกค้าที่ยังไม่ได้ตรวจ)
  *   unassigned — ยืนยันแล้วแต่ยังไม่มีคนไปส่ง/ไปรับ ซึ่งเป็นจุดที่พลาดแล้วเสียหายที่สุด
  */
 const FILTERS = [
   { key: "all", label: "ทั้งหมด" },
   { key: "REQUESTED", label: "คำขอรอเช็ค" },
+  { key: "awaiting", label: "รอโอนค่าจอง" },
   { key: "review", label: "รอตรวจเอกสาร" },
   { key: "unassigned", label: "รอมอบหมายคนส่ง-รับรถ" },
   { key: "CONFIRMED", label: "ยืนยันแล้ว" },
@@ -370,6 +533,24 @@ const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
   },
   unassigned: { text: "ถอนคนออกจากงานแล้ว และแจ้งเจ้าตัวทาง LINE เรียบร้อย", tone: "ok" },
   resynced: { text: "สั่งซิงก์ปฏิทินใหม่แล้ว", tone: "ok" },
+  note: { text: "บันทึกภายในเรียบร้อยแล้ว", tone: "ok" },
+  swapped: {
+    text: "เปลี่ยนรถเรียบร้อยแล้ว — อัปเดตการ์ดงานใน LINE และปฏิทินให้ด้วยแล้ว",
+    tone: "ok",
+  },
+  note_long: { text: "บันทึกภายในยาวเกิน 1,000 ตัวอักษร", tone: "error" },
+  swap: { text: "เปลี่ยนรถไม่สำเร็จ — ข้อมูลไม่ครบ", tone: "error" },
+  swap_same: { text: "เลือกมาเป็นรถคันเดิม จึงไม่ได้เปลี่ยนอะไร", tone: "error" },
+  swap_closed: { text: "ใบจองนี้ปิดแล้ว เปลี่ยนรถไม่ได้", tone: "error" },
+  swap_done: {
+    text: "เปลี่ยนรถไม่ได้ เพราะมีงานที่ปิดไปแล้ว — รูปสภาพรถจะเป็นของคนละคัน",
+    tone: "error",
+  },
+  swap_car: { text: "รถคันที่เลือกไม่เปิดให้ใช้งานแล้ว", tone: "error" },
+  swap_busy: {
+    text: "รถคันที่เลือกเพิ่งมีคนจองทับ — รีเฟรชหน้าแล้วเลือกใหม่",
+    tone: "error",
+  },
   assigned_noline: {
     text: "บันทึกงานแล้ว แต่ส่ง LINE ไม่ได้ — มีคนที่ยังไม่ผูกบัญชี LINE ให้เขาไปผูกที่หน้าบัญชีของฉัน แล้วกดปุ่มส่งซ้ำ",
     tone: "error",
@@ -414,9 +595,14 @@ export default async function AdminBookingsPage({
   const byUrgency = sort === "urgent";
   const pageNo = Math.max(1, Number(page) || 1);
 
-  // สองกองนี้ไม่ใช่สถานะเดียวใน DB จึงต้องประกอบเงื่อนไขเอง
+  // กวาดใบที่หมดเวลารอสลิปก่อน ตัวเลขบนป้ายกรองจะได้ตรงกับความจริง
+  await sweepUnpaidHolds();
+
+  // กองพวกนี้ไม่ใช่สถานะเดียวใน DB จึงต้องประกอบเงื่อนไขเอง
   const statusWhere =
-    active === "review"
+    active === "awaiting"
+      ? waitingForSlipWhere()
+      : active === "review"
       ? {
           // มีของให้ตรวจจริง ๆ เท่านั้น — ใบที่ยังไม่ส่งสลิปไม่นับ เพราะไม่มีอะไรให้เปิดดู
           status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
@@ -482,6 +668,52 @@ export default async function AdminBookingsPage({
     },
   });
 
+  /* ตัวเลือก "เปลี่ยนรถ" ของแต่ละใบ — ต้องเหลือเฉพาะคันที่ว่างจริงในช่วงวันของใบนั้น
+     ดึงทีเดียวแล้วคัดในหน่วยความจำ ไม่ยิง query ต่อใบ ไม่งั้นหน้าเดียว 20 ใบ = 20 คิวรี */
+  const swapRange = bookings.reduce<{ from: Date; to: Date } | null>((acc, b) => {
+    if (!acc) return { from: b.startDate, to: b.endDate };
+    return {
+      from: b.startDate < acc.from ? b.startDate : acc.from,
+      to: b.endDate > acc.to ? b.endDate : acc.to,
+    };
+  }, null);
+
+  const [fleet, busy] = swapRange
+    ? await Promise.all([
+        prisma.car.findMany({
+          where: { status: "AVAILABLE" },
+          orderBy: [{ brand: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            brand: true,
+            name: true,
+            licensePlate: true,
+            pricePerDay: true,
+          },
+        }),
+        prisma.booking.findMany({
+          where: {
+            status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+            startDate: { lt: swapRange.to },
+            endDate: { gt: swapRange.from },
+          },
+          select: { id: true, carId: true, startDate: true, endDate: true },
+        }),
+      ])
+    : [[], []];
+
+  /** รถที่ว่างสำหรับใบจองใบนี้ — ไม่รวมคันที่ใช้อยู่แล้ว และไม่รวมคันที่ติดใบอื่น */
+  function swapOptions(b: { id: string; carId: string; startDate: Date; endDate: Date }) {
+    const taken = new Set(
+      busy
+        .filter(
+          (o) => o.id !== b.id && o.startDate < b.endDate && o.endDate > b.startDate
+        )
+        .map((o) => o.carId)
+    );
+    return fleet.filter((c) => c.id !== b.carId && !taken.has(c.id));
+  }
+
   // รายชื่อแอดมินสำหรับเลือกผู้รับงาน
   const admins = await prisma.adminUser.findMany({
     orderBy: { name: "asc" },
@@ -490,8 +722,9 @@ export default async function AdminBookingsPage({
 
   /* จำนวนงานค้างของแต่ละกอง — ใส่ไว้บนป้ายกรอง เพราะถ้าไม่มีตัวเลข
      "รอตรวจเอกสาร" กับ "รอมอบหมาย" จะดูเหมือนกันจนแยกไม่ออกว่าต่างกันตรงไหน */
-  const [requestCount, reviewCount, unassignedCount] = await Promise.all([
+  const [requestCount, awaitingCount, reviewCount, unassignedCount] = await Promise.all([
     prisma.booking.count({ where: { status: "REQUESTED" } }),
+    prisma.booking.count({ where: waitingForSlipWhere() }),
     prisma.booking.count({
       where: {
         status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
@@ -514,6 +747,7 @@ export default async function AdminBookingsPage({
 
   const filterCount: Record<string, number> = {
     REQUESTED: requestCount,
+    awaiting: awaitingCount,
     review: reviewCount,
     unassigned: unassignedCount,
   };
@@ -889,9 +1123,191 @@ export default async function AdminBookingsPage({
               )}
 
               {b.adminNote && (
-                <p className="mt-3 text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                <p className="mt-3 text-sm text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 whitespace-pre-line">
                   บันทึกภายใน: {b.adminNote}
                 </p>
+              )}
+
+              {b.cancelReason && (
+                <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  ระบบยกเลิกให้: {b.cancelReason}
+                </p>
+              )}
+
+              {/* เปลี่ยนรถ + แก้บันทึก — ปิดไว้เป็นปกติเพราะเป็นงานนาน ๆ ครั้ง
+                  แต่ต้องอยู่ในการ์ดเดียวกับใบจอง จะได้ไม่ต้องเปิดหน้าอื่นตอนคุยโทรศัพท์กับลูกค้าอยู่ */}
+              {ACTIVE_BOOKING_STATUSES.includes(b.status as never) && (
+                <details className="mt-3 group/edit">
+                  <summary className="cursor-pointer list-none text-sm font-medium text-slate-600 hover:text-slate-900 select-none">
+                    <span className="inline-block transition-transform group-open/edit:rotate-90">
+                      ›
+                    </span>{" "}
+                    เปลี่ยนรถ / แก้บันทึกภายใน
+                  </summary>
+
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-5">
+                    <form action={saveNoteAction} className="space-y-2">
+                      <input type="hidden" name="bookingId" value={b.id} />
+                      <label
+                        className="block text-xs font-medium text-slate-500"
+                        htmlFor={`note-${b.id}`}
+                      >
+                        บันทึกภายใน (ลูกค้าไม่เห็น)
+                      </label>
+                      <textarea
+                        id={`note-${b.id}`}
+                        name="adminNote"
+                        rows={3}
+                        maxLength={1000}
+                        defaultValue={b.adminNote ?? ""}
+                        placeholder="เช่น โทรแจ้งลูกค้าแล้ว รับทราบ"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm"
+                      />
+                      <ActionButton className={BTN.smOk} pendingText="กำลังบันทึก…">
+                        บันทึก
+                      </ActionButton>
+                    </form>
+
+                    <div className="pt-4 border-t border-slate-200">
+                      {b.assignments.some((a) => a.doneAt) ? (
+                        <p className="text-sm text-slate-500 leading-relaxed">
+                          เปลี่ยนรถไม่ได้แล้ว เพราะมีงานที่ปิดไปแล้ว —
+                          รูปสภาพรถที่ถ่ายไว้เป็นของคันเดิม ถ้าสลับตอนนี้จะเทียบตอนรับคืนไม่ได้
+                          <br />
+                          กรณีจำเป็นจริง ให้ยกเลิกใบนี้แล้วเปิดใบใหม่
+                        </p>
+                      ) : swapOptions(b).length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                          ไม่มีรถคันอื่นที่ว่างตลอดช่วง{" "}
+                          {formatBangkokDateTime(b.startDate)} ถึง{" "}
+                          {formatBangkokDateTime(b.endDate)}
+                        </p>
+                      ) : (
+                        <form action={swapCarAction} className="space-y-3">
+                          <input type="hidden" name="bookingId" value={b.id} />
+                          <p className="text-xs font-medium text-slate-500">
+                            เปลี่ยนรถที่ใช้จริง — แสดงเฉพาะคันที่ว่างตลอดช่วงของใบจองนี้
+                          </p>
+
+                          <div className="grid sm:grid-cols-2 gap-3">
+                            <div>
+                              <label
+                                className="block text-xs text-slate-500 mb-1"
+                                htmlFor={`car-${b.id}`}
+                              >
+                                รถคันใหม่
+                              </label>
+                              <select
+                                id={`car-${b.id}`}
+                                name="carId"
+                                required
+                                defaultValue=""
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                              >
+                                <option value="" disabled>
+                                  เลือกรถ…
+                                </option>
+                                {swapOptions(b).map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.brand} {c.name} · {c.licensePlate} ·{" "}
+                                    {c.pricePerDay.toLocaleString()} ฿/วัน
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label
+                                className="block text-xs text-slate-500 mb-1"
+                                htmlFor={`reason-${b.id}`}
+                              >
+                                เหตุผล
+                              </label>
+                              <select
+                                id={`reason-${b.id}`}
+                                name="reason"
+                                required
+                                defaultValue="maintenance"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                              >
+                                {SWAP_REASONS.map((r) => (
+                                  <option key={r.key} value={r.key}>
+                                    {r.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label
+                                className="block text-xs text-slate-500 mb-1"
+                                htmlFor={`price-${b.id}`}
+                              >
+                                ยอดค่าเช่า (บาท)
+                              </label>
+                              <input
+                                id={`price-${b.id}`}
+                                name="totalPrice"
+                                type="number"
+                                min="0"
+                                step="1"
+                                defaultValue={b.totalPrice}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                              />
+                              <p className="text-xs text-slate-400 mt-1">
+                                ค่าเดิมใส่ไว้ให้แล้ว — ลดให้ลูกค้าได้ถ้าเปลี่ยนไปคันที่ถูกกว่า
+                              </p>
+                            </div>
+
+                            <div>
+                              <label
+                                className="block text-xs text-slate-500 mb-1"
+                                htmlFor={`swapnote-${b.id}`}
+                              >
+                                หมายเหตุเพิ่มเติม (ไม่บังคับ)
+                              </label>
+                              <input
+                                id={`swapnote-${b.id}`}
+                                name="swapNote"
+                                maxLength={300}
+                                placeholder="เช่น โทรแจ้งลูกค้าแล้ว 10:30"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <label className="flex items-start gap-2 text-sm text-slate-600">
+                            <input
+                              type="checkbox"
+                              name="notifyCustomer"
+                              className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                            />
+                            <span>
+                              แจ้งลูกค้าทาง LINE ด้วย — ไม่ติ๊กถ้าโทรบอกเองแล้ว
+                              (ประหยัดโควตาข้อความ)
+                            </span>
+                          </label>
+
+                          {b.assignments.length > 0 && (
+                            <p className="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                              ใบนี้มอบหมายคนไว้ {b.assignments.length} งาน —
+                              ระบบจะส่งการ์ดงานฉบับใหม่เข้าแชท LINE
+                              และแก้ปฏิทินให้อัตโนมัติหลังเปลี่ยนรถ
+                            </p>
+                          )}
+
+                          <ActionButton
+                            className={BTN.smOk}
+                            pendingText="กำลังเปลี่ยน…"
+                            confirm="ยืนยันเปลี่ยนรถของใบจองนี้? ระบบจะส่งการ์ดงานใหม่ให้คนที่รับงานไว้แล้ว"
+                          >
+                            เปลี่ยนรถ
+                          </ActionButton>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+                </details>
               )}
 
               <div className="mt-5 pt-5 border-t border-slate-100">

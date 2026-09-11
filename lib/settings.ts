@@ -18,6 +18,10 @@ export type AppSettings = {
   lateRoundUpHours: number;
   /** ผ่อนปรนกี่นาทีก่อนเริ่มคิดค่าเลท */
   lateGraceMinutes: number;
+  /** กันคิวรถให้ใบจองที่ยังไม่อัปสลิปกี่นาที (0 = ไม่ยกเลิกอัตโนมัติ) */
+  holdMinutes: number;
+  /** ส่งสรุปใบจองที่ยังไม่โอนให้แอดมินวันละครั้งไหม */
+  unpaidDigestOn: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,6 +35,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lateHourlyFee: 200,
   lateRoundUpHours: 4,
   lateGraceMinutes: 0,
+  holdMinutes: 30,
+  unpaidDigestOn: true,
 };
 
 /** อ่านค่าตั้งค่า — ถ้ายังไม่มีแถวจะสร้างให้อัตโนมัติ */
@@ -51,6 +57,8 @@ export async function getSettings(): Promise<AppSettings> {
       lateHourlyFee: row.lateHourlyFee,
       lateRoundUpHours: row.lateRoundUpHours,
       lateGraceMinutes: row.lateGraceMinutes,
+      holdMinutes: row.holdMinutes,
+      unpaidDigestOn: row.unpaidDigestOn,
     };
   } catch (err) {
     console.error("getSettings failed:", err);

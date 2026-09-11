@@ -17,6 +17,7 @@ import { siteUrl } from "@/lib/line";
 import LineLoginButton from "@/components/LineLoginButton";
 import ClaimBooking from "./ClaimBooking";
 import BookingHandoff from "./BookingHandoff";
+import { minutesLeftToPay } from "@/lib/unpaid-hold";
 
 export default async function BookingStatusPage({
   params,
@@ -43,6 +44,14 @@ export default async function BookingStatusPage({
 
   const isRequest = needsApproval(booking.car);
   const approved = !["REQUESTED", "REJECTED"].includes(booking.status);
+
+  /* ใบจองที่ยังไม่มีสลิปจะถือคิวรถได้แค่ชั่วคราว — บอกลูกค้าให้ชัดว่าเหลือเวลาเท่าไร
+     ตัวที่บังคับจริงคือ sweepUnpaidHolds() ใน lib/unpaid-hold.ts */
+  const awaitingSlip = booking.status === "PENDING_DEPOSIT" && !booking.deposit;
+  const minutesLeft =
+    awaitingSlip && settings.holdMinutes > 0
+      ? minutesLeftToPay(booking.createdAt, settings.holdMinutes)
+      : null;
 
   const steps = isRequest
     ? ["ส่งคำขอ", "ร้านยืนยัน", "อัปโหลดสลิป", "จองสำเร็จ"]
@@ -235,6 +244,23 @@ export default async function BookingStatusPage({
           </div>
         )}
 
+        {awaitingSlip && minutesLeft !== null && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+            <p className="font-semibold text-amber-900 text-sm mb-1">
+              {minutesLeft > 0
+                ? `กรุณาโอนค่าจองภายใน ${minutesLeft} นาที`
+                : "กำลังจะหมดเวลากันคิวรถ"}
+            </p>
+            <p className="text-sm text-amber-900/90 leading-relaxed">
+              ระบบกันคิวรถคันนี้ไว้ให้คุณ {settings.holdMinutes} นาที
+              นับจากเวลาที่กดจอง หากยังไม่ได้อัปสลิปภายในเวลาดังกล่าว
+              ระบบจะยกเลิกการจองอัตโนมัติเพื่อปล่อยคิวให้ลูกค้าท่านอื่น
+              <br />
+              จองใหม่ได้เสมอถ้ารถยังว่างครับ
+            </p>
+          </div>
+        )}
+
         {booking.status === "REQUESTED" && (
           <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 mb-5">
             <p className="font-semibold text-violet-900 text-sm mb-1">
@@ -276,8 +302,23 @@ export default async function BookingStatusPage({
         )}
 
         {/* id="docs" และ id="slip" — ปลายทางของปุ่มในข้อความ LINE
-            scroll-mt เว้นที่ให้หัวเว็บที่ลอยอยู่ ไม่งั้นหัวข้อถูกบัง */}
-        {isOpen && (
+            scroll-mt เว้นที่ให้หัวเว็บที่ลอยอยู่ ไม่งั้นหัวข้อถูกบัง
+
+            ช่องส่งเอกสารเปิดหลังมีสลิปเท่านั้น — ฝั่ง API บังคับเหมือนกัน
+            (app/api/bookings/[id]/documents/route.ts) ตรงนี้แค่ทำให้เห็นเหตุผล */}
+        {isOpen && !booking.deposit && (
+          <div id="docs" className="mb-5 scroll-mt-28 bg-white rounded-2xl border border-slate-200 p-6">
+            <h3 className="font-semibold text-slate-900 mb-1">
+              เอกสารประกอบการเช่า
+            </h3>
+            <p className="text-sm text-slate-500 leading-relaxed">
+              ช่องส่งเอกสารจะเปิดให้อัตโนมัติหลังอัปสลิปค่าจองด้านล่างแล้ว
+              ยังไม่ต้องเตรียมรูปบัตรประชาชนหรือใบขับขี่ตอนนี้
+            </p>
+          </div>
+        )}
+
+        {isOpen && booking.deposit && (
           <div id="docs" className="mb-5 scroll-mt-28">
             <DocumentUpload
               bookingId={booking.id}

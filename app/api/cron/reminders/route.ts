@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
+import { notifyAdmin, notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexReturnReminder, flexUnassignedAdmin } from "@/lib/line-flex";
 import { SECURITY_DEPOSIT } from "@/lib/fees";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
+import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,57 @@ async function nudgeUnassigned(): Promise<{ found: number; notified: boolean }> 
   }
 }
 
+/**
+ * สรุปใบจองที่กดจองมาแล้วยังไม่โอน — ข้อความเดียวต่อวัน
+ *
+ * ตอนกดจองระบบไม่ยิง LINE แล้ว (กันคนจองเล่นกินโควตา) แต่แอดมินยังอยากรู้ภาพรวม
+ * จึงรวบยอดมาส่งรอบเดียวตอน cron ทำงาน แทนที่จะยิงทีละใบ
+ * ไม่มีใบค้างก็ไม่ส่งเลย จะได้ไม่มีข้อความเปล่า ๆ ทุกวัน
+ */
+async function digestUnpaid(holdMinutes: number): Promise<{
+  swept: number;
+  waiting: number;
+  notified: boolean;
+}> {
+  try {
+    const swept = await sweepUnpaidHolds(holdMinutes);
+
+    const since = new Date(Date.now() - 24 * 3600000);
+    const [waiting, cancelledToday] = await Promise.all([
+      prisma.booking.count({
+        where: { status: "PENDING_DEPOSIT", deposit: { is: null } },
+      }),
+      prisma.booking.count({
+        where: {
+          status: "CANCELLED",
+          updatedAt: { gte: since },
+          cancelReason: { not: null },
+        },
+      }),
+    ]);
+
+    if (waiting === 0 && cancelledToday === 0) {
+      return { swept, waiting, notified: false };
+    }
+
+    await notifyAdmin(
+      [
+        "🧾 สรุปใบจองที่ยังไม่โอน (24 ชม.ล่าสุด)",
+        "",
+        `กำลังรอสลิป: ${waiting} ใบ`,
+        `ยกเลิกอัตโนมัติเพราะไม่โอน: ${cancelledToday} ใบ`,
+        "",
+        `${siteUrl()}/admin/bookings?status=awaiting`,
+      ].join("\n")
+    );
+
+    return { swept, waiting, notified: true };
+  } catch (err) {
+    console.error("digestUnpaid failed:", err);
+    return { swept: 0, waiting: 0, notified: false };
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "1";
@@ -116,8 +168,18 @@ export async function GET(request: Request) {
 
   const settings = await getSettings();
 
+  // กวาดใบจองที่ไม่โอน แล้วสรุปให้แอดมิน — ไม่ขึ้นกับสวิตช์เตือนคืนรถเช่นกัน
+  const unpaid = settings.unpaidDigestOn
+    ? await digestUnpaid(settings.holdMinutes)
+    : { swept: await sweepUnpaidHolds(settings.holdMinutes), waiting: 0, notified: false };
+
   if (!settings.returnReminderOn) {
-    return NextResponse.json({ ok: true, nudge, skipped: "ปิดการแจ้งเตือนคืนรถไว้" });
+    return NextResponse.json({
+      ok: true,
+      nudge,
+      unpaid,
+      skipped: "ปิดการแจ้งเตือนคืนรถไว้",
+    });
   }
 
   const now = new Date();
@@ -184,6 +246,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     nudge,
+    unpaid,
     leadMinutes,
     window: { from: now.toISOString(), to: until.toISOString() },
     found: bookings.length,

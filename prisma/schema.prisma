@@ -158,7 +158,9 @@ model Booking {
   pickupPlace String?    // จุดรับรถที่ลูกค้าเลือก (เก็บเป็นข้อความ กันจุดถูกลบทีหลัง)
   returnPlace String?    // จุดคืนรถ
   note        String?
-  adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ
+  adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ — ของแอดมินล้วน ระบบไม่เขียนทับ
+  /// เหตุผลที่ระบบยกเลิกให้เอง (เช่น ไม่อัปสลิปตามเวลา) — แยกจาก adminNote
+  cancelReason String?
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
   /// แจ้งลูกค้าว่ายืนยันสลิปแล้วแต่เอกสารยังไม่ครบ — ส่งได้ครั้งเดียว
   depositNotifiedAt    DateTime?
@@ -212,6 +214,11 @@ model Settings {
   lateRoundUpHours   Int      @default(4)
   /// ผ่อนปรนกี่นาทีก่อนเริ่มคิดค่าเลท (0 = ไม่ผ่อนปรน)
   lateGraceMinutes   Int      @default(0)
+
+  /// กันคิวรถให้ใบจองที่ยังไม่อัปสลิปกี่นาที พ้นจากนี้ระบบยกเลิกอัตโนมัติ (0 = ไม่ยกเลิก)
+  holdMinutes        Int      @default(30)
+  /// สรุปใบจองที่ยังไม่โอนให้แอดมินวันละครั้ง (แทนการยิงทุกใบตอนกดจอง)
+  unpaidDigestOn     Boolean  @default(true)
 }
 
 /// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)

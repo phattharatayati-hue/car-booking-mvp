@@ -4,15 +4,11 @@ import { quoteBooking } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
-import {
-  flexNewBookingAdmin,
-  flexBookingCreated,
-  flexBookingRequested,
-} from "@/lib/line-flex";
-import { BANK_ACCOUNT } from "@/lib/contact";
+import { flexNewBookingAdmin, flexBookingRequested } from "@/lib/line-flex";
 import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
+import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
 
 export type CreateBookingInput = {
   carId: string;
@@ -78,6 +74,10 @@ export async function createBooking(
   if (!car || car.status !== "AVAILABLE") {
     return { ok: false, status: 400, error: "รถคันนี้ไม่เปิดให้จอง" };
   }
+
+  /* ปล่อยคิวของคนที่กดจองแล้วไม่โอนก่อน แล้วค่อยเช็คว่าทับกันไหม
+     ไม่งั้นใบจองร้างจะบล็อกรถไว้เรื่อย ๆ */
+  await sweepUnpaidHolds(settings.holdMinutes);
 
   const overlapping = await prisma.booking.findFirst({
     where: {
@@ -173,9 +173,13 @@ export async function createBooking(
     },
   });
 
-  try {
-    await notifyAdminRaw(
-      flexNewBookingAdmin({
+  /* แจ้งแอดมินเฉพาะใบที่ต้องให้คนตัดสินใจก่อน (รถพาร์ทเนอร์ที่ต้องเช็คกับเจ้าของ)
+     ใบจองรถของเราเองจะเงียบไว้จนกว่าลูกค้าจะอัปสลิป — กันคนจองเล่นกินโควตาข้อความ
+     แอดมินดูใบที่ยังไม่โอนได้ที่ /admin/bookings?status=awaiting และในสรุปรายวัน */
+  if (isRequest) {
+    try {
+      await notifyAdminRaw(
+        flexNewBookingAdmin({
         bookingId: booking.id,
         carLabel: `${car.brand} ${car.name}`,
         customerName: customer.fullName,
@@ -189,43 +193,33 @@ export async function createBooking(
         partnerPhone: car.partner?.phone,
         pickupPlace,
         returnPlace,
-        adminUrl: `${siteUrl()}/admin/bookings`,
-      })
-    );
-
-  } catch (err) {
-    console.error("notifyAdmin failed:", err);
+          adminUrl: `${siteUrl()}/admin/bookings`,
+        })
+      );
+    } catch (err) {
+      console.error("notifyAdmin failed:", err);
+    }
   }
 
-  // แจ้งลูกค้าที่ผูก LINE ไว้ — สำคัญกับการจองผ่าน LIFF เพราะปิดหน้าต่างแล้ว
-  // ยอดค่าจองกับเลขบัญชีหายไปเลย ไม่มีอะไรค้างในแชท
-  if (customer.lineUserId) {
+  /* แจ้งลูกค้าที่ผูก LINE ไว้ — เฉพาะใบที่ต้องรอเจ้าของรถตอบ เพราะลูกค้ายังโอนไม่ได้
+     จึงต้องมีอะไรค้างในแชทบอกว่ากำลังเช็คให้อยู่
+
+     ใบจองปกติไม่ส่งแล้ว: ยอดค่าจอง เลขบัญชี และช่องอัปสลิป อยู่ครบที่หน้า
+     /booking/<id> ซึ่งเปิดต่อจากหน้าจองทันที ลูกค้าจะได้ข้อความ LINE ฉบับแรก
+     ตอนอัปสลิปเสร็จ ไม่ใช่ตอนกดจอง */
+  if (customer.lineUserId && isRequest) {
     try {
       const bookingUrl = `${siteUrl()}/booking/${booking.id}`;
 
       await pushRaw(customer.lineUserId, [
-        isRequest
-          ? flexBookingRequested({
-              bookingId: booking.id,
-              carLabel: `${car.brand} ${car.name}`,
-              start,
-              end,
-              total: totalPrice,
-              bookingUrl,
-            })
-          : flexBookingCreated({
-              bookingId: booking.id,
-              carLabel: `${car.brand} ${car.name}`,
-              start,
-              end,
-              total: totalPrice,
-              afterHoursTotal: quote.afterHoursTotal,
-              bookingFee: settings.bookingFee,
-              bankAccount: BANK_ACCOUNT,
-              pickupPlace,
-              returnPlace,
-              bookingUrl,
-            }),
+        flexBookingRequested({
+          bookingId: booking.id,
+          carLabel: `${car.brand} ${car.name}`,
+          start,
+          end,
+          total: totalPrice,
+          bookingUrl,
+        }),
       ]);
 
     } catch (err) {

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import { bangkokDateStr, bangkokDayRange, formatBangkokDateTime } from "@/lib/settings";
+import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
 
 const DAY_MS = 86400000;
 
@@ -32,6 +33,9 @@ export async function getAvailability(
 
   const { start: rangeStart } = bangkokDayRange(fromStr);
   const rangeEnd = new Date(rangeStart.getTime() + days * DAY_MS);
+
+  // ปล่อยคิวของใบจองที่ไม่ได้อัปสลิปก่อน ปฏิทินจะได้ไม่โชว์ว่าไม่ว่างทั้งที่ว่างแล้ว
+  await sweepUnpaidHolds();
 
   const bookings = await prisma.booking.findMany({
     where: {

@@ -32,6 +32,8 @@ async function saveSettingsAction(formData: FormData) {
   const lateHourlyFee = Number(formData.get("lateHourlyFee"));
   const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
   const lateGraceMinutes = Number(formData.get("lateGraceMinutes"));
+  const holdMinutes = Number(formData.get("holdMinutes"));
+  const unpaidDigestOn = formData.get("unpaidDigestOn") === "on";
 
   if (
     !Number.isInteger(leadHours) ||
@@ -74,6 +76,10 @@ async function saveSettingsAction(formData: FormData) {
   if (!Number.isInteger(minLeadHours) || minLeadHours < 0 || minLeadHours > 720) {
     redirect("/admin/settings?error=lead24");
   }
+  // กันคิวนานเกินวันเดียวไม่สมเหตุผล เพราะจุดประสงค์คือปล่อยคิวให้คนอื่นเร็ว ๆ
+  if (!Number.isInteger(holdMinutes) || holdMinutes < 0 || holdMinutes > 1440) {
+    redirect("/admin/settings?error=hold");
+  }
   // ผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลทเลย
   if (lateGraceMinutes >= lateRoundUpHours * 60) {
     redirect("/admin/settings?error=lateGrace");
@@ -89,6 +95,8 @@ async function saveSettingsAction(formData: FormData) {
     lateHourlyFee,
     lateRoundUpHours,
     lateGraceMinutes,
+    holdMinutes,
+    unpaidDigestOn,
   };
 
   const before = await prisma.settings.findUnique({ where: { id: SETTINGS_ID } });
@@ -110,6 +118,14 @@ async function saveSettingsAction(formData: FormData) {
     }
     if (before.bookingFee !== bookingFee) {
       changes.push(`ค่าจอง: ${before.bookingFee} → ${bookingFee} บาท`);
+    }
+    if (before.holdMinutes !== holdMinutes) {
+      changes.push(`กันคิวรอสลิป: ${before.holdMinutes} → ${holdMinutes} นาที`);
+    }
+    if (before.unpaidDigestOn !== unpaidDigestOn) {
+      changes.push(
+        `สรุปใบที่ยังไม่โอน: ${before.unpaidDigestOn ? "เปิด" : "ปิด"} → ${unpaidDigestOn ? "เปิด" : "ปิด"}`
+      );
     }
     if (before.minLeadHours !== minLeadHours) {
       changes.push(`ต้องจองล่วงหน้า: ${before.minLeadHours} → ${minLeadHours} ชม.`);
@@ -159,6 +175,7 @@ const ERRORS: Record<string, string> = {
   late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
+  hold: "เวลากันคิวรอสลิปต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่ยกเลิกเอง)",
   lateGrace: "ช่วงผ่อนปรนต้องน้อยกว่าจุดที่ปัดเป็นวัน ไม่งั้นจะไม่มีช่วงคิดค่าเลท",
 };
 
@@ -298,6 +315,46 @@ export default async function SettingsPage({
                 ค่าแนะนำคือ 24 ชั่วโมง · 48 = สองวัน · 0 = ไม่บังคับ
               </p>
             </div>
+
+            <div>
+              <label className={labelClass} htmlFor="holdMinutes">
+                กันคิวรถให้คนที่ยังไม่โอน (นาที)
+              </label>
+              <input
+                id="holdMinutes"
+                name="holdMinutes"
+                type="number"
+                min="0"
+                max="1440"
+                required
+                defaultValue={settings.holdMinutes}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                ครบเวลาแล้วยังไม่อัปสลิป ระบบยกเลิกใบจองอัตโนมัติ · 0 = ไม่ยกเลิกเอง
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="unpaidDigestOn"
+                defaultChecked={settings.unpaidDigestOn}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700 leading-relaxed">
+                <strong className="text-slate-900">ส่งสรุปใบที่ยังไม่โอนให้แอดมินวันละครั้ง</strong>
+                <br />
+                ตอนกดจองระบบจะไม่ยิง LINE แล้ว (กันคนจองเล่นกินโควตาข้อความ)
+                เปิดข้อนี้ไว้เพื่อให้ยังเห็นภาพรวมว่าวันนี้มีคนกดจองแล้วไม่โอนกี่ใบ
+                — รวมเป็นข้อความเดียวต่อวัน ดูรายตัวได้ที่{" "}
+                <Link href="/admin/bookings?status=awaiting" className="text-blue-600 underline">
+                  รอโอนค่าจอง
+                </Link>
+              </span>
+            </label>
           </div>
         </div>
 
