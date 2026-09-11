@@ -17,7 +17,7 @@ loadEnv({ path: ".env.local", override: true });
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const DB_URL = process.env.DATABASE_URL;
+const DB_URL = process.env.DATABASE_URL ?? "";
 if (!DB_URL) {
   console.error("\nไม่พบ DATABASE_URL — รันจากโฟลเดอร์โปรเจกต์\n");
   process.exit(1);
@@ -106,8 +106,13 @@ const ROWS: Row[] = [
   },
 ];
 
+/* รถที่ "จะถูกสร้าง" ในรอบนี้ — โหมดดูเฉย ๆ ยังไม่ได้เขียนลงฐาน
+   ถ้าไม่จำไว้ ใบจองที่ใช้รถคันใหม่จะขึ้นว่า "ไม่พบรถ" ทั้งที่จริงแล้วรันจริงจะผ่าน
+   ซึ่งทำให้พรีวิวโกหก และคนอ่านนึกว่าตกใบไป */
+const pendingCars = new Map<string, { brand: string; name: string }>();
+
 async function main() {
-  console.log(`\nฐานข้อมูล: ${new URL(DB_URL!).hostname}`);
+  console.log(`\nฐานข้อมูล: ${new URL(DB_URL).hostname}`);
   console.log(CONFIRMED ? "โหมด: เขียนจริง\n" : "โหมด: ดูเฉย ๆ ยังไม่เขียน\n");
 
   // 1. รถที่ยังไม่มี
@@ -118,6 +123,7 @@ async function main() {
       continue;
     }
     console.log(`รถ ${c.brand} ${c.name} (${c.plate}) ${c.pricePerDay} ฿/วัน: เพิ่มใหม่`);
+    pendingCars.set(c.plate, { brand: c.brand, name: c.name });
     if (CONFIRMED) {
       await prisma.car.create({
         data: {
@@ -156,7 +162,16 @@ async function main() {
   // 3. ใบจอง
   for (const r of ROWS) {
     const car = await prisma.car.findFirst({ where: { licensePlate: r.plate } });
+
     if (!car) {
+      const pending = pendingCars.get(r.plate);
+      if (pending && !CONFIRMED) {
+        console.log(
+          `${r.who}: ${pending.brand} ${pending.name} · ${r.start} → ${r.end} · ` +
+            `${r.total.toLocaleString()} ฿ (รถคันนี้จะถูกสร้างตอนรันจริง)`
+        );
+        continue;
+      }
       console.log(`${r.who}: ไม่พบรถ ${r.plate} — ข้ามใบนี้`);
       continue;
     }

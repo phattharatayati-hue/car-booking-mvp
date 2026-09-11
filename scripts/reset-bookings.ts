@@ -25,11 +25,17 @@ loadEnv({ path: ".env" });
 loadEnv({ path: ".env.local", override: true });
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { del } from "@vercel/blob";
 
 /* ใช้ตัวเดียวกับที่เว็บใช้ (DATABASE_URL) ไม่ใช่ตัว UNPOOLED ของ Prisma CLI
    ทั้งสองตัวควรชี้ฐานข้อมูลเดียวกัน แต่ถ้าตั้งไว้คนละ branch จะลบผิดที่ */
-const DB_URL = process.env.DATABASE_URL;
+/* ใช้ ?? "" เพื่อให้ชนิดเป็น string ตั้งแต่แรก
+
+   ถ้าประกาศเป็น string | undefined แล้วเช็คด้วย if ข้างล่าง TypeScript
+   จะไม่แคบชนิดให้ตอนเอาไปใช้ในฟังก์ชันอื่น ทำให้ `next build` บน Vercel ล้ม
+   (สคริปต์ในโฟลเดอร์ scripts/ ถูก type-check ไปพร้อมกับโค้ดเว็บด้วย) */
+const DB_URL = process.env.DATABASE_URL ?? "";
 if (!DB_URL) {
   console.error(
     "\nไม่พบ DATABASE_URL — ตรวจว่ารันคำสั่งจากโฟลเดอร์โปรเจกต์ และมีไฟล์ .env.local อยู่\n"
@@ -47,7 +53,11 @@ function dbLabel(url: string): string {
   }
 }
 
-const prisma = new PrismaClient({ datasources: { db: { url: DB_URL } } });
+/* Prisma 7 ต่อฐานข้อมูลผ่าน driver adapter เท่านั้น — สร้าง PrismaClient เปล่า ๆ ไม่ได้แล้ว
+   ใช้รูปแบบเดียวกับ lib/prisma.ts ที่เว็บใช้ จะได้ต่อฐานเดียวกันแน่นอน */
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: DB_URL }),
+});
 
 const args = process.argv.slice(2);
 const CONFIRMED = args.includes("--yes");
