@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
-  renderToBuffer,
+  pdf,
 } from "@react-pdf/renderer";
 import { COMPANY } from "@/lib/contact";
 import { PAYMENT_LABEL, type ReceiptItem } from "@/lib/receipt";
@@ -69,9 +69,6 @@ const s = StyleSheet.create({
   },
   row: { flexDirection: "row" },
   logo: { height: 62, width: 130, objectFit: "contain" },
-  brandTop: { fontSize: 20, fontWeight: 700, color: GREEN, letterSpacing: 1 },
-  brandBottom: { fontSize: 8, fontWeight: 700, color: GOLD, letterSpacing: 4 },
-  brandSub: { fontSize: 7, color: MUTED, letterSpacing: 2 },
   headRight: { textAlign: "right", fontSize: 8, lineHeight: 1.5 },
 
   titleBar: { flexDirection: "row", marginTop: 14 },
@@ -417,13 +414,21 @@ export async function renderReceiptPdf(
     stampUrl: absolutize(r.stampUrl),
   };
 
-  /* ใช้ renderToBuffer ไม่ใช่ pdf(...).toBuffer()
-     ตัวหลังคืน ReadableStream ของ Node ไม่ใช่ Buffer พอเอาไปห่อ Uint8Array ตรง ๆ
-     จะได้ไฟล์ขนาด 0 ไบต์ที่ตอบ 200 ตามปกติ — พังแบบเงียบ หาสาเหตุยาก */
-  const buffer = await renderToBuffer(<ReceiptPdfDoc r={doc} company={company} />);
+  /* pdf(...).toBuffer() คืน "สตรีม" ของ Node ไม่ใช่ Buffer ทั้งที่ชื่อบอกว่า Buffer
+     ถ้าเอาไปห่อ Uint8Array ตรง ๆ จะได้ไฟล์ 0 ไบต์ที่ตอบ 200 ตามปกติ — พังแบบเงียบ
+     จึงต้องอ่านสตรีมให้จบก่อนแล้วค่อยต่อเป็น Buffer เอง */
+  const stream = await pdf(
+    <ReceiptPdfDoc r={doc} company={company} baseUrl={baseUrl} />
+  ).toBuffer();
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as unknown as AsyncIterable<Buffer | string>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const buffer = Buffer.concat(chunks);
 
   // กันพังเงียบอีกชั้น ไฟล์ PDF ที่ถูกต้องต้องมีเนื้อหาเสมอ
-  if (!buffer || buffer.length === 0) {
+  if (buffer.length === 0) {
     throw new Error("สร้าง PDF ได้ไฟล์เปล่า — ตรวจการตั้งค่าฟอนต์");
   }
   return buffer;
