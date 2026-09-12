@@ -277,13 +277,13 @@ export default async function SettingsPage({
      คนที่ยังไม่เซ็นจะไม่ขึ้นในรายการ พร้อมบอกจำนวนไว้ให้รู้ว่าทำไมชื่อบางคนหาย */
   const [signerOptions, staffWithoutSignature] = await Promise.all([
     prisma.adminUser.findMany({
-      where: { signatureUrl: { not: null }, role: { in: ["ADMIN", "DEV"] } },
+      // ไม่กรองตามบทบาท — เจ้าของร้านที่ไปส่งรถเองอาจถูกตั้งเป็น DRIVER
+      // ถ้ากรองออก คนที่ควรเป็นผู้ลงนามจะหายไปเฉย ๆ โดยไม่มีใครรู้ว่าทำไม
+      where: { signatureUrl: { not: null } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, signatureUrl: true },
     }),
-    prisma.adminUser.count({
-      where: { signatureUrl: null, role: { in: ["ADMIN", "DEV"] } },
-    }),
+    prisma.adminUser.count({ where: { signatureUrl: null } }),
   ]);
 
   const currentSigner = signerOptions.find((u) => u.id === settings.signerAdminUserId);
@@ -517,7 +517,8 @@ export default async function SettingsPage({
               id="signerAdminUserId"
               name="signerAdminUserId"
               defaultValue={settings.signerAdminUserId ?? ""}
-              className={inputClass}
+              disabled={signerOptions.length === 0}
+              className={`${inputClass} disabled:bg-slate-50 disabled:text-slate-400`}
             >
               <option value="">— ไม่ใส่ลายเซ็น เว้นช่องให้เซ็นด้วยปากกา —</option>
               {signerOptions.map((u) => (
@@ -526,6 +527,26 @@ export default async function SettingsPage({
                 </option>
               ))}
             </select>
+
+            {/* ตอนยังไม่มีใครเซ็น ช่องเลือกจะมีแค่ตัวเลือกเดียวซึ่งดูเหมือนระบบพัง
+                ต้องบอกตรงจุดที่กดไม่ได้ ว่าต้องไปทำอะไรก่อนถึงจะมีชื่อให้เลือก */}
+            {signerOptions.length === 0 && (
+              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 leading-relaxed">
+                <p className="font-semibold">ยังไม่มีใครเซ็นลายเซ็นเก็บไว้ในระบบ</p>
+                <p className="mt-1">
+                  คนที่จะเป็นผู้ลงนามต้องเข้าสู่ระบบด้วยบัญชีตัวเอง ไปที่หน้า{" "}
+                  <Link href="/admin/account" className="underline font-medium">
+                    บัญชีของฉัน
+                  </Link>{" "}
+                  แล้วเซ็นในการ์ด “ลายเซ็นของฉัน” — เซ็นครั้งเดียวใช้ได้ตลอด
+                  <br />
+                  จากนั้นกลับมาหน้านี้ ชื่อจะขึ้นให้เลือก
+                </p>
+                <p className="mt-2 text-amber-800">
+                  ระบบไม่ให้คนอื่นอัปลายเซ็นแทนกัน เพราะลายเซ็นเป็นหลักฐานผูกพันตัวบุคคล
+                </p>
+              </div>
+            )}
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
               รายชื่อนี้แสดงเฉพาะคนที่เซ็นลายเซ็นเก็บไว้ในระบบแล้ว
               {staffWithoutSignature > 0 && (

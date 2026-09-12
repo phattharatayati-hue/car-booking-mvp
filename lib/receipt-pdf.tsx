@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
-  pdf,
+  renderToBuffer,
 } from "@react-pdf/renderer";
 import { COMPANY } from "@/lib/contact";
 import { PAYMENT_LABEL, type ReceiptItem } from "@/lib/receipt";
@@ -68,6 +68,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 28,
   },
   row: { flexDirection: "row" },
+  logo: { height: 62, width: 130, objectFit: "contain" },
   brandTop: { fontSize: 20, fontWeight: 700, color: GREEN, letterSpacing: 1 },
   brandBottom: { fontSize: 8, fontWeight: 700, color: GOLD, letterSpacing: 4 },
   brandSub: { fontSize: 7, color: MUTED, letterSpacing: 2 },
@@ -183,18 +184,23 @@ function Sum({
   );
 }
 
-function ReceiptPdfDoc({ r, company }: { r: ReceiptView; company: CompanyView }) {
+function ReceiptPdfDoc({
+  r,
+  company,
+  baseUrl,
+}: {
+  r: ReceiptView;
+  company: CompanyView;
+  baseUrl: string;
+}) {
   const blanks = Math.max(0, 8 - r.items.length);
 
   return (
     <Document title={`ใบเสร็จ ${r.number}`}>
       <Page size="A4" style={s.page}>
         <View style={[s.row, { justifyContent: "space-between" }]}>
-          <View>
-            <Text style={s.brandTop}>{COMPANY.nameTop}</Text>
-            <Text style={s.brandBottom}>{COMPANY.nameBottom}</Text>
-            <Text style={s.brandSub}>CO., LTD.</Text>
-          </View>
+          {/* โลโก้จาก public/ — ส่ง URL เต็มเข้ามาเพราะฝั่งเซิร์ฟเวอร์โหลด path สั้นไม่ได้ */}
+          <Image src={`${baseUrl}/receipt-logo.png`} style={s.logo} />
           <View style={{ width: 300 }}>
             <Text style={[s.headRight, { fontWeight: 700 }]}>{COMPANY.nameTh}</Text>
             <Text style={s.headRight}>{company.address}</Text>
@@ -411,6 +417,14 @@ export async function renderReceiptPdf(
     stampUrl: absolutize(r.stampUrl),
   };
 
-  const blob = await pdf(<ReceiptPdfDoc r={doc} company={company} />).toBuffer();
-  return blob as unknown as Buffer;
+  /* ใช้ renderToBuffer ไม่ใช่ pdf(...).toBuffer()
+     ตัวหลังคืน ReadableStream ของ Node ไม่ใช่ Buffer พอเอาไปห่อ Uint8Array ตรง ๆ
+     จะได้ไฟล์ขนาด 0 ไบต์ที่ตอบ 200 ตามปกติ — พังแบบเงียบ หาสาเหตุยาก */
+  const buffer = await renderToBuffer(<ReceiptPdfDoc r={doc} company={company} />);
+
+  // กันพังเงียบอีกชั้น ไฟล์ PDF ที่ถูกต้องต้องมีเนื้อหาเสมอ
+  if (!buffer || buffer.length === 0) {
+    throw new Error("สร้าง PDF ได้ไฟล์เปล่า — ตรวจการตั้งค่าฟอนต์");
+  }
+  return buffer;
 }

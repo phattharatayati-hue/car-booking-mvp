@@ -198,18 +198,17 @@ export default function ReceiptDoc({
         </div>
       )}
 
-      {/* หัวกระดาษ */}
+      {/* หัวกระดาษ — โลโก้จริงจากไฟล์ ไม่ใช่ตัวอักษรที่จัดเลียนแบบ
+          ไฟล์อยู่ใน public/ ไม่ใช่ Blob เพราะเป็นของบริษัทที่ไม่เปลี่ยนบ่อย
+          และต้องโหลดได้ทั้งในหน้าเว็บและตอนเซิร์ฟเวอร์สร้าง PDF */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: "6mm" }}>
         <div>
-          <div style={{ fontSize: "7mm", fontWeight: 800, color: GREEN, letterSpacing: "0.5mm" }}>
-            {COMPANY.nameTop}
-          </div>
-          <div style={{ fontSize: "3mm", fontWeight: 700, color: GOLD, letterSpacing: "1.6mm" }}>
-            {COMPANY.nameBottom}
-          </div>
-          <div style={{ fontSize: "2.6mm", color: "#6B7C75", letterSpacing: "0.8mm" }}>
-            CO., LTD.
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/receipt-logo.png"
+            alt={COMPANY.nameTh}
+            style={{ height: "22mm", width: "auto", objectFit: "contain" }}
+          />
         </div>
         <div style={{ textAlign: "right", fontSize: "2.9mm", lineHeight: 1.5, color: INK }}>
           <div style={{ fontWeight: 700 }}>{COMPANY.nameTh}</div>

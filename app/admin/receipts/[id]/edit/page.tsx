@@ -4,20 +4,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
-import { getSettings, formatBangkokDateTime } from "@/lib/settings";
-import { rentalDays, PAYMENT_LABEL, PAYMENT_METHODS } from "@/lib/receipt";
-import { BANK_ACCOUNT } from "@/lib/contact";
-import { createReceiptAction } from "../actions";
+import { formatBangkokDateTime } from "@/lib/settings";
+import { PAYMENT_LABEL, PAYMENT_METHODS, type ReceiptItem } from "@/lib/receipt";
+import { updateReceiptAction } from "../../actions";
 import ActionButton from "@/components/ActionButton";
 import { BTN } from "@/lib/ui";
 
 /**
- * ฟอร์มออกใบเสร็จ
+ * แก้ไขใบเสร็จที่ออกไปแล้ว
  *
- * เติมค่าจากใบจองให้ก่อน แล้วให้แก้ได้ทุกช่อง เพราะลูกค้านิติบุคคลจะขอ
- * ชื่อบริษัท เลขผู้เสียภาษี และที่อยู่ ซึ่งระบบไม่มีข้อมูลนี้ตอนจอง
- *
- * รายการแยกบรรทัด (ค่าเช่า / เงินประกัน / ค่าอื่น ๆ) ตามที่ร้านใช้จริง
+ * เลขที่ วันที่ออก และลายเซ็นผู้มีอำนาจไม่ให้แก้ — เปลี่ยนได้แต่เนื้อหาที่กรอกผิด
+ * เลขที่ใบเสร็จเปลี่ยนไม่ได้เพราะมันคือกุญแจอ้างอิงทางบัญชี
+ * ถ้าจะเปลี่ยนเลข วิธีที่ถูกคือยกเลิกใบนี้แล้วออกใบใหม่
  */
 
 const ERRORS: Record<string, string> = {
@@ -38,54 +36,37 @@ const cellClass =
 
 const ROWS = 6;
 
-export default async function NewReceiptPage({
+export default async function EditReceiptPage({
+  params,
   searchParams,
 }: {
-  searchParams: Promise<{ booking?: string; error?: string }>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   await requireStaff();
-  const { booking: bookingId, error } = await searchParams;
-  if (!bookingId) notFound();
+  const { id } = await params;
+  const { error } = await searchParams;
 
-  const booking = await prisma.booking.findUnique({
-    where: { id: bookingId },
-    include: { car: true, customer: true, deposit: true, receipts: true },
+  const receipt = await prisma.receipt.findUnique({
+    where: { id },
+    include: { booking: { include: { car: true } } },
   });
-  if (!booking) notFound();
+  if (!receipt) notFound();
 
-  const settings = await getSettings();
-  const days = rentalDays(booking.startDate, booking.endDate);
-
-  /* ค่าตั้งต้นของรายการ — มีเฉพาะค่าเช่า
-
-     ไม่ใส่เงินประกันลงในบิล เพราะเงินประกันไม่ใช่รายได้ของร้าน
-     เป็นเงินที่รับฝากไว้แล้วคืนให้ลูกค้าทั้งก้อนเมื่อส่งรถเรียบร้อย
-     ถ้าออกใบเสร็จรับเงินก้อนนี้ด้วย เท่ากับรับรู้เป็นรายได้ทั้งที่ต้องคืน
-
-     ค่าจองที่ลูกค้าโอนไว้แล้วใส่เป็นส่วนลดของบรรทัดค่าเช่า เพราะใบเสร็จ
-     ไม่มีบรรทัดติดลบ และยอดสุทธิต้องเท่ากับค่าเช่าที่เก็บเพิ่มหน้างานจริง */
-  const prefill = [
-    {
-      name: `ค่าบริการเช่ารถยนต์ ${booking.car.brand} ${booking.car.name} ระยะเวลา ${days} วัน`,
-      qty: days,
-      price: Math.round(booking.totalPrice / days),
-      discount: booking.deposit ? booking.deposit.amount : 0,
-    },
-  ];
+  const items = receipt.items as unknown as ReceiptItem[];
 
   return (
     <div className="max-w-4xl">
       <nav className="text-sm text-slate-500 mb-4">
-        <Link href="/admin/bookings" className="hover:text-slate-700">
-          ← กลับไปรายการจอง
+        <Link href={`/admin/receipts/${id}`} className="hover:text-slate-700">
+          ← กลับไปหน้าใบเสร็จ
         </Link>
       </nav>
 
-      <h1 className="text-2xl font-bold text-slate-900">ออกใบเสร็จรับเงิน</h1>
+      <h1 className="text-2xl font-bold text-slate-900">แก้ไขใบเสร็จ {receipt.number}</h1>
       <p className="text-slate-500 text-sm mt-1 mb-6">
-        {booking.car.brand} {booking.car.name} · {booking.car.licensePlate} · รหัสจอง{" "}
-        {booking.id.slice(0, 8).toUpperCase()} · รับรถ{" "}
-        {formatBangkokDateTime(booking.startDate)}
+        {receipt.booking.car.brand} {receipt.booking.car.name} · ออกเมื่อ{" "}
+        {formatBangkokDateTime(receipt.issuedAt)}
       </p>
 
       {error && ERRORS[error] && (
@@ -97,35 +78,46 @@ export default async function NewReceiptPage({
         </div>
       )}
 
-      {booking.receipts.length > 0 && (
+      <div className="mb-5 text-sm bg-slate-50 border border-slate-200 text-slate-600 px-4 py-3 rounded-xl leading-relaxed">
+        เลขที่ใบเสร็จและวันที่ออกแก้ไม่ได้ — ถ้าต้องเปลี่ยนเลข ให้ยกเลิกใบนี้แล้วออกใบใหม่
+        <br />
+        ทุกการแก้ไขถูกบันทึกในประวัติการใช้งาน พร้อมยอดก่อนและหลังแก้
+      </div>
+
+      {receipt.voidedAt && (
+        <div className="mb-5 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl leading-relaxed">
+          ใบนี้ถูกยกเลิกไปแล้ว — แก้ได้ แต่ลายน้ำ “ยกเลิก” จะยังอยู่บนเอกสาร
+          และใบที่ยกเลิกแล้วไม่ควรใช้อ้างอิงทางบัญชี
+        </div>
+      )}
+
+      {receipt.customerSignatureUrl && (
         <div className="mb-5 text-sm bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl leading-relaxed">
-          ใบจองนี้เคยออกใบเสร็จไปแล้ว {booking.receipts.length} ใบ —{" "}
-          {booking.receipts.map((r) => r.number).join(", ")}
+          <p className="font-semibold">ลูกค้าเซ็นรับใบนี้ไปแล้ว</p>
+          <p className="mt-1">
+            ลายเซ็นผูกกับตัวเลขที่ลูกค้าเห็นตอนเซ็น ถ้าแก้ยอดแล้วเก็บลายเซ็นเดิมไว้
+            เอกสารจะกลายเป็นว่าลูกค้าเซ็นรับยอดที่ไม่เคยเห็น
+            <br />
+            แนะนำให้ติ๊กลบลายเซ็นออกด้านล่าง แล้วให้ลูกค้าเซ็นใหม่
+          </p>
+        </div>
+      )}
+
+      {receipt.sentToLineAt && (
+        <div className="mb-5 text-sm bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl leading-relaxed">
+          ใบนี้ส่งให้ลูกค้าทาง LINE ไปแล้วเมื่อ{" "}
+          {formatBangkokDateTime(receipt.sentToLineAt)}
           <br />
-          ออกใบใหม่ได้ถ้าจำเป็น แต่ถ้าใบเดิมผิด ควรกดยกเลิกใบเดิมด้วย
-          ไม่งั้นจะมีใบเสร็จสองใบสำหรับเงินก้อนเดียวกัน
+          ลิงก์เดิมของลูกค้าจะแสดงฉบับที่แก้แล้วทันที แต่ถ้าลูกค้าเซฟ PDF ไว้ก่อนหน้า
+          เขาจะยังถือฉบับเก่าอยู่ — แก้เสร็จควรกดส่งซ้ำและบอกลูกค้าด้วย
         </div>
       )}
 
-      {!settings.signerAdminUserId && (
-        <div className="mb-5 text-sm bg-slate-50 border border-slate-200 text-slate-600 px-4 py-3 rounded-xl leading-relaxed">
-          ยังไม่ได้ตั้งผู้มีอำนาจลงนามในหน้าตั้งค่า — ใบเสร็จจะออกได้ตามปกติ
-          แต่ช่องลายเซ็นจะว่างไว้ให้เซ็นด้วยปากกา
-        </div>
-      )}
-
-      <form action={createReceiptAction} className="space-y-5">
-        <input type="hidden" name="bookingId" value={booking.id} />
+      <form action={updateReceiptAction} className="space-y-5">
+        <input type="hidden" name="receiptId" value={receipt.id} />
 
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <h2 className="font-semibold text-slate-900 mb-1">ข้อมูลลูกค้าในใบเสร็จ</h2>
-          <p className="text-sm text-slate-500 mb-4 leading-relaxed">
-            ต้องกรอกให้ครบทุกช่องก่อนออกใบเสร็จ — ใบเสร็จที่ไม่มีที่อยู่หรือเลขผู้เสียภาษี
-            ลูกค้าเอาไปใช้ทางบัญชีไม่ได้ แล้วต้องมาขอออกใหม่
-            <br />
-            คนไทยใช้<strong>เลขบัตรประชาชน</strong> · ชาวต่างชาติใช้<strong>เลขพาสปอร์ต</strong>
-            แทนเลขผู้เสียภาษีได้
-          </p>
+          <h2 className="font-semibold text-slate-900 mb-4">ข้อมูลลูกค้าในใบเสร็จ</h2>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
@@ -137,7 +129,7 @@ export default async function NewReceiptPage({
                 name="customerName"
                 required
                 maxLength={150}
-                defaultValue={booking.customer.fullName}
+                defaultValue={receipt.customerName}
                 className={inputClass}
               />
             </div>
@@ -150,12 +142,9 @@ export default async function NewReceiptPage({
                 name="taxId"
                 required
                 maxLength={30}
-                placeholder="0-0000-00000-00-0"
+                defaultValue={receipt.taxId ?? ""}
                 className={inputClass}
               />
-              <p className="text-xs text-slate-400 mt-1.5">
-                คนไทยใช้เลขบัตรประชาชน · ชาวต่างชาติใช้เลขพาสปอร์ต
-              </p>
             </div>
             <div>
               <label className={labelClass} htmlFor="branch">
@@ -165,7 +154,7 @@ export default async function NewReceiptPage({
                 id="branch"
                 name="branch"
                 maxLength={60}
-                placeholder="สำนักงานใหญ่"
+                defaultValue={receipt.branch ?? ""}
                 className={inputClass}
               />
             </div>
@@ -178,7 +167,7 @@ export default async function NewReceiptPage({
                 name="address"
                 required
                 maxLength={300}
-                placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+                defaultValue={receipt.address ?? ""}
                 className={inputClass}
               />
             </div>
@@ -191,7 +180,7 @@ export default async function NewReceiptPage({
                 name="phone"
                 required
                 maxLength={40}
-                defaultValue={booking.customer.phone}
+                defaultValue={receipt.phone ?? ""}
                 className={inputClass}
               />
             </div>
@@ -200,12 +189,8 @@ export default async function NewReceiptPage({
 
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <h2 className="font-semibold text-slate-900 mb-1">รายการ</h2>
-          <p className="text-sm text-slate-500 mb-4 leading-relaxed">
-            แถวที่ปล่อยชื่อว่างไว้จะไม่ถูกใส่ในใบเสร็จ ·
-            ค่าจองที่ลูกค้าโอนไว้แล้วเติมเป็นส่วนลดของบรรทัดค่าเช่าให้
-            <br />
-            <strong>ไม่ใส่เงินประกันในใบเสร็จ</strong> เพราะเป็นเงินรับฝากที่ต้องคืนลูกค้า
-            ไม่ใช่รายได้ของร้าน — ถ้ากรณีไหนต้องออกจริง พิมพ์เพิ่มเป็นอีกบรรทัดได้
+          <p className="text-sm text-slate-500 mb-4">
+            ลบบรรทัดได้ด้วยการล้างชื่อรายการให้ว่าง
           </p>
 
           <div className="overflow-x-auto">
@@ -220,15 +205,14 @@ export default async function NewReceiptPage({
               </thead>
               <tbody>
                 {Array.from({ length: ROWS }).map((_, i) => {
-                  const p = prefill[i];
+                  const it = items[i];
                   return (
                     <tr key={i}>
                       <td className="py-1 pr-2">
                         <input
                           name={`item${i}name`}
                           maxLength={200}
-                          defaultValue={p?.name ?? ""}
-                          placeholder={i === 1 ? "เช่น ค่าบริการนอกเวลา / ค่าคืนรถล่าช้า" : ""}
+                          defaultValue={it?.name ?? ""}
                           className={cellClass}
                         />
                       </td>
@@ -238,7 +222,7 @@ export default async function NewReceiptPage({
                           type="number"
                           min="1"
                           max="9999"
-                          defaultValue={p?.qty ?? 1}
+                          defaultValue={it?.qty ?? 1}
                           className={cellClass}
                         />
                       </td>
@@ -247,7 +231,7 @@ export default async function NewReceiptPage({
                           name={`item${i}price`}
                           type="number"
                           min="0"
-                          defaultValue={p?.price ?? ""}
+                          defaultValue={it?.unitPrice ?? ""}
                           className={cellClass}
                         />
                       </td>
@@ -256,7 +240,7 @@ export default async function NewReceiptPage({
                           name={`item${i}discount`}
                           type="number"
                           min="0"
-                          defaultValue={p?.discount ?? 0}
+                          defaultValue={it?.discount ?? 0}
                           className={cellClass}
                         />
                       </td>
@@ -278,7 +262,7 @@ export default async function NewReceiptPage({
               <select
                 id="paymentMethod"
                 name="paymentMethod"
-                defaultValue="TRANSFER"
+                defaultValue={receipt.paymentMethod}
                 className={inputClass}
               >
                 {PAYMENT_METHODS.map((m) => (
@@ -296,29 +280,43 @@ export default async function NewReceiptPage({
                 id="paymentDetail"
                 name="paymentDetail"
                 maxLength={200}
-                defaultValue={
-                  booking.deposit
-                    ? `ค่าจอง ${booking.deposit.amount.toLocaleString()} บาท โอนเข้า ${BANK_ACCOUNT}`
-                    : ""
-                }
+                defaultValue={receipt.paymentDetail ?? ""}
                 className={inputClass}
               />
             </div>
           </div>
         </div>
 
+        {receipt.customerSignatureUrl && (
+          <div className="bg-white rounded-2xl border border-amber-200 p-5">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="clearSignature"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700 leading-relaxed">
+                <strong className="text-slate-900">
+                  ลบลายเซ็นลูกค้าออกด้วย เพื่อให้เซ็นใหม่
+                </strong>
+                <br />
+                ไม่ติ๊ก = เก็บลายเซ็นเดิมไว้บนใบที่แก้แล้ว ระบบจะบันทึกไว้ในประวัติว่า
+                แก้หลังลูกค้าเซ็นรับแล้ว
+              </span>
+            </label>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
           <ActionButton
             className={BTN.ok}
-            pendingText="กำลังออกใบเสร็จ…"
-            confirm={
-              "ออกใบเสร็จเลขใหม่?\n\nเลขที่ใบเสร็จรันแล้วย้อนกลับไม่ได้ ถ้าออกผิดต้องกดยกเลิกใบนั้นแทนการลบ"
-            }
+            pendingText="กำลังบันทึก…"
+            confirm={`บันทึกการแก้ไขใบเสร็จ ${receipt.number}?\n\nเลขที่ใบเสร็จยังเป็นเลขเดิม และการแก้ไขจะถูกบันทึกในประวัติการใช้งาน`}
           >
-            ออกใบเสร็จ
+            บันทึกการแก้ไข
           </ActionButton>
           <Link
-            href="/admin/bookings"
+            href={`/admin/receipts/${id}`}
             className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold transition-colors"
           >
             ยกเลิก

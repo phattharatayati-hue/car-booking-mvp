@@ -23,6 +23,8 @@ import type { ReceiptItem } from "@/lib/receipt";
 
 const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
   created: { text: "ออกใบเสร็จเรียบร้อยแล้ว", tone: "ok" },
+  updated: { text: "บันทึกการแก้ไขเรียบร้อยแล้ว — เลขที่ใบเสร็จยังเป็นเลขเดิม", tone: "ok" },
+
   sent: { text: "ส่งใบเสร็จให้ลูกค้าทาง LINE แล้ว", tone: "ok" },
   voided: { text: "ยกเลิกใบเสร็จแล้ว", tone: "ok" },
   reason: { text: "กรุณาระบุเหตุผลที่ยกเลิก อย่างน้อย 3 ตัวอักษร", tone: "error" },
@@ -85,6 +87,13 @@ export default async function ReceiptPage({
               ดาวน์โหลด PDF
             </a>
             <CopyButton value={publicUrl} label="คัดลอกลิงก์ใบเสร็จ" />
+            <Link
+              href={`/admin/receipts/${receipt.id}/edit`}
+              prefetch={false}
+              className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold transition-colors"
+            >
+              แก้ไข
+            </Link>
             <Link
               href={`/admin/bookings?q=${receipt.bookingId}`}
               prefetch={false}
