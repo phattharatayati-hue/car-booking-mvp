@@ -51,9 +51,19 @@ export function registerFonts(baseUrl: string) {
     ],
   });
 
-  // ภาษาไทยไม่มีช่องว่างระหว่างคำ ถ้าไม่ปิดการตัดคำอัตโนมัติ
-  // react-pdf จะตัดกลางคำมั่วไปหมด ปล่อยให้ขึ้นบรรทัดตามความกว้างแทน
-  Font.registerHyphenationCallback((word) => [word]);
+  /* ภาษาไทยไม่มีช่องว่างระหว่างคำ ทั้งประโยคจึงถูกมองเป็น "คำเดียว"
+     ถ้าคืนค่าเป็น [word] เฉย ๆ react-pdf จะขึ้นบรรทัดใหม่ไม่ได้เลย
+     พอข้อความยาวเกินกล่องมันจะล้นออกไปแล้วถูกตัดหาย — อย่างที่อยู่ท้ายกระดาษ
+     ที่กลายเป็น "จังหวัดเชียงให" โดยหายไปตัวสองตัวท้าย
+
+     จึงซอยเป็นตัวอักษรให้ตัดบรรทัดตรงไหนก็ได้ แต่ต้องเก็บสระบน-ล่างกับวรรณยุกต์
+     ไว้กับพยัญชนะตัวที่มันเกาะอยู่ ไม่งั้นจะมีสระลอยไปขึ้นบรรทัดใหม่ตัวเดียว */
+  Font.registerHyphenationCallback((word) => {
+    const clusters = word.match(
+      /[\u0E00-\u0E7F][\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]*|[\s\S]/gu
+    );
+    return clusters && clusters.length > 0 ? clusters : [word];
+  });
 
   fontsReady = true;
 }
@@ -70,6 +80,7 @@ const s = StyleSheet.create({
   row: { flexDirection: "row" },
   logo: { height: 62, width: 130, objectFit: "contain" },
   headRight: { textAlign: "right", fontSize: 8, lineHeight: 1.5 },
+  headRightBox: { width: 320, paddingLeft: 12 },
 
   titleBar: { flexDirection: "row", marginTop: 14 },
   titleBox: { flex: 1, backgroundColor: GREEN, paddingVertical: 9, alignItems: "center" },
@@ -128,6 +139,7 @@ const s = StyleSheet.create({
     textAlign: "center",
     fontSize: 7.5,
     paddingVertical: 6,
+    paddingHorizontal: 10,
   },
 });
 
@@ -198,7 +210,7 @@ function ReceiptPdfDoc({
         <View style={[s.row, { justifyContent: "space-between" }]}>
           {/* โลโก้จาก public/ — ส่ง URL เต็มเข้ามาเพราะฝั่งเซิร์ฟเวอร์โหลด path สั้นไม่ได้ */}
           <Image src={`${baseUrl}/receipt-logo.png`} style={s.logo} />
-          <View style={{ width: 300 }}>
+          <View style={s.headRightBox}>
             <Text style={[s.headRight, { fontWeight: 700 }]}>{COMPANY.nameTh}</Text>
             <Text style={s.headRight}>{company.address}</Text>
             <Text style={s.headRight}>
@@ -320,7 +332,7 @@ function ReceiptPdfDoc({
               </Text>
             </View>
 
-            <Text style={{ fontSize: 8.5, fontWeight: 700, marginTop: 8 }}>
+            <Text style={{ fontSize: 8.5, fontWeight: 700, marginTop: 8, paddingLeft: 1 }}>
               การชำระเงิน (Conditions of Payments)
             </Text>
             <View style={[s.row, { marginTop: 4, flexWrap: "wrap" }]}>
