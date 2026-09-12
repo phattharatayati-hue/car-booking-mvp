@@ -8,7 +8,13 @@ export async function POST(request: Request) {
     const file = form.get("file") as File | null;
     const rawKind = form.get("kind") as string;
     const kind =
-      rawKind === "car" ? "cars" : rawKind === "document" ? "documents" : "slips";
+      rawKind === "car"
+        ? "cars"
+        : rawKind === "document"
+          ? "documents"
+          : rawKind === "signature"
+            ? "signatures"
+            : "slips";
 
     if (!file) {
       return NextResponse.json({ error: "ไม่พบไฟล์ที่อัปโหลด" }, { status: 400 });
@@ -17,7 +23,9 @@ export async function POST(request: Request) {
     // สลิปและเอกสารต้องให้ลูกค้าอัปได้โดยไม่ล็อกอิน (เก็บ private อยู่แล้ว)
     // แต่ cars/ เปิดสาธารณะผ่าน /api/file จึงต้องเป็นแอดมินเท่านั้น
     // ไม่งั้นใครก็อัปรูปอะไรก็ได้มาฝากไว้บนโดเมนเรา
-    if (kind === "cars") {
+    // signatures/ ก็เปิดสาธารณะเหมือน cars/ เพราะใบเสร็จที่ส่งให้ลูกค้าต้องแสดงลายเซ็นได้
+    // โดยลูกค้าไม่ต้องล็อกอิน — จึงต้องเป็นแอดมินเท่านั้นที่อัปเข้ามาได้
+    if (kind === "cars" || kind === "signatures") {
       const session = await auth();
       if (!session?.user) {
         return NextResponse.json({ error: "ต้องเข้าสู่ระบบก่อน" }, { status: 401 });

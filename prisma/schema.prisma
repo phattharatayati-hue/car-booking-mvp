@@ -72,8 +72,13 @@ model AdminUser {
   googleCalendarId   String?   // id ของปฏิทิน "งานรับส่งรถ" ที่ระบบสร้างให้
   googleConnectedAt  DateTime?
 
+  /// ลายเซ็นของคนนี้ สำหรับใช้ในใบเสร็จ — เจ้าตัวอัปเองเท่านั้นที่หน้า "บัญชีของฉัน"
+  /// ไม่ให้คนอื่นอัปแทน เพราะลายเซ็นคือหลักฐานผูกพันตัวบุคคล
+  signatureUrl String?
+
   createdAt    DateTime @default(now())
   assignments  BookingAssignment[]
+  receipts     Receipt[]
 }
 
 model Car {
@@ -175,6 +180,7 @@ model Booking {
   updatedAt   DateTime      @updatedAt
   deposit     Deposit?
   refund      DepositRefund?
+  receipts    Receipt[]
   documents   BookingDocument[]
   assignments BookingAssignment[]
 }
@@ -233,6 +239,15 @@ model Settings {
   /// เวลาทำการที่ใช้นับคิวคืนเงิน — นอกเวลานี้นาฬิกาหยุดเดิน
   refundOpenHour      Int     @default(8)
   refundCloseHour     Int     @default(20)
+
+  /// ใครเป็นผู้มีอำนาจลงนามในใบเสร็จ — ระบบดึงลายเซ็นจากบัญชีคนนี้
+  signerAdminUserId   String?
+  /// ตราประทับบริษัท
+  stampUrl            String?
+  /// หัวใบเสร็จ — แยกจาก lib/contact.ts เพราะเป็นข้อมูลจดทะเบียนที่แก้ได้โดยไม่ต้อง deploy
+  companyTaxId        String   @default("0-5055-69002-38-9")
+  companyBranch       String   @default("สำนักงานใหญ่")
+  companyAddress      String   @default("194/83 หมู่ที่ 1 ตำบลช้างเผือก อำเภอเมืองเชียงใหม่ จังหวัดเชียงใหม่")
 }
 
 /// สถานะการจองผ่านแชท LINE (ชั่วคราว จบแล้วลบทิ้ง)
@@ -428,4 +443,86 @@ model DepositRefund {
   updatedAt DateTime @updatedAt
 
   @@index([paidAt, dueAt])
+}
+
+
+/**
+ * ใบเสร็จรับเงิน
+ *
+ * เก็บเป็น "ภาพนิ่ง ณ วันออก" ทุกช่อง ไม่ใช่ join กลับไปอ่านจากใบจองตอนแสดงผล
+ * เพราะถ้าเดือนหน้ามีคนไปแก้ราคารถหรือชื่อลูกค้า ใบเสร็จที่ส่งให้ลูกค้าไปแล้ว
+ * ต้องไม่เปลี่ยนตาม — เอกสารการเงินที่เปลี่ยนย้อนหลังได้คือของที่ใช้อ้างอิงไม่ได้
+ */
+model Receipt {
+  id String @id @default(cuid())
+
+  /// เลขที่ใบเสร็จที่พิมพ์บนเอกสาร เช่น RE-2569-00001
+  number String @unique
+  /// ปี พ.ศ. ที่ออก — ใช้คู่กับ seq ในการรันเลข (รีเซ็ตทุกปี)
+  year   Int
+  seq    Int
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId String
+
+  issuedAt DateTime @default(now())
+
+  /// ข้อมูลลูกค้า ณ วันออก — ลูกค้านิติบุคคลจะใส่ชื่อบริษัทกับเลขผู้เสียภาษีที่นี่
+  customerName String
+  taxId        String?
+  branch       String?
+  address      String?
+  phone        String?
+
+  /// รายการในใบเสร็จ เก็บเป็น JSON: [{ name, qty, unitPrice, discount, amount }]
+  items Json
+
+  subtotal Int
+  discount Int @default(0)
+  total    Int
+  /// จำนวนเงินเป็นตัวอักษร เช่น "สามพันสองร้อยบาทถ้วน"
+  totalText String
+
+  /// เงินสด / โอนเงิน / เช็คธนาคาร / อื่นๆ
+  paymentMethod String  @default("TRANSFER")
+  paymentDetail String?
+
+  /// ลายเซ็นลูกค้า — เซ็นบนมือถือคนส่งรถ ไม่เซ็นก็ออกใบเสร็จได้ ช่องจะว่างไว้ให้เซ็นด้วยปากกา
+  customerSignatureUrl String?
+  customerSignedAt     DateTime?
+
+  /// ลายเซ็นผู้มีอำนาจกับตราประทับ — คัดลอกค่ามาเก็บตอนออก ไม่อ้างอิงค่าปัจจุบันในตั้งค่า
+  signerName         String?
+  signerSignatureUrl String?
+  stampUrl           String?
+
+  /// กุญแจสุ่มสำหรับเปิดใบเสร็จโดยไม่ต้องล็อกอิน — ใช้เป็นลิงก์ส่งให้ลูกค้า
+  viewToken String @unique
+
+  issuedBy   AdminUser? @relation(fields: [issuedById], references: [id])
+  issuedById String?
+
+  /// ส่งเข้าแชท LINE ของลูกค้าเมื่อไหร่ — ไม่กดส่งก็ไม่ส่ง
+  sentToLineAt DateTime?
+
+  /// ยกเลิกใบเสร็จ — ไม่ลบทิ้ง เพราะเลขที่ใบเสร็จต้องอธิบายได้ว่าหายไปไหน
+  voidedAt     DateTime?
+  voidReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, seq])
+  @@index([bookingId])
+}
+
+/**
+ * ตัวนับเลขที่ใบเสร็จ แยกตามปี พ.ศ.
+ *
+ * มีตารางนี้เพราะการรันเลขด้วย count() แล้วบวกหนึ่งจะได้เลขซ้ำ
+ * เมื่อแอดมินสองคนกดออกใบเสร็จพร้อมกัน — ให้ฐานข้อมูลเป็นคนบวกแทน
+ */
+model ReceiptCounter {
+  year    Int @id
+  lastSeq Int @default(0)
 }

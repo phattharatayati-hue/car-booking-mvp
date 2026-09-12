@@ -29,6 +29,13 @@ export type AppSettings = {
   /** เวลาทำการที่ใช้นับคิวคืนเงินประกัน */
   refundOpenHour: number;
   refundCloseHour: number;
+  /** ใครลงนามในใบเสร็จ — ระบบดึงลายเซ็นจากบัญชีคนนี้ */
+  signerAdminUserId: string | null;
+  /** ตราประทับบริษัท */
+  stampUrl: string | null;
+  companyTaxId: string;
+  companyBranch: string;
+  companyAddress: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -48,6 +55,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   refundNormalHours: 12,
   refundOpenHour: 8,
   refundCloseHour: 20,
+  signerAdminUserId: null,
+  stampUrl: null,
+  companyTaxId: "0-5055-69002-38-9",
+  companyBranch: "สำนักงานใหญ่",
+  companyAddress:
+    "194/83 หมู่ที่ 1 ตำบลช้างเผือก อำเภอเมืองเชียงใหม่ จังหวัดเชียงใหม่",
 };
 
 /** อ่านค่าตั้งค่า — ถ้ายังไม่มีแถวจะสร้างให้อัตโนมัติ */
@@ -74,6 +87,11 @@ export async function getSettings(): Promise<AppSettings> {
       refundNormalHours: row.refundNormalHours,
       refundOpenHour: row.refundOpenHour,
       refundCloseHour: row.refundCloseHour,
+      signerAdminUserId: row.signerAdminUserId,
+      stampUrl: row.stampUrl,
+      companyTaxId: row.companyTaxId,
+      companyBranch: row.companyBranch,
+      companyAddress: row.companyAddress,
     };
   } catch (err) {
     console.error("getSettings failed:", err);
@@ -118,6 +136,16 @@ export function formatBangkokTime(d: Date): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  }).format(new Date(d));
+}
+
+/** วันที่ไทยแบบตัวเลข เช่น "19/08/2569" — ใช้ในเอกสารที่ต้องกระชับอย่างใบเสร็จ */
+export function formatBangkokDate(d: Date): string {
+  return new Intl.DateTimeFormat("th-TH", {
+    timeZone: TZ,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   }).format(new Date(d));
 }
 

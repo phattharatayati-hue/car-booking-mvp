@@ -48,7 +48,9 @@ export async function GET(request: Request) {
 
   // รูปรถเป็นของสาธารณะ — นอกนั้น (สลิป, บัตรประชาชน, ใบขับขี่) ต้องเป็นแอดมินที่ login แล้ว
   // ใช้แบบ allowlist ไว้ก่อน ถ้าเพิ่มโฟลเดอร์ใหม่ในอนาคตจะถูกปิดโดยปริยาย ไม่หลุดเงียบๆ
-  const isPublic = pathname.startsWith("cars/");
+  // signatures/ รวมอยู่ด้วย เพราะลายเซ็นและตราประทับต้องขึ้นบนใบเสร็จที่ลูกค้าเปิดดูเอง
+  // ชื่อไฟล์มีส่วนสุ่มต่อท้าย จึงเดา URL ไม่ได้แม้จะเปิดสาธารณะ
+  const isPublic = pathname.startsWith("cars/") || pathname.startsWith("signatures/");
 
   if (!isPublic) {
     const session = await auth();

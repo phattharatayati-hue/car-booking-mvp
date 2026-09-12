@@ -17,6 +17,7 @@ import {
 import AdminTabs from "@/components/AdminTabs";
 import { SETTINGS_TABS } from "@/components/adminTabSets";
 import { lineLoginReady, callbackUrl } from "@/lib/line-login";
+import StampUpload from "@/components/StampUpload";
 
 async function saveSettingsAction(formData: FormData) {
   "use server";
@@ -37,6 +38,10 @@ async function saveSettingsAction(formData: FormData) {
   const refundNormalHours = Number(formData.get("refundNormalHours"));
   const refundOpenHour = Number(formData.get("refundOpenHour"));
   const refundCloseHour = Number(formData.get("refundCloseHour"));
+  const signerAdminUserId = String(formData.get("signerAdminUserId") ?? "") || null;
+  const companyTaxId = String(formData.get("companyTaxId") ?? "").trim();
+  const companyBranch = String(formData.get("companyBranch") ?? "").trim();
+  const companyAddress = String(formData.get("companyAddress") ?? "").trim();
   const unpaidDigestOn = formData.get("unpaidDigestOn") === "on";
 
   if (
@@ -111,6 +116,22 @@ async function saveSettingsAction(formData: FormData) {
     redirect("/admin/settings?error=lateGrace");
   }
 
+  if (!companyTaxId || companyTaxId.length > 30) redirect("/admin/settings?error=company");
+  if (!companyBranch || companyBranch.length > 60) redirect("/admin/settings?error=company");
+  if (!companyAddress || companyAddress.length > 300) redirect("/admin/settings?error=company");
+
+  /* ผู้ลงนามต้องเป็นบัญชีที่มีอยู่จริงและเซ็นลายเซ็นเก็บไว้แล้ว
+     ถ้าเลือกคนที่ยังไม่ได้เซ็น ใบเสร็จจะออกมาโดยช่องลายเซ็นว่างเปล่า
+     ซึ่งไปรู้ตัวตอนพิมพ์ส่งลูกค้าแล้ว สายเกินแก้ */
+  if (signerAdminUserId) {
+    const signer = await prisma.adminUser.findUnique({
+      where: { id: signerAdminUserId },
+      select: { signatureUrl: true },
+    });
+    if (!signer) redirect("/admin/settings?error=signer");
+    if (!signer.signatureUrl) redirect("/admin/settings?error=signerNoSig");
+  }
+
   const data = {
     returnReminderOn: on,
     returnReminderMinutesBefore: minutesBefore,
@@ -127,6 +148,10 @@ async function saveSettingsAction(formData: FormData) {
     refundNormalHours,
     refundOpenHour,
     refundCloseHour,
+    signerAdminUserId,
+    companyTaxId,
+    companyBranch,
+    companyAddress,
   };
 
   const before = await prisma.settings.findUnique({ where: { id: SETTINGS_ID } });
@@ -223,6 +248,10 @@ const ERRORS: Record<string, string> = {
   late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
+  company: "ข้อมูลบริษัทไม่ครบ หรือยาวเกินกำหนด",
+  signer: "ไม่พบบัญชีผู้ลงนามที่เลือก",
+  signerNoSig:
+    "คนที่เลือกยังไม่ได้เซ็นลายเซ็นเก็บไว้ — ให้เจ้าตัวไปเซ็นที่หน้า “บัญชีของฉัน” ก่อน",
   refundHours: "เวลาคืนเงินประกันต้องเป็นจำนวนเต็ม 1-72 ชั่วโมง และแบบรีวิวแล้วต้องไม่นานกว่าแบบปกติ",
   refundOffice: "เวลาทำการไม่ถูกต้อง — เวลาเลิกต้องหลังเวลาเปิด และอยู่ในช่วง 0-24 น.",
   hold: "เวลากันคิวรอสลิปต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่ยกเลิกเอง)",
@@ -243,6 +272,21 @@ export default async function SettingsPage({
   const { ok, error } = await searchParams;
   const settings = await getSettings();
   const lead = splitMinutes(settings.returnReminderMinutesBefore);
+
+  /* ผู้ลงนามที่เลือกได้ = คนที่เซ็นลายเซ็นเก็บไว้แล้วเท่านั้น
+     คนที่ยังไม่เซ็นจะไม่ขึ้นในรายการ พร้อมบอกจำนวนไว้ให้รู้ว่าทำไมชื่อบางคนหาย */
+  const [signerOptions, staffWithoutSignature] = await Promise.all([
+    prisma.adminUser.findMany({
+      where: { signatureUrl: { not: null }, role: { in: ["ADMIN", "DEV"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, signatureUrl: true },
+    }),
+    prisma.adminUser.count({
+      where: { signatureUrl: null, role: { in: ["ADMIN", "DEV"] } },
+    }),
+  ]);
+
+  const currentSigner = signerOptions.find((u) => u.id === settings.signerAdminUserId);
 
   const pendingCount = await prisma.booking.count({
     where: { status: "CONFIRMED", returnReminderSentAt: null },
@@ -411,6 +455,105 @@ export default async function SettingsPage({
                 </Link>
               </span>
             </label>
+          </div>
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">ใบเสร็จรับเงิน</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+            ข้อมูลหัวใบเสร็จและผู้ลงนาม — ใช้กับใบเสร็จทุกใบที่ออกหลังจากนี้
+            <br />
+            ใบที่ออกไปแล้วจะไม่เปลี่ยนตาม เพราะเก็บค่าไว้ในตัวเอกสารตั้งแต่วันออก
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="companyTaxId">
+                เลขประจำตัวผู้เสียภาษี
+              </label>
+              <input
+                id="companyTaxId"
+                name="companyTaxId"
+                required
+                maxLength={30}
+                defaultValue={settings.companyTaxId}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="companyBranch">
+                สาขา
+              </label>
+              <input
+                id="companyBranch"
+                name="companyBranch"
+                required
+                maxLength={60}
+                defaultValue={settings.companyBranch}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className={labelClass} htmlFor="companyAddress">
+              ที่อยู่ที่จดทะเบียน
+            </label>
+            <input
+              id="companyAddress"
+              name="companyAddress"
+              required
+              maxLength={300}
+              defaultValue={settings.companyAddress}
+              className={inputClass}
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className={labelClass} htmlFor="signerAdminUserId">
+              ผู้มีอำนาจลงนาม
+            </label>
+            <select
+              id="signerAdminUserId"
+              name="signerAdminUserId"
+              defaultValue={settings.signerAdminUserId ?? ""}
+              className={inputClass}
+            >
+              <option value="">— ไม่ใส่ลายเซ็น เว้นช่องให้เซ็นด้วยปากกา —</option>
+              {signerOptions.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+              รายชื่อนี้แสดงเฉพาะคนที่เซ็นลายเซ็นเก็บไว้ในระบบแล้ว
+              {staffWithoutSignature > 0 && (
+                <> · อีก {staffWithoutSignature} คนยังไม่ได้เซ็นจึงยังเลือกไม่ได้</>
+              )}
+              <br />
+              ลายเซ็นต้องให้<strong>เจ้าตัวเซ็นเอง</strong>ที่หน้า “บัญชีของฉัน”
+              คนอื่นอัปแทนไม่ได้ เพราะเป็นหลักฐานผูกพันตัวบุคคล
+            </p>
+
+            {currentSigner?.signatureUrl && (
+              <div className="mt-3">
+                <p className="text-xs text-slate-400 mb-1.5">
+                  ลายเซ็นที่จะถูกใส่ในใบเสร็จ
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={currentSigner.signatureUrl}
+                  alt=""
+                  className="h-16 object-contain bg-white rounded-xl border border-slate-200 px-3"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="mt-5">
+            <p className={labelClass}>ตราประทับบริษัท</p>
+            <StampUpload current={settings.stampUrl} />
           </div>
         </div>
 

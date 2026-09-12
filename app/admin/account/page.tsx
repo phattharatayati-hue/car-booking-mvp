@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { oauthConfigured, CALENDAR_NAME } from "@/lib/google-calendar";
-import { formatBangkokDateTime } from "@/lib/settings";
+import { formatBangkokDateTime, getSettings } from "@/lib/settings";
 import { createLinkCode } from "@/lib/line-link";
 import { auditAs } from "@/lib/audit";
 import { pushMessage } from "@/lib/line";
+import MySignature from "@/components/MySignature";
 
 async function changePasswordAction(formData: FormData) {
   "use server";
@@ -170,6 +171,10 @@ export default async function AccountPage({
     : null;
   const calendarReady = Boolean(me?.googleRefreshToken && me?.googleCalendarId);
 
+  // ระบบตั้งให้คนนี้เป็นผู้ลงนามในใบเสร็จอยู่หรือเปล่า — บอกไว้ให้รู้ว่าลายเซ็นจะถูกใช้จริง
+  const settings = await getSettings();
+  const isSigner = Boolean(me && settings.signerAdminUserId === me.id);
+
   // รหัสผูก LINE ที่ยังไม่หมดอายุ
   const codeLeftMs = (me?.lineLinkExpiresAt?.getTime() ?? 0) - Date.now();
   const codeValid = Boolean(me?.lineLinkCode) && codeLeftMs > 0;
@@ -227,6 +232,46 @@ export default async function AccountPage({
           {LERRORS[lerror]}
         </div>
       )}
+
+      {/* ลายเซ็นเก็บที่บัญชีของเจ้าตัวเท่านั้น คนอื่นอัปแทนไม่ได้
+          เพราะลายเซ็นคือหลักฐานผูกพันตัวบุคคล ถ้าใครก็อัปลายเซ็นคนอื่นเข้าระบบได้
+          เท่ากับเปิดช่องให้ปลอมลายเซ็นผู้มีอำนาจของบริษัท
+          ส่วน "ใครเป็นผู้ลงนามในใบเสร็จ" เลือกที่หน้าตั้งค่าระบบ */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
+        <h2 className="font-semibold text-slate-900">ลายเซ็นของฉัน</h2>
+        <p className="text-sm text-slate-500 mt-1 mb-4 leading-relaxed">
+          ใช้ในใบเสร็จ ช่อง “ผู้มีอำนาจลงนาม” — เซ็นเก็บไว้ครั้งเดียว
+          ระบบจะดึงไปใส่ให้ทุกใบโดยไม่ต้องเซ็นใหม่
+          {isSigner ? (
+            <>
+              <br />
+              <strong className="text-slate-700">
+                ตอนนี้ระบบตั้งให้คุณเป็นผู้ลงนามในใบเสร็จ
+              </strong>
+            </>
+          ) : (
+            <>
+              <br />
+              ตอนนี้ระบบยังไม่ได้ตั้งให้คุณเป็นผู้ลงนาม — เซ็นเก็บไว้ก่อนได้
+              แล้วให้ผู้ดูแลระบบไปเลือกชื่อคุณที่หน้าตั้งค่า
+            </>
+          )}
+        </p>
+
+        {me?.signatureUrl && (
+          <div className="mb-4">
+            <p className="text-xs text-slate-400 mb-1.5">ลายเซ็นที่เก็บไว้ตอนนี้</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={me.signatureUrl}
+              alt="ลายเซ็นของฉัน"
+              className="h-20 object-contain bg-white rounded-xl border border-slate-200 px-3"
+            />
+          </div>
+        )}
+
+        <MySignature hasExisting={Boolean(me?.signatureUrl)} />
+      </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
         <h2 className="font-semibold text-slate-900">แจ้งเตือนทาง LINE</h2>

@@ -78,6 +78,11 @@ type BookingRow = {
     photos: { id: string; fileUrl: string }[];
     admin: { name: string; lineUserId: string | null };
   }[];
+  receipts: {
+    id: string;
+    number: string;
+    voidedAt: Date | null;
+  }[];
   documents: {
     id: string;
     kind: string;
@@ -680,6 +685,7 @@ export default async function AdminBookingsPage({
       customer: true,
       deposit: true,
       documents: true,
+      receipts: { orderBy: { issuedAt: "desc" } },
       assignments: {
         include: {
           admin: true,
@@ -1175,6 +1181,33 @@ export default async function AdminBookingsPage({
                   บันทึกภายใน: {b.adminNote}
                 </p>
               )}
+
+              {/* ออกใบเสร็จได้ทุกเมื่อตามที่ร้านใช้จริง — ไม่ผูกกับสถานะใบจอง
+                  เพราะบางใบลูกค้าขอใบเสร็จตอนรับรถ บางใบขอตอนคืนรถ */}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/admin/receipts/new?booking=${b.id}`}
+                  prefetch={false}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  ออกใบเสร็จ
+                </Link>
+                {b.receipts.length > 0 &&
+                  b.receipts.map((rc) => (
+                    <Link
+                      key={rc.id}
+                      href={`/admin/receipts/${rc.id}`}
+                      prefetch={false}
+                      className={`text-sm font-mono ${
+                        rc.voidedAt
+                          ? "text-slate-400 line-through"
+                          : "text-slate-600 hover:text-slate-900 hover:underline"
+                      }`}
+                    >
+                      {rc.number}
+                    </Link>
+                  ))}
+              </div>
 
               {b.cancelReason && (
                 <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">

@@ -54,6 +54,22 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/receipts",
+    group: "daily",
+    label: "ใบเสร็จรับเงิน",
+    icon: (
+      <>
+        <path
+          d="M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <path d="M9 8h6M9 12h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </>
+    ),
+  },
+  {
     href: "/admin/refunds",
     group: "daily",
     label: "คืนเงินประกัน",

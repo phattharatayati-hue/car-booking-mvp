@@ -912,3 +912,32 @@ export function flexRefundPaid(d: {
   });
 }
 
+/**
+ * ใบเสร็จพร้อมแล้ว
+ *
+ * LINE ส่งไฟล์ PDF เข้าแชทไม่ได้ — ฝั่ง push ไม่มี message type สำหรับไฟล์
+ * จึงส่งการ์ดพร้อมปุ่มเปิดใบเสร็จบนเว็บแทน ลูกค้ากดแล้วเซฟหรือแชร์ต่อได้เอง
+ */
+export function flexReceipt(d: {
+  number: string;
+  carLabel: string;
+  total: number;
+  totalText: string;
+  url: string;
+  pdfUrl: string;
+}) {
+  return card({
+    altText: `ใบเสร็จ ${d.number} — ${d.total.toLocaleString()} บาท`,
+    title: "ใบเสร็จรับเงิน",
+    subtitle: d.number,
+    tone: "ok",
+    body: [
+      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      amountBox("จำนวนเงินรวมทั้งสิ้น", d.total, d.totalText),
+      noteBox([
+        "กดปุ่มด้านล่างเพื่อเปิดใบเสร็จ เซฟเก็บไว้หรือส่งต่อให้ฝ่ายบัญชีได้เลยครับ",
+      ]),
+    ],
+    buttons: [btn("ดาวน์โหลด PDF", d.pdfUrl), btnGold("เปิดดูในเว็บ", d.url)],
+  });
+}
