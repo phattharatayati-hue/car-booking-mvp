@@ -30,7 +30,7 @@ import AssignmentBox from "@/components/AssignmentBox";
 import ActionButton from "@/components/ActionButton";
 import { BTN, CONFIRM, NOTICE } from "@/lib/ui";
 import { sweepUnpaidHolds, waitingForSlipWhere, holdUntilFrom } from "@/lib/unpaid-hold";
-import { syncAssignment } from "@/lib/calendar-sync";
+import { syncAssignment, clearBookingAssignments } from "@/lib/calendar-sync";
 import { notifyJob } from "@/lib/driver-jobs";
 import { SWAP_REASONS } from "@/lib/car-swap";
 import SwapPriceHint from "@/components/SwapPriceHint";
@@ -386,6 +386,8 @@ async function rejectRequestAction(formData: FormData) {
     include: { car: true },
   });
 
+  await clearBookingAssignments(bookingId);
+
   await audit({
     action: "booking.request_reject",
     summary: `ปฏิเสธคำขอจอง ${bookingId.slice(0, 8).toUpperCase()} — ${booking.car.brand} ${
@@ -419,6 +421,9 @@ async function cancelBookingAction(formData: FormData) {
     where: { id: bookingId },
     data: { status: "CANCELLED" },
   });
+
+  // ถอนคนส่ง-รับรถออก ลบ event ในปฏิทิน และแจ้งเจ้าตัวทาง LINE
+  await clearBookingAssignments(bookingId);
 
   await audit({
     action: "booking.cancel",

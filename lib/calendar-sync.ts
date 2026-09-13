@@ -137,3 +137,31 @@ export async function removeAssignmentEvent(assignmentId: string): Promise<boole
     return false;
   }
 }
+
+/**
+ * เคลียร์งานมอบหมายทั้งหมดของใบจอง — ใช้ตอนยกเลิก/ปฏิเสธใบจอง
+ *
+ * ลำดับสำคัญ: บอกคนรับงานก่อนว่าไม่ต้องไปแล้ว → ลบ event ในปฏิทิน → ลบแถว
+ * ถ้าไม่ทำ event ค้างในปฏิทิน Google ของคนส่งรถ แล้วจะมีคนขับไปตามนัดที่ยกเลิกไปแล้ว
+ *
+ * ไม่ throw ออกไปข้างนอก — ปฏิทินล่มต้องไม่ทำให้การยกเลิกใบจองล้ม
+ */
+export async function clearBookingAssignments(bookingId: string): Promise<void> {
+  try {
+    const rows = await prisma.bookingAssignment.findMany({
+      where: { bookingId },
+      select: { id: true },
+    });
+    if (rows.length === 0) return;
+
+    const { notifyJob } = await import("@/lib/driver-jobs");
+
+    for (const r of rows) {
+      await notifyJob(r.id, "cancelled").catch(() => {});
+      await removeAssignmentEvent(r.id);
+      await prisma.bookingAssignment.delete({ where: { id: r.id } }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("clearBookingAssignments failed:", err);
+  }
+}

@@ -53,6 +53,12 @@ export async function sweepUnpaidHolds(holdMinutes?: number): Promise<number> {
   try {
     const minutes = holdMinutes ?? (await getSettings()).holdMinutes;
 
+    // อ่าน id ก่อนอัปเดต เพื่อเคลียร์งานมอบหมาย/ปฏิทินของใบที่ถูกยกเลิกรอบนี้
+    const expiring = await prisma.booking.findMany({
+      where: expiredUnpaidWhere(),
+      select: { id: true },
+    });
+
     const { count } = await prisma.booking.updateMany({
       where: expiredUnpaidWhere(),
       data: {
@@ -63,6 +69,12 @@ export async function sweepUnpaidHolds(holdMinutes?: number): Promise<number> {
         holdUntil: null,
       },
     });
+
+    if (expiring.length > 0) {
+      const { clearBookingAssignments } = await import("@/lib/calendar-sync");
+      for (const b of expiring) await clearBookingAssignments(b.id);
+    }
+
     return count;
   } catch (err) {
     // การกวาดล้มเหลวต้องไม่ทำให้หน้าที่เรียกมันพัง
