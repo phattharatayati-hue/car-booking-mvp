@@ -19,8 +19,10 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-slate-50 md:flex">
-      <aside className="md:w-64 md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:sticky md:top-0 md:h-screen">
-        <div className="px-5 py-5 border-b border-slate-100">
+      {/* แถบข้างสูงเท่าจอและ sticky ไว้ — ถ้าเมนูยาวกว่าจอ (iPad แนวนอน หรือจอเตี้ย)
+          ต้องเลื่อนในแถบนี้ได้เอง ไม่งั้นรายการล่างสุดอย่าง "บัญชีของฉัน" จะตกใต้จอแล้วกดไม่ได้ */}
+      <aside className="md:w-64 md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col md:sticky md:top-0 md:h-screen md:overflow-y-auto overscroll-contain">
+        <div className="px-5 py-5 border-b border-slate-100 shrink-0">
           <Brand href="/admin" size="md" subtitle="ระบบหลังบ้าน" />
         </div>
 
@@ -47,7 +49,7 @@ export default async function AdminLayout({
           </Link>
         </div>
 
-        <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3">
+        <div className="px-4 py-4 border-t border-slate-100 flex items-center gap-3 shrink-0">
           <span className="w-9 h-9 rounded-full bg-panel text-white grid place-items-center text-sm font-semibold shrink-0">
             {initial}
           </span>
