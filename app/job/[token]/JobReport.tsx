@@ -1,5 +1,6 @@
 "use client";
 
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/image-resize";
@@ -34,6 +35,7 @@ export default function JobReport({
   const [busy, setBusy] = useState<null | "photo" | "reading" | "done">(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [askDone, setAskDone] = useState(false);
 
   const [odo, setOdo] = useState(odometer != null ? String(odometer) : "");
   const [fuel, setFuel] = useState(fuelLevel ?? "");
@@ -84,11 +86,12 @@ export default function JobReport({
     if (data) setNote("บันทึกสภาพรถแล้ว");
   }
 
+  const doneMessage = isPickup
+    ? "ปิดงานรับรถคืน\nสถานะการจองจะเปลี่ยนเป็น “เสร็จสิ้น”"
+    : "ปิดงานส่งรถ";
+
   async function onDone() {
-    const label = isPickup
-      ? "ปิดงานรับรถคืน\nสถานะการจองจะเปลี่ยนเป็น “เสร็จสิ้น”"
-      : "ปิดงานส่งรถ";
-    if (!window.confirm(`${label}\n\nยืนยันหรือไม่?`)) return;
+    setAskDone(false);
 
     const body = new FormData();
     body.append("action", "done");
@@ -213,7 +216,7 @@ export default function JobReport({
         ) : (
           <button
             type="button"
-            onClick={onDone}
+            onClick={() => setAskDone(true)}
             disabled={busy !== null}
             className="btn w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm shadow-emerald-600/25 disabled:opacity-60"
           >
@@ -221,6 +224,13 @@ export default function JobReport({
           </button>
         )}
       </div>
+      <ConfirmDialog
+        open={askDone}
+        message={`${doneMessage}\n\nยืนยันหรือไม่?`}
+        confirmText="ปิดงาน"
+        onCancel={() => setAskDone(false)}
+        onConfirm={onDone}
+      />
     </section>
   );
 }

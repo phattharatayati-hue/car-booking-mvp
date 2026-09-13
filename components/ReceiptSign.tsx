@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import SignaturePad from "@/components/SignaturePad";
+import SignatureModal from "@/components/SignatureModal";
 
 /**
  * ให้ลูกค้าเซ็นรับใบเสร็จบนมือถือของคนไปส่ง/รับรถ
  *
  * คนเซ็นคือลูกค้า ไม่ใช่เจ้าของเครื่อง จึงต้องกดเปิดเองก่อน
  * ไม่โผล่ค้างไว้ให้กดพลาดระหว่างใช้งานหน้าอื่น
+ *
+ * เปิดเป็นกล่องเต็มจอ เพราะถ้าเซ็นคาอยู่ในหน้ายาว ๆ การลากนิ้วจะไปโดน
+ * "ลากลงเพื่อปิด" ของ in-app browser ใน LINE แล้วหน้าเว็บพับปิดกลางคัน
  *
  * ไม่เซ็นก็ได้ — ใบเสร็จออกได้ตามปกติ ช่องลายเซ็นจะว่างไว้ให้เซ็นด้วยปากกาบนกระดาษ
  */
@@ -66,10 +69,10 @@ export default function ReceiptSign({
         ) : (
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setOpen(true)}
             className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
           >
-            {open ? "ปิด" : "ให้ลูกค้าเซ็น"}
+            ให้ลูกค้าเซ็น
           </button>
         )}
       </div>
@@ -85,20 +88,20 @@ export default function ReceiptSign({
         </a>
       </div>
 
-      {open && !done && (
-        <div className="mt-4">
-          <SignaturePad
-            submit={submit}
-            buttonText="บันทึกลายเซ็นลูกค้า"
-            label="ให้ลูกค้าเซ็นในกรอบ — ถ้าลูกค้าไม่สะดวก ข้ามได้ ใบเสร็จจะเว้นช่องไว้ให้เซ็นด้วยปากกา"
-          />
-          {error && (
-            <p role="alert" className="text-sm text-red-600 mt-2">
-              {error}
-            </p>
-          )}
-        </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-600 mt-2">
+          {error}
+        </p>
       )}
+
+      <SignatureModal
+        open={open && !done}
+        onClose={() => setOpen(false)}
+        title={`ให้ลูกค้าเซ็นรับใบเสร็จ ${number}`}
+        subtitle={`${total.toLocaleString()} บาท`}
+        buttonText="บันทึกลายเซ็นลูกค้า"
+        submit={submit}
+      />
     </div>
   );
 }

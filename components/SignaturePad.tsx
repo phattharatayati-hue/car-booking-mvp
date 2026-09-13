@@ -16,6 +16,7 @@ export default function SignaturePad({
   label = "เซ็นชื่อในกรอบด้านล่าง",
   saving: savingProp,
   buttonText = "บันทึกลายเซ็น",
+  height = "h-40",
 }: {
   /** ได้ URL ของรูปที่อัปเสร็จแล้ว — ผู้เรียกเอาไปบันทึกต่อเอง (ใช้คู่กับการอัปผ่าน /api/upload) */
   onSaved?: (url: string) => Promise<void> | void;
@@ -27,6 +28,8 @@ export default function SignaturePad({
   label?: string;
   saving?: boolean;
   buttonText?: string;
+  /** ความสูงของกรอบเซ็น (คลาส tailwind) — เต็มจอบนมือถือใช้กรอบสูงขึ้น */
+  height?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -142,7 +145,7 @@ export default function SignaturePad({
         onPointerLeave={end}
         onPointerCancel={end}
         // touch-none กันหน้าจอเลื่อนตามนิ้วตอนกำลังเซ็นบนมือถือ
-        className="touch-none w-full h-40 rounded-xl border-2 border-dashed border-slate-300 bg-white cursor-crosshair"
+        className={`touch-none overscroll-contain w-full ${height} rounded-xl border-2 border-dashed border-slate-300 bg-white cursor-crosshair`}
       />
       {error && (
         <p role="alert" className="text-sm text-red-600 mt-2">
