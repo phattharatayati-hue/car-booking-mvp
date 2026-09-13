@@ -16,15 +16,23 @@ export default function SignatureModal({
   onClose,
   title = "ให้ลูกค้าเซ็นรับใบเสร็จ",
   subtitle,
-  buttonText = "บันทึกลายเซ็นลูกค้า",
+  buttonText = "บันทึกลายเซ็น",
+  label = "เซ็นในกรอบด้านล่างได้เลย — ไม่สะดวกเซ็นก็กดปิดได้",
   submit,
+  onSaved,
+  saving,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   subtitle?: string;
   buttonText?: string;
-  submit: (blob: Blob) => Promise<void>;
+  label?: string;
+  /** ส่งรูปเอง — ใช้ตอนคนเซ็นไม่ได้ล็อกอิน */
+  submit?: (blob: Blob) => Promise<void>;
+  /** อัปผ่าน /api/upload แล้วคืน URL มาให้ผู้เรียกบันทึกต่อ */
+  onSaved?: (url: string) => Promise<void> | void;
+  saving?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -84,8 +92,10 @@ export default function SignatureModal({
 
         <SignaturePad
           submit={submit}
+          onSaved={onSaved}
+          saving={saving}
           buttonText={buttonText}
-          label="เซ็นในกรอบด้านล่างได้เลย — ไม่สะดวกเซ็นก็กดปิดได้ ใบเสร็จจะเว้นช่องไว้ให้เซ็นด้วยปากกา"
+          label={label}
           height="h-56"
         />
       </div>

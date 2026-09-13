@@ -2,17 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import SignaturePad from "@/components/SignaturePad";
+import SignatureModal from "@/components/SignatureModal";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 /**
  * ส่วนเซ็นลายเซ็นในหน้า "บัญชีของฉัน"
  *
- * แยกเป็น client component เพราะต้องวาดบน canvas แล้วอัปไฟล์ก่อน
- * ถึงจะมี URL ให้บันทึกลงบัญชี — ทำเป็นฟอร์มธรรมดาไม่ได้
+ * เซ็นในกล่องเต็มจอเสมอ ไม่เซ็นคาอยู่ในหน้ายาว ๆ
+ * เพราะบนมือถือและ iPad การลากนิ้วบนหน้าที่เลื่อนได้จะทำให้หน้าขยับตาม
+ * (และใน in-app browser ของ LINE หน้าเว็บอาจถูกลากปิดไปเลย)
  */
 export default function MySignature({ hasExisting }: { hasExisting: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(!hasExisting);
+  const [open, setOpen] = useState(false);
+  const [askDelete, setAskDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,58 +39,54 @@ export default function MySignature({ hasExisting }: { hasExisting: boolean }) {
     }
   }
 
-  if (!open) {
-    return (
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold transition-colors"
-        >
-          เซ็นใหม่
-        </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => {
-            if (confirm("ลบลายเซ็นออกจากระบบ?\n\nใบเสร็จที่ออกไปแล้วยังมีลายเซ็นเดิมอยู่ ไม่ถูกลบตาม")) {
-              persist(null);
-            }
-          }}
-          className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white border border-red-200 text-red-700 hover:bg-red-50 text-sm font-semibold transition-colors"
-        >
-          ลบลายเซ็น
-        </button>
-        {error && (
-          <p role="alert" className="w-full text-sm text-red-600">
-            {error}
-          </p>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <SignaturePad
-        onSaved={persist}
-        saving={saving}
-        label="เซ็นในกรอบด้วยนิ้ว (มือถือ/แท็บเล็ต) หรือลากเมาส์ค้าง"
-      />
-      {error && (
-        <p role="alert" className="text-sm text-red-600 mt-2">
-          {error}
-        </p>
-      )}
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors"
+      >
+        {hasExisting ? "เซ็นใหม่" : "เซ็นลายเซ็น"}
+      </button>
+
       {hasExisting && (
         <button
           type="button"
-          onClick={() => setOpen(false)}
-          className="text-sm text-slate-500 hover:text-slate-700 mt-3"
+          disabled={saving}
+          onClick={() => setAskDelete(true)}
+          className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-white border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 text-sm font-semibold transition-colors"
         >
-          ยกเลิก ใช้ลายเซ็นเดิม
+          ลบลายเซ็น
         </button>
       )}
+
+      {error && (
+        <p role="alert" className="w-full text-sm text-red-600">
+          {error}
+        </p>
+      )}
+
+      <SignatureModal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="เซ็นลายเซ็นของคุณ"
+        subtitle="ใช้ในใบเสร็จทุกใบ เซ็นเก็บไว้ครั้งเดียว"
+        label="เซ็นในกรอบด้วยนิ้ว (มือถือ/แท็บเล็ต) หรือลากเมาส์ค้าง"
+        buttonText="บันทึกลายเซ็น"
+        onSaved={persist}
+        saving={saving}
+      />
+
+      <ConfirmDialog
+        open={askDelete}
+        message={"ลบลายเซ็นออกจากระบบ?\n\nใบเสร็จที่ออกไปแล้วยังมีลายเซ็นเดิมอยู่ ไม่ถูกลบตาม"}
+        confirmText="ลบลายเซ็น"
+        onCancel={() => setAskDelete(false)}
+        onConfirm={() => {
+          setAskDelete(false);
+          persist(null);
+        }}
+      />
     </div>
   );
 }
