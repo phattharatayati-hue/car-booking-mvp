@@ -305,9 +305,16 @@ async function handleEvent(event: LineEvent) {
     return;
   }
 
-  // คนรับ-ส่งรถได้คำแนะนำของพนักงาน ไม่ใช่เมนูลูกค้า
+  /* ข้อความอื่นที่ระบบไม่รู้จัก
+     - คนรับ-ส่งรถ: ตอบคำแนะนำของพนักงาน เพราะเขาคุยกับบอทอย่างเดียว ไม่มีคนตอบ
+     - ลูกค้า: **เงียบ** ปล่อยให้แอดมินตอบเอง
+
+     เดิมตอบการ์ดเมนูทุกข้อความ ทำให้ตอนลูกค้าคุยกับแอดมินจริง ๆ
+     (เช่น "ใช้วันที่15") การ์ดเด้งแทรกทุกประโยคจนอ่านบทสนทนาไม่รู้เรื่อง
+     ลูกค้าเห็นการ์ดนี้ตอนแอดเพื่อนอยู่แล้ว และพิมพ์ "เมนู" เรียกซ้ำได้ตลอด */
   const staffHelp = await driverHelpText(userId);
-  await replyMessage(replyToken, staffHelp ?? HELP_TEXT);
+  if (!staffHelp) return;
+  await replyMessage(replyToken, staffHelp);
 }
 
 type BookingForDisplay = {
