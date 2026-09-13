@@ -9,6 +9,14 @@ import { normalizePlace } from "@/lib/pickup-points";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
 import { sweepUnpaidHolds, holdUntilFrom } from "@/lib/unpaid-hold";
+import { getCarRates } from "@/lib/car-rates-server";
+import {
+  bangkokDateStrOf,
+  blockingRates,
+  checkMinDays,
+  minDaysMessage,
+  formatRateRange,
+} from "@/lib/car-rates";
 
 export type CreateBookingInput = {
   carId: string;
@@ -95,6 +103,25 @@ export async function createBooking(
     };
   }
 
+  /* ช่วงราคา/ช่วงปิดรับจองของรถคันนี้ — อ่านครั้งเดียวแล้วใช้ทั้งการตรวจและการคิดราคา
+
+     เดิมตรงนี้ไม่ได้อ่านเลย ผลคือ (1) ราคาช่วงเทศกาลที่ลูกค้าเห็นบนเว็บ
+     ไม่ถูกใช้ตอนบันทึกจริง ระบบเก็บราคาปกติ และ (2) ช่วงที่แอดมินปิดรับจอง
+     ถูกซ่อนแค่ในปฏิทิน ใครยิงเข้ามาทางอื่นยังจองทับได้ */
+  const carRates = await getCarRates(car.id);
+
+  const startStr = bangkokDateStrOf(start);
+  const endStr = bangkokDateStrOf(end);
+
+  const blocked = blockingRates(startStr, endStr, carRates);
+  if (blocked.length > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: `ช่วง ${formatRateRange(blocked[0])} ปิดรับจองรถคันนี้ (${blocked[0].label}) กรุณาเลือกวันอื่นหรือรถคันอื่น`,
+    };
+  }
+
   // ราคา = ค่าเช่าตามจำนวนวัน + ค่าธรรมเนียมนอกเวลา (คิดแยกตอนรับและตอนคืน)
   const rates = await getAfterHoursRates();
   const quote = quoteBooking({
@@ -102,8 +129,20 @@ export async function createBooking(
     end,
     pricePerDay: car.pricePerDay,
     rates,
+    carRates,
     lateRule: lateRuleFromSettings(settings),
   });
+
+  /* จำนวนวันขั้นต่ำของช่วงที่ถูกแตะ — ใช้ days จาก quote เพราะเป็นตัวเดียวกับที่คิดเงิน
+     (คืนช้าเกินเวลาผ่อนผันนับเพิ่มเป็นอีกวัน) */
+  const minHit = checkMinDays(startStr, endStr, quote.days, carRates);
+  if (minHit) {
+    return {
+      ok: false,
+      status: 400,
+      error: minDaysMessage(minHit, quote.days),
+    };
+  }
   const totalPrice = quote.total;
 
   const phone = String(input.phone).replace(/[\s-]/g, "");

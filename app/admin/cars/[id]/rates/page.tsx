@@ -35,6 +35,7 @@ async function saveRateAction(formData: FormData) {
   const startDate = String(formData.get("startDate") ?? "").trim();
   const endDate = String(formData.get("endDate") ?? "").trim();
   const priceRaw = String(formData.get("pricePerDay") ?? "").trim();
+  const minDaysRaw = String(formData.get("minDays") ?? "").trim();
 
   const back = (q: string) => redirect(`/admin/cars/${carId}/rates?${q}`);
 
@@ -45,11 +46,26 @@ async function saveRateAction(formData: FormData) {
     back("error=order");
   }
 
+  /* ช่วงแบบ PRICE ตอนนี้ทำได้ 3 อย่าง: เปลี่ยนราคาอย่างเดียว · บังคับขั้นต่ำอย่างเดียว
+     (เว้นช่องราคาไว้) · หรือทั้งสองอย่าง — จึงไม่บังคับให้กรอกราคาอีกต่อไป
+     แต่ต้องมีอย่างน้อยหนึ่งอย่าง ไม่งั้นช่วงนั้นไม่มีผลอะไรเลย */
   let pricePerDay: number | null = null;
+  let minDays: number | null = null;
+
   if (kind === "PRICE") {
-    const n = Number(priceRaw);
-    if (!Number.isInteger(n) || n <= 0) back("error=price");
-    pricePerDay = n;
+    if (priceRaw !== "") {
+      const n = Number(priceRaw);
+      if (!Number.isInteger(n) || n <= 0) back("error=price");
+      pricePerDay = n;
+    }
+    if (minDaysRaw !== "") {
+      const n = Number(minDaysRaw);
+      if (!Number.isInteger(n) || n < 1 || n > 60) back("error=mindays");
+      minDays = n > 1 ? n : null;
+    }
+    if (pricePerDay === null && minDays === null) {
+      back("error=empty");
+    }
   }
 
   // ช่วงราคาห้ามทับกันเอง — ช่วงปิดรับจองทับได้
@@ -73,6 +89,7 @@ async function saveRateAction(formData: FormData) {
     startDate: bangkokMidnight(startDate),
     endDate: bangkokMidnight(endDate),
     pricePerDay,
+    minDays,
   };
 
   const saved = id
@@ -90,7 +107,7 @@ async function saveRateAction(formData: FormData) {
     entityId: saved.id,
     detail: `${startDate} ถึง ${endDate}${
       pricePerDay !== null ? ` · ${pricePerDay.toLocaleString()} บาท/วัน` : ""
-    }`,
+    }${minDays ? ` · จองขั้นต่ำ ${minDays} วัน` : ""}`,
   });
 
   revalidatePath(`/admin/cars/${carId}/rates`);
@@ -140,6 +157,11 @@ const MESSAGES: Record<string, { text: string; tone: "ok" | "error" }> = {
   invalid: { text: "กรอกชื่อช่วงและวันที่ให้ครบ", tone: "error" },
   order: { text: "วันสุดท้ายต้องไม่อยู่ก่อนวันแรก", tone: "error" },
   price: { text: "ราคาต่อวันต้องเป็นจำนวนเต็มมากกว่า 0", tone: "error" },
+  mindays: { text: "จองขั้นต่ำต้องเป็นจำนวนเต็ม 1-60 วัน", tone: "error" },
+  empty: {
+    text: "ช่วงราคาต้องกรอกอย่างน้อยหนึ่งอย่าง — ราคาต่อวัน หรือจองขั้นต่ำ",
+    tone: "error",
+  },
   overlap: { text: "ช่วงนี้ทับกับช่วงราคาที่มีอยู่แล้ว", tone: "error" },
 };
 
@@ -215,7 +237,7 @@ function RateForm({
 
       <div>
         <label className={labelClass}>
-          ราคาต่อวัน (บาท) — ใส่เฉพาะเมื่อเลือก “ตั้งราคาต่อวันใหม่”
+          ราคาต่อวัน (บาท) — เว้นว่างได้ถ้าใช้ราคาปกติ
         </label>
         <input
           type="number"
@@ -229,6 +251,24 @@ function RateForm({
         <p className="text-xs text-slate-500 mt-1">
           กรอกราคาเต็มต่อวัน ไม่ใช่ส่วนต่าง · ราคาปกติของรถคันนี้คือ{" "}
           {basePrice.toLocaleString()} บาท
+        </p>
+      </div>
+
+      <div>
+        <label className={labelClass}>จองขั้นต่ำ (วัน) — เว้นว่างคือไม่บังคับ</label>
+        <input
+          type="number"
+          name="minDays"
+          min={1}
+          max={60}
+          step={1}
+          defaultValue={rate?.minDays ?? ""}
+          placeholder="เช่น 4"
+          className={inputClass}
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          ถ้าการจองแตะช่วงนี้แม้แต่วันเดียว ต้องเช่าครบตามจำนวนนี้ ไม่งั้นระบบจะไม่ให้จอง
+          · ใช้บีบให้จองยาวช่วงท่องเที่ยว
         </p>
       </div>
 
@@ -352,7 +392,16 @@ export default async function CarRatesPage({
                         {r.kind === "BLOCK" ? (
                           <span className="text-slate-400 font-normal">—</span>
                         ) : (
-                          r.pricePerDay?.toLocaleString()
+                          <span>
+                            {r.pricePerDay != null
+                              ? `${r.pricePerDay.toLocaleString()} ฿`
+                              : "ราคาปกติ"}
+                            {r.minDays ? (
+                              <span className="block text-xs text-amber-700">
+                                ขั้นต่ำ {r.minDays} วัน
+                              </span>
+                            ) : null}
+                          </span>
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right whitespace-nowrap">

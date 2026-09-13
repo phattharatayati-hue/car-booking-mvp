@@ -18,8 +18,10 @@ export type CarRateView = {
   startDate: string;
   /** วันสุดท้ายของช่วง (รวมวันนี้) */
   endDate: string;
-  /** ราคาต่อวันในช่วงนี้ — มีค่าเฉพาะ kind = PRICE */
+  /** ราคาต่อวันในช่วงนี้ — null คือใช้ราคาปกติของรถ */
   pricePerDay: number | null;
+  /** จำนวนวันขั้นต่ำถ้าการจองแตะช่วงนี้ — null คือไม่บังคับ */
+  minDays?: number | null;
 };
 
 const DAY_MS = 86400000;
@@ -94,6 +96,60 @@ export function blockingRates(
   return rates.filter(
     (r) => r.kind === "BLOCK" && r.startDate <= endDateStr && r.endDate >= startDateStr
   );
+}
+
+/**
+ * ช่วงที่บังคับจำนวนวันขั้นต่ำ และชนกับวันที่ลูกค้าเลือก
+ *
+ * กติกา: "แตะช่วงไหน ต้องทำตามขั้นต่ำของช่วงนั้น" — จองคร่อมช่วงเทศกาลแค่วันเดียว
+ * ก็ต้องเช่าครบตามที่ช่วงนั้นกำหนด ไม่งั้นลูกค้าจะแทรกคิวสั้น ๆ กลางช่วงทองเที่ยว
+ * แล้วรถว่างเป็นวัน ๆ ขายต่อไม่ได้
+ */
+export function minDaysRates(
+  startDateStr: string,
+  endDateStr: string,
+  rates: CarRateView[]
+): CarRateView[] {
+  if (!startDateStr || !endDateStr) return [];
+  return rates.filter(
+    (r) =>
+      r.kind === "PRICE" &&
+      (r.minDays ?? 0) > 1 &&
+      r.startDate <= endDateStr &&
+      r.endDate >= startDateStr
+  );
+}
+
+/** ช่วงที่ต้องการวันมากที่สุดในบรรดาช่วงที่ถูกแตะ — ใช้ตัวนี้เป็นเกณฑ์ */
+export function strictestMinDays(
+  startDateStr: string,
+  endDateStr: string,
+  rates: CarRateView[]
+): CarRateView | null {
+  const hits = minDaysRates(startDateStr, endDateStr, rates);
+  if (hits.length === 0) return null;
+  return hits.reduce((a, b) => ((b.minDays ?? 0) > (a.minDays ?? 0) ? b : a));
+}
+
+/**
+ * ตรวจว่าจำนวนวันที่จองผ่านขั้นต่ำไหม
+ * คืนค่า null = ผ่าน · ถ้าไม่ผ่านคืนช่วงที่เข้มที่สุดพร้อมจำนวนวันที่ต้องการ
+ */
+export function checkMinDays(
+  startDateStr: string,
+  endDateStr: string,
+  days: number,
+  rates: CarRateView[]
+): { required: number; rate: CarRateView } | null {
+  const rate = strictestMinDays(startDateStr, endDateStr, rates);
+  if (!rate) return null;
+  const required = rate.minDays ?? 0;
+  return days < required ? { required, rate } : null;
+}
+
+/** ข้อความบอกลูกค้าว่าทำไมจองไม่ได้ — ใช้ทั้งเว็บ LIFF และแชท LINE */
+export function minDaysMessage(hit: { required: number; rate: CarRateView }, days: number): string {
+  return `ช่วง ${formatRateRange(hit.rate)} (${hit.rate.label}) ต้องเช่าอย่างน้อย ${hit.required} วัน — ตอนนี้เลือกไว้ ${days} วัน`;
 }
 
 /** ค่าเช่าที่ยุบวันติดกันซึ่งใช้ราคาเดียวกันเข้าด้วยกัน */

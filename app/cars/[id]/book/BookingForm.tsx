@@ -15,6 +15,8 @@ import {
 import {
   rentSegments,
   blockingRates,
+  checkMinDays,
+  minDaysMessage,
   formatRateRange,
   type CarRateView,
 } from "@/lib/car-rates";
@@ -149,6 +151,10 @@ export default function BookingForm({
   // ช่วงที่แอดมินปิดรับจอง
   const blocked = blockingRates(startDate, endDate, carRates);
 
+  /* ช่วงที่บังคับจำนวนวันขั้นต่ำ — เตือนทันทีที่เลือกวัน ไม่ต้องรอกดส่ง
+     ลูกค้าจะได้ขยับวันเองก่อน ดีกว่าให้กรอกข้อมูลจนจบแล้วค่อยโดนปฏิเสธ */
+  const minDaysHit = days > 0 ? checkMinDays(startDate, endDate, days, carRates) : null;
+
   /** ป้ายค่าธรรมเนียมข้างช่องเลือกเวลา */
   function feeHint(f: ReturnType<typeof feeForTime>) {
     if (!f.rate || f.fee <= 0) return "ไม่มีค่าบริการเพิ่ม";
@@ -174,6 +180,13 @@ export default function BookingForm({
 
     if (rangeBusy(startDate, startTime, endDate, endTime, busySpans)) {
       setError("ช่วงเวลาที่เลือกคาบกับการจองของลูกค้าอื่น กรุณาเลือกใหม่");
+      setSubmitting(false);
+      return;
+    }
+
+    const nowMin = checkMinDays(startDate, endDate, days, carRates);
+    if (nowMin) {
+      setError(minDaysMessage(nowMin, days));
       setSubmitting(false);
       return;
     }
@@ -347,6 +360,13 @@ export default function BookingForm({
         {blocked.length > 0 && (
           <div className="mt-4 text-sm bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3">
             รถคันนี้ปิดรับจองช่วง {formatRateRange(blocked[0])} ({blocked[0].label}) กรุณาเลือกวันอื่น
+          </div>
+        )}
+
+        {minDaysHit && blocked.length === 0 && (
+          <div className="mt-4 text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3">
+            ช่วง {formatRateRange(minDaysHit.rate)} ({minDaysHit.rate.label}) ต้องเช่าอย่างน้อย{" "}
+            <b>{minDaysHit.required} วัน</b> — ตอนนี้เลือกไว้ {days} วัน กรุณาขยายวันคืนรถ
           </div>
         )}
 

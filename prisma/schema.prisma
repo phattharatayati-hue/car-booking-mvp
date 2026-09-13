@@ -118,6 +118,9 @@ model CarRate {
   startDate   DateTime
   endDate     DateTime
   pricePerDay Int?
+  /// จำนวนวันขั้นต่ำที่ต้องเช่า ถ้าการจองแตะช่วงนี้ — ว่าง = ไม่บังคับ
+  /// ใช้บีบให้จองยาวช่วงเทศกาล ส่วนช่วงปกติปล่อยให้จองวันเดียวได้
+  minDays     Int?
   note        String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt

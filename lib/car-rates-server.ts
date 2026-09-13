@@ -9,6 +9,7 @@ type Row = {
   startDate: Date;
   endDate: Date;
   pricePerDay: number | null;
+  minDays: number | null;
 };
 
 function toView(r: Row): CarRateView {
@@ -19,6 +20,7 @@ function toView(r: Row): CarRateView {
     startDate: bangkokDateStrOf(r.startDate),
     endDate: bangkokDateStrOf(r.endDate),
     pricePerDay: r.pricePerDay,
+    minDays: r.minDays,
   };
 }
 

@@ -27,7 +27,13 @@ import {
 import { quoteBooking, feeForMinute, bangkokMinuteOfDay } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { getCarRates } from "@/lib/car-rates-server";
-import { blockingRates, bangkokDateStrOf, formatRateRange } from "@/lib/car-rates";
+import {
+  blockingRates,
+  bangkokDateStrOf,
+  formatRateRange,
+  checkMinDays,
+  minDaysMessage,
+} from "@/lib/car-rates";
 
 import { ACTIVE_BOOKING_STATUSES, needsApproval } from "@/lib/booking-status";
 import { getBusyRanges, formatBusyRanges } from "@/lib/availability";
@@ -220,6 +226,23 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     lateRule: lateRuleFromSettings(await getSettings()),
   });
   const days = quote.days;
+
+  /* ขั้นต่ำของช่วงที่ถูกแตะ — เช็คตรงนี้ตอนลูกค้าเลือกวันคืนรถเสร็จ
+     จะได้บอกทันทีในแชท ไม่ปล่อยให้กรอกเบอร์จนจบแล้วค่อยโดนปฏิเสธที่ด่านสุดท้าย */
+  const minHit = checkMinDays(
+    bangkokDateStrOf(start),
+    bangkokDateStrOf(end),
+    days,
+    carRates
+  );
+  if (minHit) {
+    await replyMessage(
+      replyToken,
+      `ขออภัยครับ ${minDaysMessage(minHit, days)}\nกรุณาเลือกวันคืนรถให้ครบตามขั้นต่ำ หรือเลือกช่วงวันอื่นครับ`
+    );
+    return;
+  }
+
   const total = quote.total;
   const note = afterHoursNote(start, end, rates);
 
