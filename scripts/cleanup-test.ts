@@ -121,6 +121,26 @@ async function main() {
     const d3 = await deleteBlobs(photoRows.map((p) => p.fileUrl));
     console.log(`รูปสภาพรถ: ลบไฟล์ ${d3.ok} สำเร็จ · ${d3.failed} ไม่สำเร็จ`);
 
+    /* ถอน event ออกจากปฏิทินของคนรับงานก่อนลบแถว
+       BookingAssignment ถูกลบตาม cascade ตอนลบ Booking ซึ่งพา googleEventId
+       หายไปด้วย ถ้าไม่ลบตรงนี้ event จะค้างในปฏิทิน Google ตลอดไปโดยไม่มีทางตามไปลบ */
+    const withEvents = await prisma.bookingAssignment.findMany({
+      where: { bookingId: { in: testIds }, googleEventId: { not: null } },
+      select: { id: true },
+    });
+    if (withEvents.length > 0) {
+      const { removeAssignmentEvent } = await import("../lib/calendar-sync");
+      let removed = 0;
+      for (const a of withEvents) {
+        try {
+          if (await removeAssignmentEvent(a.id)) removed++;
+        } catch (err) {
+          console.error("  ลบ event ไม่สำเร็จ:", a.id, (err as Error).message);
+        }
+      }
+      console.log(`ปฏิทิน: ลบ event แล้ว ${removed}/${withEvents.length}`);
+    }
+
     /* Deposit กับ Receipt ไม่ได้ตั้ง onDelete: Cascade ไว้ ต้องลบเองก่อน
        ไม่งั้นการลบ Booking จะติด foreign key แล้วล้มทั้งชุด */
     await prisma.$transaction([
