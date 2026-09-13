@@ -20,6 +20,22 @@ export const COMPANY = {
   tagline: "เช่ารถเชียงใหม่",
 };
 
+/** เพจเฟซบุ๊กของบริษัท */
+export const FACEBOOK_PAGE = "https://www.facebook.com/profile.php?id=61579645271293";
+
+/** หน้ารีวิวของเพจ — ลูกค้าอ่านรีวิวเดิมและกด "แนะนำ" ได้จากหน้านี้ */
+export const FACEBOOK_REVIEW_URL = `${FACEBOOK_PAGE}&sk=reviews`;
+
+/**
+ * ลิงก์สำหรับส่งในแชท LINE — บังคับให้เปิดในเบราว์เซอร์ของเครื่อง ไม่ใช่ in-app ของ LINE
+ *
+ * เฟซบุ๊กในเบราว์เซอร์ของ LINE มักบังคับให้ล็อกอินใหม่หรือเด้งหน้าเปล่า
+ * พอเปิดในเบราว์เซอร์จริงจะเด้งเข้าแอป Facebook ที่ลูกค้าล็อกอินอยู่แล้ว กดรีวิวได้เลย
+ */
+export function forLineBrowser(url: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}openExternalBrowser=1`;
+}
+
 /** LINE Official Account ของบริษัท */
 export const LINE_OA_ID = "@623oohcz";
 

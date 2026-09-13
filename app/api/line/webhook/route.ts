@@ -233,6 +233,13 @@ async function handleEvent(event: LineEvent) {
     return;
   }
 
+  /* ขอดูเมนูแนะนำซ้ำได้ — ปกติการ์ดนี้ขึ้นครั้งเดียวตอนแอดเพื่อน
+     มีคำสั่งนี้ไว้ให้ลูกค้าที่หาไม่เจอ และให้แอดมินทดสอบข้อความต้อนรับโดยไม่ต้องบล็อก-ปลดบล็อก OA */
+  if (text.includes("เมนู") || text.includes("ช่วยเหลือ") || lower === "help") {
+    await replyMessage(replyToken, HELP_TEXT);
+    return;
+  }
+
   if (lower === "ไอดี" || lower === "id" || lower === "userid") {
     // ส่งเป็นข้อความจริง ไม่ใช่การ์ด — ต้องกดค้างคัดลอก ID ไปใส่ env ได้
     await replyPlain(replyToken, `LINE User ID ของคุณคือ:\n${userId}`);
@@ -292,15 +299,7 @@ async function handleEvent(event: LineEvent) {
 
   // คนรับ-ส่งรถได้คำแนะนำของพนักงาน ไม่ใช่เมนูลูกค้า
   const staffHelp = await driverHelpText(userId);
-  if (staffHelp) {
-    await replyMessage(replyToken, staffHelp);
-    return;
-  }
-
-  /* ลูกค้าพิมพ์ข้อความทั่วไปที่ไม่ใช่คำสั่ง — ไม่ตอบอะไรเลย
-     เพราะแอดมินเป็นคนคุยกับลูกค้าเองในแชทนี้ (Chat: On)
-     ถ้าบอทเด้งเมนูช่วยเหลือทุกครั้งที่ลูกค้าพิมพ์ จะไปแทรกกลางบทสนทนาของคน
-     เมนูแนะนำจึงส่งครั้งเดียวตอนแอดเพื่อน (follow event) ก็พอ */
+  await replyMessage(replyToken, staffHelp ?? HELP_TEXT);
 }
 
 type BookingForDisplay = {

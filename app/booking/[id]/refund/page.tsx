@@ -218,10 +218,14 @@ export default async function RefundPage({
                 href={reviewUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn inline-flex mt-4 px-4 py-2.5 rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white text-sm font-semibold transition-colors"
+                className="btn inline-flex mt-4 px-4 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe0] text-white text-sm font-semibold transition-colors"
               >
-                รีวิวผ่าน LINE
+                รีวิวบนเพจเฟซบุ๊ก
               </a>
+              <p className="text-xs text-amber-900/80 mt-2">
+                กดแล้วเลื่อนหาปุ่ม <b>แนะนำ</b> บนหน้าเพจ แล้วเลือก “ใช่” พร้อมพิมพ์ข้อความสั้น ๆ
+                · รีวิวแล้วกลับมาติ๊กช่องด้านล่างได้เลย ระบบเชื่อลูกค้า ไม่ได้ตรวจสอบย้อนหลัง
+              </p>
             </div>
 
             <form
