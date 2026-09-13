@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { flexFromText } from "@/lib/line-flex";
 
 const LINE_API = "https://api.line.me/v2/bot";
 
@@ -37,7 +38,9 @@ export async function replyMessage(replyToken: string, text: string) {
       },
       body: JSON.stringify({
         replyToken,
-        messages: [{ type: "text", text: text.slice(0, 4900) }],
+        /* ห่อเป็นการ์ด Flex ที่เดียวตรงนี้ — ทุกจุดในระบบที่เรียก replyMessage
+           จึงได้หน้าตาชุดเดียวกัน และลิงก์ในข้อความกลายเป็นปุ่มกดได้เอง */
+        messages: [flexFromText(text.slice(0, 4900))],
       }),
     });
     if (!res.ok) {
@@ -45,6 +48,35 @@ export async function replyMessage(replyToken: string, text: string) {
     }
   } catch (err) {
     console.error("LINE reply error:", err);
+  }
+}
+
+/**
+ * ตอบเป็นข้อความจริง ไม่ห่อเป็นการ์ด
+ *
+ * ใช้เฉพาะตอนที่ลูกค้าต้อง "ก๊อปข้อความไปใช้ต่อ" เช่น LINE User ID
+ * เพราะตัวอักษรในการ์ด Flex กดค้างเพื่อคัดลอกไม่ได้
+ */
+export async function replyPlain(replyToken: string, text: string) {
+  if (!token()) return;
+
+  try {
+    const res = await fetch(`${LINE_API}/message/reply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token()}`,
+      },
+      body: JSON.stringify({
+        replyToken,
+        messages: [{ type: "text", text: text.slice(0, 4900) }],
+      }),
+    });
+    if (!res.ok) {
+      console.error("LINE reply(plain) failed:", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("LINE reply(plain) error:", err);
   }
 }
 
@@ -130,7 +162,7 @@ export async function pushMessage(to: string, text: string) {
       },
       body: JSON.stringify({
         to,
-        messages: [{ type: "text", text: text.slice(0, 4900) }],
+        messages: [flexFromText(text.slice(0, 4900))],
       }),
     });
     if (!res.ok) {

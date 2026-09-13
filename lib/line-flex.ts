@@ -941,3 +941,202 @@ export function flexReceipt(d: {
     buttons: [btn("ดาวน์โหลด PDF", d.pdfUrl), btnGold("เปิดดูในเว็บ", d.url)],
   });
 }
+
+/* ==========================================================================
+   ตอบคำสั่งจากเมนู Rich menu — เดิมเป็นข้อความเปล่า อ่านยากและกดอะไรไม่ได้
+   ========================================================================== */
+
+/** สถานะการจองที่ลูกค้าขอดูเอง (เมนู "เช็คสถานะ" หรือพิมพ์รหัสจอง) */
+export function flexBookingStatus(d: {
+  code: string;
+  carLabel: string;
+  pickupText: string;
+  returnText: string;
+  total: number;
+  statusLabel: string;
+  /** ข้อความบอกขั้นถัดไป เช่น ยังไม่ได้ส่งสลิป */
+  note: string;
+  tone: Tone;
+  url: string;
+}) {
+  return card({
+    altText: `การจอง ${d.code} — ${d.statusLabel}`,
+    title: "สถานะการจอง",
+    subtitle: d.code,
+    tone: d.tone,
+    body: [
+      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      { type: "separator", margin: "md", color: "#E8E2D4" },
+      kv("รับรถ", d.pickupText),
+      kv("คืนรถ", d.returnText),
+      kv("สถานะ", d.statusLabel),
+      amountBox("ยอดรวม", d.total),
+      noteBox([d.note]),
+    ],
+    buttons: [btn("เปิดหน้าการจอง", d.url)],
+  });
+}
+
+/** ยังไม่มีการจอง — ชวนจองหรือใส่รหัส แทนที่จะทิ้งลูกค้าไว้เฉย ๆ */
+export function flexStatusEmpty(d: { carsUrl: string }) {
+  return card({
+    altText: "ยังไม่พบการจองของคุณ",
+    title: "เช็คสถานะการจอง",
+    tone: "warn",
+    body: [
+      {
+        type: "text",
+        text: "ยังไม่พบการจองที่ผูกกับบัญชี LINE นี้ครับ",
+        size: "sm",
+        color: INK,
+        wrap: true,
+      },
+      noteBox([
+        "ถ้าเคยจองไว้แล้ว พิมพ์รหัสจอง 8 หลักเข้ามาได้เลย",
+        "รหัสอยู่ในข้อความยืนยันการจอง และในหน้าติดตามการจอง",
+      ]),
+    ],
+    buttons: [btn("ดูรถทั้งหมดและจอง", d.carsUrl)],
+  });
+}
+
+/** ค่าปรับและเงินประกัน — เมนู "ค่าบริการ" */
+export function flexFees(d: { lines: string[]; depositNote: string; url: string }) {
+  return card({
+    altText: "ค่าปรับและค่าบริการเพิ่มเติม",
+    title: "ค่าบริการและค่าปรับ",
+    subtitle: "เกิดขึ้นเฉพาะเมื่อมีเหตุจริง",
+    tone: "warn",
+    body: [
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: d.lines.map((line) => ({
+          type: "text",
+          text: `• ${line}`,
+          size: "sm",
+          color: INK,
+          wrap: true,
+        })),
+      },
+      noteBox([d.depositNote]),
+    ],
+    buttons: [btn("ดูรายการทั้งหมด", d.url)],
+  });
+}
+
+/** ติดต่อร้าน — เมนู "ติดต่อเรา" ปุ่มโทรกดได้จากการ์ดเลย */
+export function flexContact(d: {
+  phones: string[];
+  hours: string[];
+  url: string;
+}) {
+  return card({
+    altText: "ติดต่อ PHUPING CORPORATION",
+    title: "ติดต่อเรา",
+    subtitle: "โทรหาแอดมินได้ในเวลาทำการ",
+    body: [
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "xs",
+        contents: d.hours.map((h) => ({
+          type: "text",
+          text: h,
+          size: "sm",
+          color: MUTED,
+          wrap: true,
+        })),
+      },
+      noteBox(["นอกเวลาทำการพิมพ์คำถามทิ้งไว้ได้เลย แอดมินจะติดต่อกลับครับ"]),
+    ],
+    buttons: [
+      ...d.phones.map((phone) => btn(`โทร ${phone}`, `tel:${phone.replace(/-/g, "")}`)),
+      btnGold("เปิดหน้าติดต่อเรา", d.url),
+    ],
+  });
+}
+
+/* ==========================================================================
+   แปลงข้อความธรรมดาเป็นการ์ด — ใช้กับทุกจุดที่ยังตอบเป็นข้อความอยู่
+   ========================================================================== */
+
+/** ตั้งชื่อปุ่มจากลิงก์ ให้ลูกค้ารู้ว่ากดแล้วไปไหน ดีกว่าคำว่า "เปิดลิงก์" ลอย ๆ */
+function labelForUrl(url: string): string {
+  if (url.includes("/booking/")) return "เปิดหน้าการจอง";
+  if (url.includes("/receipt/")) return "เปิดใบเสร็จ";
+  if (url.includes("/job/")) return "เปิดหน้างาน";
+  if (url.includes("/fees")) return "ดูค่าบริการทั้งหมด";
+  if (url.includes("/cars")) return "ดูรถทั้งหมด";
+  if (url.includes("/contact")) return "ติดต่อเรา";
+  if (url.includes("/how-to-book")) return "วิธีจองรถ";
+  if (url.endsWith("/my")) return "การจองของฉัน";
+  return "เปิดลิงก์";
+}
+
+/** อีโมจินำหน้าหัวข้อ ใช้เดาโทนสีของการ์ดให้เข้ากับเนื้อหา */
+function toneFromText(text: string): Tone {
+  if (/[❌⛔🚫]/.test(text)) return "danger";
+  if (/[⚠️⌛⏳]/.test(text)) return "warn";
+  if (/[✅✔️🎉]/.test(text)) return "ok";
+  return "green";
+}
+
+/**
+ * ห่อข้อความธรรมดาให้เป็นการ์ด Flex
+ *
+ * บรรทัดแรกกลายเป็นหัวการ์ด ลิงก์ในข้อความถูกดึงออกมาเป็นปุ่ม (สูงสุด 3 ปุ่ม)
+ * ที่เหลือเป็นเนื้อความ — เว้นวรรคบรรทัดว่างไว้เหมือนเดิมเพื่อไม่ให้อ่านติดกัน
+ *
+ * ทำที่เดียวใน replyMessage/pushMessage แล้วทั้งระบบเปลี่ยนตาม
+ * ไม่ต้องไล่แก้ทีละจุดแล้วตกหล่น
+ */
+export function flexFromText(raw: string) {
+  const text = raw.trim();
+  const urls = [...new Set(text.match(/https?:\/\/[^\s)]+/g) ?? [])].slice(0, 3);
+
+  // เอาลิงก์ออกจากเนื้อความ เพราะย้ายไปเป็นปุ่มแล้ว
+  let stripped = text;
+  for (const u of urls) stripped = stripped.split(u).join("");
+
+  const lines = stripped
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l, i, arr) => !(l === "" && (i === 0 || arr[i - 1] === "")));
+
+  const title = (lines.shift() ?? "แจ้งจากระบบ").slice(0, 40);
+  while (lines.length && lines[0] === "") lines.shift();
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+
+  const body =
+    lines.length > 0
+      ? lines.map((line) =>
+          line === ""
+            ? { type: "filler" }
+            : {
+                type: "text",
+                text: line,
+                size: "sm",
+                color: INK,
+                wrap: true,
+              }
+        )
+      : [{ type: "text", text: title, size: "sm", color: INK, wrap: true }];
+
+  return card({
+    altText: text.replace(/\n/g, " ").slice(0, 300),
+    title,
+    tone: toneFromText(title + stripped),
+    body: [
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        contents: body,
+      },
+    ],
+    buttons: urls.map((u, i) => (i === 0 ? btn(labelForUrl(u), u) : btnGold(labelForUrl(u), u))),
+  });
+}
+

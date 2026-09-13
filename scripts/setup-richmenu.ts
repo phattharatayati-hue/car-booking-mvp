@@ -10,15 +10,25 @@
  * รัน:  npx tsx scripts/setup-richmenu.ts
  */
 
-import "dotenv/config";
+/* โหลด env ตามลำดับเดียวกับที่ Next.js ใช้ (.env.local ทับ .env)
+   ไม่งั้นสคริปต์จะอ่านแต่ .env แล้วไปยิงใส่ OA ตัวเก่าโดยไม่รู้ตัว */
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: ".env" });
+loadEnv({ path: ".env.local", override: true });
 import fs from "fs";
 import path from "path";
 
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://car-booking-mvp.vercel.app").replace(
-  /\/$/,
-  ""
-);
+const FALLBACK_SITE = "https://car-booking-mvp.vercel.app";
+
+/* ปุ่มในเมนูเป็นลิงก์ที่ลูกค้ากดจากมือถือ — ถ้าเผลอรันโดยที่ .env.local ตั้ง
+   NEXT_PUBLIC_SITE_URL เป็น localhost เมนูจะถูกตั้งด้วยลิงก์ที่กดแล้วไม่มีอะไรเกิดขึ้น
+   และต้องมานั่งหาสาเหตุทีหลัง จึงกันไว้ตรงนี้เลย */
+const RAW_SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? FALLBACK_SITE).replace(/\/$/, "");
+const SITE = /localhost|127\.0\.0\.1|^http:\/\//.test(RAW_SITE) ? FALLBACK_SITE : RAW_SITE;
+if (SITE !== RAW_SITE) {
+  console.warn(`ข้าม NEXT_PUBLIC_SITE_URL=${RAW_SITE} (ใช้กับเมนูจริงไม่ได้) → ใช้ ${SITE} แทน`);
+}
 // เบอร์ร้าน — ตอนนี้เมนูไม่มีปุ่มโทรตรงแล้ว แต่เก็บไว้เผื่อเพิ่มกลับ
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PHONE = process.env.SHOP_PHONE ?? "053000000";

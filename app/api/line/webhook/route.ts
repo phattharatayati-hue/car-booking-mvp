@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyLineSignature, replyMessage, replyRaw, siteUrl } from "@/lib/line";
+import {
+  verifyLineSignature,
+  replyMessage,
+  replyPlain,
+  replyRaw,
+  siteUrl,
+} from "@/lib/line";
 import {
   myJobsFlex,
   closeJob,
@@ -9,10 +15,16 @@ import {
   saveJobReading,
   driverHelpText,
 } from "@/lib/driver-jobs";
-import { feeSummaryText } from "@/lib/fees";
+import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
-import { contactMessage } from "@/lib/contact";
+import { PHONES, OFFICE_HOURS } from "@/lib/contact";
+import {
+  flexBookingStatus,
+  flexStatusEmpty,
+  flexFees,
+  flexContact,
+} from "@/lib/line-flex";
 import {
   startBooking,
   handlePostback,
@@ -211,12 +223,19 @@ async function handleEvent(event: LineEvent) {
     text.includes("เงินประกัน") ||
     lower === "fees"
   ) {
-    await replyMessage(replyToken, feeSummaryText(siteUrl()));
+    await replyRaw(replyToken, [
+      flexFees({
+        lines: highlightFees().map((f) => `${f.title} — ${f.amount}`),
+        depositNote: `เงินประกันความเสียหาย ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนถ้าคืนรถเรียบร้อย`,
+        url: `${siteUrl()}/fees`,
+      }),
+    ]);
     return;
   }
 
   if (lower === "ไอดี" || lower === "id" || lower === "userid") {
-    await replyMessage(replyToken, `LINE User ID ของคุณคือ:\n${userId}`);
+    // ส่งเป็นข้อความจริง ไม่ใช่การ์ด — ต้องกดค้างคัดลอก ID ไปใส่ env ได้
+    await replyPlain(replyToken, `LINE User ID ของคุณคือ:\n${userId}`);
     return;
   }
 
@@ -232,27 +251,23 @@ async function handleEvent(event: LineEvent) {
       });
 
       if (booking) {
-        await replyMessage(replyToken, formatBooking(booking, site));
+        await replyRaw(replyToken, [bookingStatusFlex(booking, site)]);
         return;
       }
     }
 
-    await replyMessage(
-      replyToken,
-      [
-        "📋 เช็คสถานะการจอง",
-        "",
-        "ยังไม่พบการจองของคุณครับ",
-        "",
-        'ถ้ามีรหัสจองอยู่แล้ว พิมพ์รหัส 8 หลักได้เลย',
-        'หรือพิมพ์ "จองรถ" เพื่อเริ่มจองใหม่',
-      ].join("\n")
-    );
+    await replyRaw(replyToken, [flexStatusEmpty({ carsUrl: `${site}/cars` })]);
     return;
   }
 
   if (text.includes("ติดต่อ")) {
-    await replyMessage(replyToken, contactMessage(site));
+    await replyRaw(replyToken, [
+      flexContact({
+        phones: PHONES,
+        hours: [`เวลาทำการ: ${OFFICE_HOURS[0]}`, OFFICE_HOURS[1]],
+        url: `${site}/contact`,
+      }),
+    ]);
     return;
   }
 
@@ -271,7 +286,7 @@ async function handleEvent(event: LineEvent) {
       return;
     }
 
-    await replyMessage(replyToken, formatBooking(booking, site));
+    await replyRaw(replyToken, [bookingStatusFlex(booking, site)]);
     return;
   }
 
@@ -290,30 +305,34 @@ type BookingForDisplay = {
   deposit: { status: string } | null;
 };
 
-function formatBooking(booking: BookingForDisplay, site: string) {
-  const lines = [
-    `📋 การจอง ${booking.id.slice(0, 8).toUpperCase()}`,
-    "",
-    `รถ: ${booking.car.brand} ${booking.car.name}`,
-    `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
-    `คืนรถ: ${formatBangkokDateTime(booking.endDate)}`,
-    `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
-    `สถานะ: ${STATUS_TH[booking.status] ?? booking.status}`,
-  ];
+/** การ์ดสถานะการจองสำหรับลูกค้า — แทนข้อความเปล่าเดิม กดเปิดหน้าการจองได้จากการ์ด */
+function bookingStatusFlex(booking: BookingForDisplay, site: string) {
+  let note: string;
+  let tone: "green" | "ok" | "warn" | "danger";
 
   if (!booking.deposit) {
-    lines.push("", "⚠️ ยังไม่ได้ส่งสลิปค่าจอง", "ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ");
+    note = "ยังไม่ได้ส่งสลิปค่าจอง — ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ";
+    tone = "warn";
   } else if (booking.deposit.status === "PENDING") {
-    lines.push("", "⏳ ได้รับสลิปแล้ว รอแอดมินตรวจสอบ");
+    note = "ได้รับสลิปแล้ว รอแอดมินตรวจสอบ";
+    tone = "green";
   } else if (booking.deposit.status === "REJECTED") {
-    lines.push("", "❌ สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมิน");
+    note = "สลิปไม่ผ่านการตรวจสอบ กรุณาติดต่อแอดมิน";
+    tone = "danger";
   } else {
-    lines.push("", "✅ ยืนยันค่าจองเรียบร้อยแล้ว");
+    note = "ยืนยันค่าจองเรียบร้อยแล้ว";
+    tone = "ok";
   }
 
-  // ลิงก์เข้าหน้าการจอง — ที่เดียวที่อัปโหลดเอกสารได้ เดิมไม่มีลิงก์เลย
-  // ลูกค้าเลยหาทางส่งเอกสารไม่เจอ ต้องไถหาลิงก์เก่าในแชทเอง
-  lines.push("", "ดูรายละเอียดและส่งเอกสาร:", `${site}/booking/${booking.id}`);
-
-  return lines.join("\n");
+  return flexBookingStatus({
+    code: booking.id.slice(0, 8).toUpperCase(),
+    carLabel: `${booking.car.brand} ${booking.car.name}`,
+    pickupText: formatBangkokDateTime(booking.startDate),
+    returnText: formatBangkokDateTime(booking.endDate),
+    total: booking.totalPrice,
+    statusLabel: STATUS_TH[booking.status] ?? booking.status,
+    note,
+    tone,
+    url: `${site}/booking/${booking.id}`,
+  });
 }
