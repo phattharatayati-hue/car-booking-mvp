@@ -7,7 +7,6 @@ import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 import { DOCUMENT_LABEL, type DocumentKind } from "@/lib/documents";
 import { formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import JobReport from "./JobReport";
-import ReceiptSign from "@/components/ReceiptSign";
 
 /**
  * หน้าเอกสารลูกค้าสำหรับคนรับ-ส่งรถ
@@ -160,26 +159,37 @@ export default async function JobDocumentsPage({
           isPickup={job.kind === "PICKUP"}
         />
 
-        {/* ใบเสร็จของการจองนี้ — ให้ลูกค้าเซ็นรับตรงหน้างานได้เลย
-            ไม่มีใบเสร็จก็ไม่ต้องแสดงอะไร แอดมินเป็นคนออกใบจากหลังบ้าน */}
+        {/* ใบเสร็จของการจองนี้ — เปิดให้ลูกค้าดูหรือส่งต่อได้
+            ไม่มีช่องเซ็นแล้ว ใบเสร็จลงนามจากระบบโดยผู้มีอำนาจของบริษัท */}
         {job.booking.receipts.length > 0 && (
           <section className="bg-white rounded-2xl border border-slate-200 px-5 py-5">
             <h2 className="font-semibold text-slate-900 mb-1">ใบเสร็จรับเงิน</h2>
             <p className="text-sm text-slate-500 mb-4 leading-relaxed">
-              ให้ลูกค้าเซ็นรับบนหน้าจอนี้ได้ — ไม่สะดวกเซ็นก็ข้ามได้
-              ใบเสร็จจะเว้นช่องไว้ให้เซ็นด้วยปากกาบนกระดาษ
+              ใบเสร็จลงนามจากระบบเรียบร้อยแล้ว เปิดให้ลูกค้าดูหรือส่งต่อได้เลย
             </p>
             <div className="flex flex-col gap-3">
               {job.booking.receipts.map((rc) => (
-                <ReceiptSign
+                <div
                   key={rc.id}
-                  token={token}
-                  receiptId={rc.id}
-                  viewToken={rc.viewToken}
-                  number={rc.number}
-                  total={rc.total}
-                  signed={Boolean(rc.customerSignatureUrl)}
-                />
+                  className="rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-slate-900">
+                      {rc.number}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {rc.total.toLocaleString()} บาท
+                    </p>
+                  </div>
+                  <a
+                    href={`/receipt/${rc.viewToken}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors"
+                  >
+                    เปิดดูใบเสร็จ
+                  </a>
+                </div>
               ))}
             </div>
           </section>

@@ -362,15 +362,17 @@ function ReceiptPdfDoc({
           style={[s.row, { marginTop: 18, borderWidth: 1, borderColor: LINE }]}
         >
           <View style={[s.signBox, { borderRightWidth: 1, borderRightColor: LINE }]}>
-            {r.customerSignatureUrl ? (
-              <Image src={r.customerSignatureUrl} style={s.signImage} />
+            {r.signerSignatureUrl ? (
+              <Image src={r.signerSignatureUrl} style={s.signImage} />
             ) : (
               <View style={{ height: 44 }} />
             )}
             <Text style={{ fontSize: 8, fontWeight: 700 }}>
               ผู้รับเงิน / Bill Receiver Signature
             </Text>
-            <Text style={{ fontSize: 7.5, marginTop: 3 }}>วันที่ / Date ____________</Text>
+            <Text style={{ fontSize: 7.5, marginTop: 3 }}>
+              {r.signerName ?? "____________"}
+            </Text>
           </View>
 
           <View style={[s.signBox, { borderRightWidth: 1, borderRightColor: LINE }]}>

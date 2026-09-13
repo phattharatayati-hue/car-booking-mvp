@@ -412,10 +412,10 @@ export default function ReceiptDoc({
       >
         <div style={{ flex: 1, padding: "3mm", borderRight: `0.3mm solid ${LINE}` }}>
           <div style={{ height: "18mm", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            {r.customerSignatureUrl && (
+            {r.signerSignatureUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={r.customerSignatureUrl}
+                src={r.signerSignatureUrl}
                 alt=""
                 style={{ maxHeight: "17mm", maxWidth: "50mm", objectFit: "contain" }}
               />
@@ -426,7 +426,7 @@ export default function ReceiptDoc({
               ผู้รับเงิน / Bill Receiver Signature
             </div>
             <div style={{ fontSize: "2.7mm", marginTop: "1mm" }}>
-              วันที่ / Date ______________
+              {r.signerName ? r.signerName : "______________"}
             </div>
           </div>
         </div>
