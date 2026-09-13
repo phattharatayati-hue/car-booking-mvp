@@ -808,7 +808,8 @@ export default async function AdminBookingsPage({
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-2xl font-bold text-slate-900">รายการจอง</h1>
         <p className="text-slate-500 text-sm mt-1">
           พบ {total.toLocaleString()} รายการ
@@ -821,6 +822,10 @@ export default async function AdminBookingsPage({
             </span>
           )}
         </p>
+        </div>
+        <Link href="/admin/bookings/new" className={BTN.primary}>
+          + สร้างใบจองเอง
+        </Link>
       </div>
 
       {/* ค้นหา + เรียงลำดับ — เดิมต้องไถหาเองทั้งหน้า */}

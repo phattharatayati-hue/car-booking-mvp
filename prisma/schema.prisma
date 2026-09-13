@@ -118,9 +118,6 @@ model CarRate {
   startDate   DateTime
   endDate     DateTime
   pricePerDay Int?
-  /// จำนวนวันขั้นต่ำที่ต้องเช่า ถ้าการจองแตะช่วงนี้ — ว่าง = ไม่บังคับ
-  /// ใช้บีบให้จองยาวช่วงเทศกาล ส่วนช่วงปกติปล่อยให้จองวันเดียวได้
-  minDays     Int?
   note        String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -169,6 +166,10 @@ model Booking {
   adminNote   String?    // บันทึกภายใน เช่น ผลติดต่อเจ้าของรถ — ของแอดมินล้วน ระบบไม่เขียนทับ
   /// เหตุผลที่ระบบยกเลิกให้เอง (เช่น ไม่อัปสลิปตามเวลา) — แยกจาก adminNote
   cancelReason String?
+  /// ใบที่แอดมินสร้างเอง (ลูกค้าโทร/ทักแชทมา) — ห้ามส่งแจ้งเตือน LINE หาลูกค้าใบนี้
+  silent               Boolean  @default(false)
+  /// แอดมินคนที่สร้างใบนี้เอง — ว่างคือลูกค้าจองเองผ่านเว็บ/LIFF/แชท
+  createdByAdminUserId String?
   /// กันคิวรถให้ถึงเวลานี้ ถ้ายังไม่อัปสลิประบบจะยกเลิกให้ (null = ไม่ยกเลิกเอง)
   /// ตั้งตอนเข้าสถานะ PENDING_DEPOSIT ไม่ใช่ตอนสร้างใบ เพราะรถพาร์ทเนอร์ต้องรอเจ้าของตอบก่อน
   holdUntil    DateTime?

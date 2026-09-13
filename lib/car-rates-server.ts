@@ -9,7 +9,9 @@ type Row = {
   startDate: Date;
   endDate: Date;
   pricePerDay: number | null;
-  minDays: number | null;
+  /* ไม่บังคับ เพราะถ้า Prisma Client ยังไม่ถูก generate ใหม่หลังเพิ่มคอลัมน์
+     type ที่ได้จาก query จะยังไม่มีฟิลด์นี้ แล้ว build จะล้มทั้งที่ฐานข้อมูลถูกแล้ว */
+  minDays?: number | null;
 };
 
 function toView(r: Row): CarRateView {
@@ -20,7 +22,7 @@ function toView(r: Row): CarRateView {
     startDate: bangkokDateStrOf(r.startDate),
     endDate: bangkokDateStrOf(r.endDate),
     pricePerDay: r.pricePerDay,
-    minDays: r.minDays,
+    minDays: r.minDays ?? null,
   };
 }
 

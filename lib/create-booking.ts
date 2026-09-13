@@ -32,6 +32,21 @@ export type CreateBookingInput = {
   customerId?: string | null;
   pickupPlace?: string | null;
   returnPlace?: string | null;
+
+  /* ---- ใช้เฉพาะตอนแอดมินสร้างใบให้ลูกค้าเอง (โทรมา/ทักแชทมา) ---- */
+
+  /** id ของแอดมินที่กรอกใบนี้ — มีค่าแปลว่าเป็นใบที่สร้างจากหลังบ้าน */
+  createdByAdminUserId?: string | null;
+  /** ห้ามส่งแจ้งเตือน LINE หาลูกค้าใบนี้ */
+  silent?: boolean;
+  /** ข้ามกฎที่มีไว้กันลูกค้า (จองล่วงหน้า/ขั้นต่ำ/ช่วงปิดรับจอง) — ไม่ข้ามการจองทับ */
+  skipCustomerRules?: boolean;
+  /** ยอดรวมที่ตกลงกันจริง — ใส่มาแล้วใช้ทับยอดที่ระบบคิด */
+  priceOverride?: number | null;
+  /** บันทึกภายใน เขียนลง adminNote ตั้งแต่สร้าง */
+  adminNote?: string | null;
+  /** สร้างเป็นยืนยันแล้วเลย (เก็บค่าจองมาแล้ว) */
+  markConfirmed?: boolean;
 };
 
 export type CreateBookingResult =
@@ -72,7 +87,12 @@ export async function createBooking(
     return { ok: false, status: 400, error: "เลือกเวลารับรถย้อนหลังไม่ได้" };
   }
   // ต้องจองล่วงหน้า — กฎอยู่ที่ lib/booking-rules.ts ที่เดียว
-  if (isTooSoon(start, settings.minLeadHours)) {
+  const adminMade = Boolean(input.createdByAdminUserId);
+  /* แอดมินข้ามกฎที่มีไว้กันลูกค้าได้ — ลูกค้าโทรมาขอรับรถบ่ายนี้เป็นเรื่องปกติหน้าร้าน
+     แต่ "จองทับคิว" ไม่ข้าม เพราะรถคันเดียวอยู่สองที่พร้อมกันไม่ได้ */
+  const skipRules = adminMade && input.skipCustomerRules !== false;
+
+  if (!skipRules && isTooSoon(start, settings.minLeadHours)) {
     return { ok: false, status: 400, error: leadTimeMessage(settings.minLeadHours) };
   }
   const car = await prisma.car.findUnique({
@@ -113,7 +133,7 @@ export async function createBooking(
   const startStr = bangkokDateStrOf(start);
   const endStr = bangkokDateStrOf(end);
 
-  const blocked = blockingRates(startStr, endStr, carRates);
+  const blocked = skipRules ? [] : blockingRates(startStr, endStr, carRates);
   if (blocked.length > 0) {
     return {
       ok: false,
@@ -135,7 +155,7 @@ export async function createBooking(
 
   /* จำนวนวันขั้นต่ำของช่วงที่ถูกแตะ — ใช้ days จาก quote เพราะเป็นตัวเดียวกับที่คิดเงิน
      (คืนช้าเกินเวลาผ่อนผันนับเพิ่มเป็นอีกวัน) */
-  const minHit = checkMinDays(startStr, endStr, quote.days, carRates);
+  const minHit = skipRules ? null : checkMinDays(startStr, endStr, quote.days, carRates);
   if (minHit) {
     return {
       ok: false,
@@ -143,7 +163,11 @@ export async function createBooking(
       error: minDaysMessage(minHit, quote.days),
     };
   }
-  const totalPrice = quote.total;
+  /* ยอดที่ตกลงกันจริงชนะยอดที่ระบบคิดเสมอ — ใบจากหน้าร้านมักมีราคาพิเศษที่ตกลงในแชท */
+  const totalPrice =
+    input.priceOverride != null && input.priceOverride >= 0
+      ? Math.floor(input.priceOverride)
+      : quote.total;
 
   const phone = String(input.phone).replace(/[\s-]/g, "");
 
@@ -208,10 +232,22 @@ export async function createBooking(
       totalPrice,
       pickupPlace,
       returnPlace,
-      status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
+      status: input.markConfirmed
+        ? "CONFIRMED"
+        : isRequest
+          ? "REQUESTED"
+          : "PENDING_DEPOSIT",
+      adminNote: input.adminNote?.trim() || null,
+      silent: Boolean(input.silent),
+      createdByAdminUserId: input.createdByAdminUserId ?? null,
       // นาฬิกากันคิวเริ่มเดินเมื่อลูกค้าโอนได้จริงเท่านั้น
       // ใบที่ต้องรอเจ้าของรถตอบจะตั้งเวลาให้ตอนแอดมินกดอนุมัติแทน
-      holdUntil: isRequest ? null : holdUntilFrom(settings.holdMinutes),
+      /* ใบที่แอดมินกรอกเองไม่นับถอยหลัง — นาฬิกากันคิวมีไว้ไล่คนจองเล่นบนเว็บ
+         ใบที่แอดมินรับสายแล้วจดไว้ ไม่ควรถูกยกเลิกเองกลางดึก */
+      holdUntil:
+        adminMade || isRequest || input.markConfirmed
+          ? null
+          : holdUntilFrom(settings.holdMinutes),
     },
   });
 
@@ -249,7 +285,7 @@ export async function createBooking(
      ใบจองปกติไม่ส่งแล้ว: ยอดค่าจอง เลขบัญชี และช่องอัปสลิป อยู่ครบที่หน้า
      /booking/<id> ซึ่งเปิดต่อจากหน้าจองทันที ลูกค้าจะได้ข้อความ LINE ฉบับแรก
      ตอนอัปสลิปเสร็จ ไม่ใช่ตอนกดจอง */
-  if (customer.lineUserId && isRequest) {
+  if (customer.lineUserId && isRequest && !input.silent) {
     try {
       const bookingUrl = `${siteUrl()}/booking/${booking.id}`;
 
