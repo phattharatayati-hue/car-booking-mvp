@@ -292,7 +292,15 @@ async function handleEvent(event: LineEvent) {
 
   // คนรับ-ส่งรถได้คำแนะนำของพนักงาน ไม่ใช่เมนูลูกค้า
   const staffHelp = await driverHelpText(userId);
-  await replyMessage(replyToken, staffHelp ?? HELP_TEXT);
+  if (staffHelp) {
+    await replyMessage(replyToken, staffHelp);
+    return;
+  }
+
+  /* ลูกค้าพิมพ์ข้อความทั่วไปที่ไม่ใช่คำสั่ง — ไม่ตอบอะไรเลย
+     เพราะแอดมินเป็นคนคุยกับลูกค้าเองในแชทนี้ (Chat: On)
+     ถ้าบอทเด้งเมนูช่วยเหลือทุกครั้งที่ลูกค้าพิมพ์ จะไปแทรกกลางบทสนทนาของคน
+     เมนูแนะนำจึงส่งครั้งเดียวตอนแอดเพื่อน (follow event) ก็พอ */
 }
 
 type BookingForDisplay = {
