@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { shrinkImage } from "@/lib/image-resize";
+import CopyButton from "@/components/CopyButton";
 import { BANK } from "@/lib/contact";
 
 /** เพดานเดียวกับฝั่งเซิร์ฟเวอร์ — บอกผู้ใช้ตั้งแต่ตอนเลือกไฟล์ */
@@ -115,11 +116,44 @@ export default function SlipUpload({
         <p className="text-2xl font-bold text-blue-900">
           {suggestedAmount.toLocaleString()} ฿
         </p>
-        <div className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-          <p>
-            โอนเข้า {BANK.name} <span className="font-semibold">{BANK.number}</span>
-          </p>
-          <p>ชื่อบัญชี {BANK.accountName}</p>
+
+        {/* QR + เลขบัญชี — ให้ลูกค้าเลือกทางที่ถนัด
+            สแกน QR สะดวกกว่าและพิมพ์เลขผิดไม่ได้ แต่คนที่เปิดหน้านี้บนมือถือเครื่องเดียว
+            กับที่ใช้แอปธนาคารจะสแกนหน้าจอตัวเองไม่ได้ จึงต้องมีทั้งปุ่มบันทึกรูป
+            (เอาไปเปิดจากคลังภาพในแอปธนาคาร) และปุ่มคัดลอกเลขบัญชีควบคู่กัน */}
+        <div className="mt-3 flex flex-col sm:flex-row gap-4 items-start">
+          <div className="shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/payment-qr.png"
+              alt={`QR พร้อมเพย์ ${BANK.accountName}`}
+              width={160}
+              height={160}
+              className="w-40 h-40 rounded-xl bg-white p-2 border border-blue-200"
+            />
+            <a
+              href="/payment-qr.png"
+              download="phuping-qr.png"
+              className="btn mt-2 w-40 inline-flex items-center justify-center px-3 py-2 rounded-lg bg-white border border-blue-200 text-blue-800 text-xs font-semibold hover:bg-blue-50 transition-colors"
+            >
+              บันทึกรูป QR
+            </a>
+            <p className="text-[11px] text-blue-800/70 mt-1.5 w-40 leading-snug">
+              บันทึกไม่ได้ให้กดค้างที่รูปแล้วเลือกบันทึกรูป
+            </p>
+          </div>
+
+          <div className="text-xs text-blue-800/80 leading-relaxed">
+            <p className="font-semibold text-blue-900 mb-1">หรือโอนเข้าบัญชี</p>
+            <p>{BANK.name}</p>
+            <p className="text-base font-bold text-blue-900 tracking-wide my-0.5">
+              {BANK.number}
+            </p>
+            <p>ชื่อบัญชี {BANK.accountName}</p>
+            <div className="mt-2">
+              <CopyButton value={BANK.number.replace(/-/g, "")} label="คัดลอกเลขบัญชี" />
+            </div>
+          </div>
         </div>
         {securityDeposit > 0 && (
           <p className="text-xs text-blue-800/80 mt-2 leading-relaxed border-t border-blue-200/70 pt-2">
