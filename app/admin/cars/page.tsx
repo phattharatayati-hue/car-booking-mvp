@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import Image from "next/image";
 import Link from "next/link";
 import AddCarForm from "@/components/AddCarForm";
+import DuplicateCarButton from "@/components/DuplicateCarButton";
+import { redirect } from "next/navigation";
 import { BTN } from "@/lib/ui";
 import AdminTabs from "@/components/AdminTabs";
 import { FLEET_TABS } from "@/components/adminTabSets";
@@ -20,6 +22,7 @@ type CarRow = {
   photoUrl: string | null;
   source: string;
   status: string;
+  _count?: { rates: number };
 };
 
 async function toggleStatusAction(formData: FormData) {
@@ -45,6 +48,80 @@ async function toggleStatusAction(formData: FormData) {
   revalidatePath("/admin/cars");
 }
 
+/**
+ * เพิ่มรถแบบด่วน — คัดลอกจากคันที่มีอยู่แล้วแก้แค่ ทะเบียน/รุ่น/ราคา
+ *
+ * มีไว้เพราะกองรถมีรุ่นซ้ำกันหลายคัน (Ativ 3 คัน ฯลฯ) การกรอกใหม่ทั้งใบ
+ * แล้วอัปรูปเดิมซ้ำทุกครั้งเปลืองทั้งเวลาและพื้นที่เก็บไฟล์
+ * รูปใช้ URL เดียวกันกับคันต้นแบบ ไม่ได้อัปไฟล์ใหม่
+ */
+async function duplicateCarAction(formData: FormData) {
+  "use server";
+  await requireStaff();
+
+  const sourceId = String(formData.get("sourceId") ?? "");
+  const licensePlate = String(formData.get("licensePlate") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const pricePerDay = Math.floor(Number(formData.get("pricePerDay")));
+  const unavailable = formData.get("unavailable") != null;
+
+  if (!sourceId || !licensePlate || !name) {
+    redirect("/admin/cars?error=missing");
+  }
+  if (!Number.isFinite(pricePerDay) || pricePerDay < 1) {
+    redirect("/admin/cars?error=price");
+  }
+
+  const source = await prisma.car.findUnique({
+    where: { id: sourceId },
+    include: { rates: true },
+  });
+  if (!source) redirect("/admin/cars?error=notfound");
+
+  // ทะเบียนซ้ำจะชนที่ unique constraint — ดักก่อนเพื่อบอกเหตุผลให้ชัด
+  const exists = await prisma.car.findUnique({ where: { licensePlate } });
+  if (exists) redirect("/admin/cars?error=plate");
+
+  const car = await prisma.car.create({
+    data: {
+      name,
+      brand: source.brand,
+      licensePlate,
+      pricePerDay,
+      costPerDay: source.costPerDay,
+      photoUrl: source.photoUrl,
+      source: source.source,
+      partnerId: source.partnerId,
+      status: unavailable ? "UNAVAILABLE" : "AVAILABLE",
+      /* คัดลอกเรทตามช่วงวันมาด้วย — คันรุ่นเดียวกันมักใช้เรทเทศกาลชุดเดียวกัน
+         ถ้าไม่คัดลอก คันใหม่จะคิดราคาปกติในช่วงเทศกาลโดยไม่มีใครสังเกต */
+      rates: {
+        create: source.rates.map((r) => ({
+          kind: r.kind,
+          label: r.label,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          pricePerDay: r.pricePerDay,
+          note: r.note,
+        })),
+      },
+    },
+  });
+
+  await audit({
+    action: "car.duplicate",
+    summary: `เพิ่มรถแบบด่วน ${car.brand} ${car.name} (${car.licensePlate}) ${car.pricePerDay.toLocaleString()} บาท/วัน`,
+    detail: `คัดลอกจาก ${source.brand} ${source.name} (${source.licensePlate})${
+      source.rates.length > 0 ? ` · เรทราคา ${source.rates.length} ช่วง` : ""
+    }`,
+    entity: "car",
+    entityId: car.id,
+  });
+
+  revalidatePath("/admin/cars");
+  redirect(`/admin/cars?ok=duplicated&plate=${encodeURIComponent(car.licensePlate)}`);
+}
+
 const CAR_FILTERS = [
   { key: "all", label: "ทั้งหมด" },
   { key: "AVAILABLE", label: "เปิดให้เช่า" },
@@ -54,11 +131,17 @@ const CAR_FILTERS = [
 export default async function AdminCarsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    q?: string;
+    ok?: string;
+    error?: string;
+    plate?: string;
+  }>;
 }) {
   await requireStaff();
 
-  const { status, q } = await searchParams;
+  const { status, q, ok, error, plate } = await searchParams;
   const active = status === "AVAILABLE" || status === "UNAVAILABLE" ? status : null;
   const term = (q ?? "").trim();
 
@@ -78,6 +161,7 @@ export default async function AdminCarsPage({
     /* เรียงคันที่เปิดให้เช่าขึ้นก่อน แล้วค่อยเรียงตามยี่ห้อ-รุ่น
        เดิมเรียงตามวันที่สร้าง ทำให้คันที่ปิดใช้งานแทรกปนกับคันที่ใช้งานอยู่ */
     orderBy: [{ status: "asc" }, { brand: "asc" }, { name: "asc" }],
+    include: { _count: { select: { rates: true } } },
   });
 
   const [totalCount, activeCount] = await Promise.all([
@@ -88,6 +172,23 @@ export default async function AdminCarsPage({
   return (
     <div>
       <AdminTabs tabs={FLEET_TABS} />
+
+      {ok === "duplicated" && (
+        <div className="mb-5 text-sm border px-4 py-3 rounded-xl bg-emerald-50 border-emerald-200 text-emerald-900">
+          เพิ่มรถคันใหม่เรียบร้อย{plate ? ` — ทะเบียน ${plate}` : ""} · รูปและเรทราคาคัดลอกมาให้แล้ว
+        </div>
+      )}
+      {error && (
+        <div className="mb-5 text-sm border px-4 py-3 rounded-xl bg-red-50 border-red-200 text-red-900">
+          {error === "plate"
+            ? "ทะเบียนนี้มีอยู่ในระบบแล้ว — ใช้ทะเบียนอื่น"
+            : error === "price"
+              ? "ราคาต่อวันไม่ถูกต้อง"
+              : error === "notfound"
+                ? "ไม่พบรถต้นแบบที่จะคัดลอก"
+                : "กรอกข้อมูลไม่ครบ"}
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">จัดการรถ</h1>
@@ -229,6 +330,15 @@ export default async function AdminCarsPage({
                       >
                         แก้ไข
                       </Link>
+                      <DuplicateCarButton
+                        carId={car.id}
+                        brand={car.brand}
+                        name={car.name}
+                        pricePerDay={car.pricePerDay}
+                        rateCount={car._count?.rates ?? 0}
+                        hasPhoto={Boolean(car.photoUrl)}
+                        action={duplicateCarAction}
+                      />
                       <form action={toggleStatusAction}>
                         <input type="hidden" name="id" value={car.id} />
                         <input type="hidden" name="currentStatus" value={car.status} />
