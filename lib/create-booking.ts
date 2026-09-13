@@ -10,6 +10,7 @@ import { getPickupPoints } from "@/lib/pickup-points-server";
 import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
 import { sweepUnpaidHolds, holdUntilFrom } from "@/lib/unpaid-hold";
 import { getCarRates } from "@/lib/car-rates-server";
+import { bookingFeeOf } from "@/lib/car-money";
 import {
   bangkokDateStrOf,
   blockingRates,
@@ -310,7 +311,7 @@ export async function createBooking(
     bookingId: booking.id,
     isRequest,
     totalPrice,
-    deposit: settings.bookingFee,
+    deposit: bookingFeeOf(car, settings),
     afterHoursTotal: quote.afterHoursTotal,
   };
 }

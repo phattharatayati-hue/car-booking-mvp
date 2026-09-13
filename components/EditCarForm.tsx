@@ -19,6 +19,8 @@ export type CarForEdit = {
   source: string;
   status: string;
   costPerDay: number | null;
+  bookingFee: number | null;
+  securityDeposit: number | null;
   partnerId: string | null;
   bookingCount: number;
 };
@@ -28,9 +30,12 @@ export type PartnerOption = { id: string; name: string };
 export default function EditCarForm({
   car,
   partners,
+  defaults,
 }: {
   car: CarForEdit;
   partners: PartnerOption[];
+  /** ค่ากลางจากตั้งค่าระบบ ใช้เป็น placeholder ให้เห็นว่าเว้นว่างแล้วได้เท่าไร */
+  defaults: { bookingFee: number; securityDeposit: number };
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -76,6 +81,8 @@ export default function EditCarForm({
           source: data.get("source"),
           status: data.get("status"),
           costPerDay: data.get("costPerDay") || null,
+          bookingFee: data.get("bookingFee") || null,
+          securityDeposit: data.get("securityDeposit") || null,
           partnerId: data.get("partnerId") || null,
           ...(photoUrl ? { photoUrl } : {}),
         }),
@@ -203,6 +210,44 @@ export default function EditCarForm({
               placeholder="เว้นว่างถ้าเป็นรถของเรา"
               className={inputClass}
             />
+          </div>
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <span className={labelClass}>ค่าจองและเงินประกันเฉพาะคันนี้</span>
+          <p className="text-xs text-slate-500 mb-3">
+            เว้นว่างไว้ = ใช้ค่ากลางจากหน้าตั้งค่าระบบ · กรอกเฉพาะคันที่เก็บไม่เท่าคันอื่น
+            เช่นรถใหญ่ที่ต้องวางประกันสูงกว่า
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="bookingFee">
+                ค่าจอง (บาท)
+              </label>
+              <input
+                id="bookingFee"
+                name="bookingFee"
+                type="number"
+                min="0"
+                defaultValue={car.bookingFee ?? ""}
+                placeholder={`ค่ากลาง ${defaults.bookingFee.toLocaleString()}`}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="securityDeposit">
+                เงินประกัน (บาท)
+              </label>
+              <input
+                id="securityDeposit"
+                name="securityDeposit"
+                type="number"
+                min="0"
+                defaultValue={car.securityDeposit ?? ""}
+                placeholder={`ค่ากลาง ${defaults.securityDeposit.toLocaleString()}`}
+                className={inputClass}
+              />
+            </div>
           </div>
         </div>
 

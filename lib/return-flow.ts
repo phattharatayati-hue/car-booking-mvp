@@ -2,19 +2,20 @@ import { prisma } from "@/lib/prisma";
 import { pushRaw, siteUrl } from "@/lib/line";
 import { flexReturnComplete } from "@/lib/line-flex";
 import { getSettings } from "@/lib/settings";
-import { FACEBOOK_REVIEW_URL, forLineBrowser } from "@/lib/contact";
+import { securityDepositOf } from "@/lib/car-money";
+import { LINE_OA_ID } from "@/lib/contact";
 
 /**
- * ลิงก์ให้ลูกค้าไปรีวิวที่เพจเฟซบุ๊กของร้าน
+ * ลิงก์เปิดแชท LINE OA พร้อมข้อความตั้งต้นให้ลูกค้าแค่กดส่ง
  *
- * เลือกเพจแทนการตอบในแชท เพราะรีวิวบนเพจคนนอกเห็น ช่วยให้ลูกค้าใหม่ตัดสินใจ
- * ส่วนความเห็นที่อยากบอกร้านตรง ๆ ลูกค้าพิมพ์ในแชทได้อยู่แล้วโดยไม่ต้องมีปุ่ม
- *
- * `inLine` = ลิงก์ที่ส่งในแชท LINE ต้องบังคับเปิดเบราว์เซอร์ของเครื่อง
- * ไม่งั้นเฟซบุ๊กในเบราว์เซอร์ของ LINE จะขอให้ล็อกอินใหม่แล้วลูกค้าเลิกกลางทาง
+ * ไม่ได้พาไปหน้ารีวิวสาธารณะ เพราะร้านเก็บรีวิวผ่าน LINE OA เอง
+ * ลูกค้าจะได้ไม่ต้องออกจากแอปไปไหน และร้านได้ข้อความในแชทที่ตอบกลับต่อได้จริง
  */
-export function reviewUrl(inLine = false): string {
-  return inLine ? forLineBrowser(FACEBOOK_REVIEW_URL) : FACEBOOK_REVIEW_URL;
+export function reviewUrl(): string {
+  const text = encodeURIComponent(
+    "รีวิวการใช้บริการ:\n(ให้กี่ดาว และอยากบอกอะไรกับร้าน พิมพ์ต่อได้เลยครับ)"
+  );
+  return `https://line.me/R/oaMessage/${LINE_OA_ID}/?${text}`;
 }
 
 /**
@@ -33,12 +34,15 @@ export async function completeReturn(bookingId: string): Promise<void> {
     if (!booking) return;
 
     const settings = await getSettings();
+    /* เงินประกันของรถคันนั้น ไม่ใช่ค่ากลางเสมอไป — รถหรูบางคันเก็บ 5,000
+       ต้องคืนเท่าที่เก็บจริง ไม่งั้นลูกค้าได้คืนน้อยกว่าที่จ่ายมา */
+    const deposit = securityDepositOf(booking.car, settings);
 
     // สร้างรายการคืนเงินไว้เสมอ แม้ลูกค้าไม่ได้ผูก LINE — แอดมินจะได้เห็นในหน้าคืนเงิน
     // และโทรถามเลขบัญชีเองได้ ไม่ใช่หายไปเฉย ๆ
     if (!booking.refund) {
       await prisma.depositRefund.create({
-        data: { bookingId, depositAmount: settings.securityDeposit },
+        data: { bookingId, depositAmount: deposit },
       });
     }
 
@@ -50,12 +54,12 @@ export async function completeReturn(bookingId: string): Promise<void> {
         bookingId,
         carLabel: `${booking.car.brand} ${booking.car.name}`,
         plate: booking.car.licensePlate,
-        refundAmount: settings.securityDeposit,
+        refundAmount: deposit,
         reviewedHours: settings.refundReviewedHours,
         normalHours: settings.refundNormalHours,
         openHour: settings.refundOpenHour,
         closeHour: settings.refundCloseHour,
-        reviewUrl: reviewUrl(true),
+        reviewUrl: reviewUrl(),
         refundUrl: `${siteUrl()}/booking/${bookingId}/refund`,
       }),
     ]);

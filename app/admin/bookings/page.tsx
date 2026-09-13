@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
+import AdminDocUpload from "@/components/AdminDocUpload";
 import { pushMessage, siteUrl } from "@/lib/line";
 import { notifyBookingProgress } from "@/lib/booking-notify";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
@@ -134,6 +135,65 @@ async function confirmDepositAction(formData: FormData) {
 }
 
 /** แอดมินกดผ่านเอกสารหนึ่งใบ */
+/**
+ * แอดมินอัปเอกสารแทนลูกค้า แล้วนับเป็น "ผ่าน" ทันที
+ *
+ * ลูกค้ากลุ่มที่โทรมา/ทักแชทมาจะส่งรูปบัตรให้แอดมินทางแชท ไม่ได้เข้าหน้าเว็บของตัวเอง
+ * ไฟล์ถูกอัปจากเครื่องแอดมินซึ่งเห็นรูปอยู่แล้ว จึงไม่ต้องวนกลับมากดตรวจซ้ำอีกที
+ */
+async function adminUploadDocumentAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const kind = String(formData.get("kind") ?? "");
+  const fileUrl = String(formData.get("fileUrl") ?? "");
+
+  if (!bookingId || !DOCUMENT_KINDS.includes(kind as DocumentKind)) return;
+  // รับเฉพาะไฟล์ที่เพิ่งอัปผ่าน /api/upload ของเราเอง ไม่ใช่ URL อะไรก็ได้จากข้างนอก
+  if (!fileUrl.startsWith("/api/file?p=")) return;
+
+  await prisma.bookingDocument.upsert({
+    where: { bookingId_kind: { bookingId, kind: kind as DocumentKind } },
+    create: {
+      bookingId,
+      kind: kind as DocumentKind,
+      fileUrl,
+      status: "APPROVED",
+      reviewedBy: session.user.email ?? null,
+      reviewedAt: new Date(),
+    },
+    update: {
+      fileUrl,
+      status: "APPROVED",
+      rejectReason: null,
+      reviewedBy: session.user.email ?? null,
+      reviewedAt: new Date(),
+    },
+  });
+
+  await audit({
+    action: "booking.document_admin_upload",
+    summary: `แอดมินอัปเอกสาร ${DOCUMENT_LABEL[kind as DocumentKind]} แทนลูกค้า — การจอง ${bookingId
+      .slice(0, 8)
+      .toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+  });
+
+  const all = await prisma.bookingDocument.findMany({
+    where: { bookingId },
+    select: { status: true },
+  });
+  const allApproved =
+    all.length === DOCUMENT_KINDS.length &&
+    all.every((d: { status: string }) => d.status === "APPROVED");
+  if (allApproved) await notifyBookingProgress(bookingId);
+
+  revalidatePath("/admin/bookings");
+}
+
 async function approveDocumentAction(formData: FormData) {
   "use server";
   const session = await auth();
@@ -808,8 +868,7 @@ export default async function AdminBookingsPage({
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">รายการจอง</h1>
         <p className="text-slate-500 text-sm mt-1">
           พบ {total.toLocaleString()} รายการ
@@ -822,10 +881,6 @@ export default async function AdminBookingsPage({
             </span>
           )}
         </p>
-        </div>
-        <Link href="/admin/bookings/new" className={BTN.primary}>
-          + สร้างใบจองเอง
-        </Link>
       </div>
 
       {/* ค้นหา + เรียงลำดับ — เดิมต้องไถหาเองทั้งหน้า */}
@@ -1432,7 +1487,15 @@ export default async function AdminBookingsPage({
                           <span className="text-[11px] font-medium text-slate-500 leading-tight">
                             {DOCUMENT_LABEL[kind]}
                           </span>
-                          <span className="text-xs text-slate-400 shrink-0">ยังไม่ส่ง</span>
+                          <span className="shrink-0 flex items-center gap-2">
+                            <span className="text-xs text-slate-400">ยังไม่ส่ง</span>
+                            <AdminDocUpload
+                              bookingId={b.id}
+                              kind={kind}
+                              label={DOCUMENT_LABEL[kind]}
+                              action={adminUploadDocumentAction}
+                            />
+                          </span>
                         </div>
                       );
                     }

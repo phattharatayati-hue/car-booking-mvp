@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { pushRaw, siteUrl } from "@/lib/line";
 import { flexDepositConfirmed, flexReadyForPickup } from "@/lib/line-flex";
 import { getSettings } from "@/lib/settings";
+import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 import { DOCUMENT_KINDS, DOCUMENT_LABEL, type DocumentKind } from "@/lib/documents";
 import { highlightFees } from "@/lib/fees";
 
@@ -58,9 +59,10 @@ export async function notifyBookingProgress(bookingId: string): Promise<void> {
     if (b.readyNotifiedAt) return;
 
     const settings = await getSettings();
-    const paid = b.deposit?.amount ?? settings.bookingFee;
+    const paid = b.deposit?.amount ?? bookingFeeOf(b.car, settings);
+    const carDeposit = securityDepositOf(b.car, settings);
     const rentalBalance = Math.max(0, b.totalPrice - paid);
-    const dueOnPickup = rentalBalance + settings.securityDeposit;
+    const dueOnPickup = rentalBalance + carDeposit;
 
     await pushRaw(b.customer.lineUserId, [
       flexReadyForPickup({
@@ -72,7 +74,7 @@ export async function notifyBookingProgress(bookingId: string): Promise<void> {
         total: b.totalPrice,
         paid,
         rentalBalance,
-        securityDeposit: settings.securityDeposit,
+        securityDeposit: carDeposit,
         dueOnPickup,
         fees: highlightFees().map((f) => ({ title: f.title, amount: f.amount })),
         feesUrl: `${siteUrl()}/fees`,

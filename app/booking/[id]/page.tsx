@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { lineAddFriendUrl } from "@/lib/line-public";
@@ -366,8 +367,8 @@ export default async function BookingStatusPage({
           <div id="slip" className="scroll-mt-28">
             <SlipUpload
               bookingId={booking.id}
-              suggestedAmount={settings.bookingFee}
-              securityDeposit={settings.securityDeposit}
+              suggestedAmount={bookingFeeOf(booking.car, settings)}
+              securityDeposit={securityDepositOf(booking.car, settings)}
             />
           </div>
         )}

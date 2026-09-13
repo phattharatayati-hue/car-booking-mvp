@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { pushMessage, pushRaw, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
+import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
 import {
   card,
@@ -59,12 +60,13 @@ type Job = Prisma.BookingAssignmentGetPayload<{ include: typeof jobInclude }>;
 async function moneyDue(job: Job) {
   if (job.kind !== "DELIVERY") return null;
   const settings = await getSettings();
-  const paid = job.booking.deposit?.amount ?? settings.bookingFee;
+  const paid = job.booking.deposit?.amount ?? bookingFeeOf(job.booking.car, settings);
+  const carDeposit = securityDepositOf(job.booking.car, settings);
   const rental = Math.max(0, job.booking.totalPrice - paid);
   return {
     rental,
-    deposit: settings.securityDeposit,
-    total: rental + settings.securityDeposit,
+    deposit: carDeposit,
+    total: rental + carDeposit,
   };
 }
 

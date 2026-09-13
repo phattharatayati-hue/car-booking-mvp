@@ -29,6 +29,19 @@ export async function PATCH(
           : body.costPerDay === null || body.costPerDay === ""
           ? null
           : Number(body.costPerDay),
+      /* ค่าจอง/เงินประกันเฉพาะคัน — ส่งค่าว่างมาคือ "กลับไปใช้ค่ากลาง" ไม่ใช่ศูนย์ */
+      bookingFee:
+        body.bookingFee === undefined
+          ? undefined
+          : body.bookingFee === null || body.bookingFee === ""
+            ? null
+            : Number(body.bookingFee),
+      securityDeposit:
+        body.securityDeposit === undefined
+          ? undefined
+          : body.securityDeposit === null || body.securityDeposit === ""
+            ? null
+            : Number(body.securityDeposit),
       partnerId: body.partnerId === undefined ? undefined : body.partnerId || null,
       // ผูกเจ้าของรถ = รถพาร์ทเนอร์เสมอ กันข้อมูลขัดกัน
       source:

@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/roles";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EditCarForm from "@/components/EditCarForm";
+import { getSettings } from "@/lib/settings";
 
 export default async function EditCarPage({
   params,
@@ -18,13 +19,14 @@ export default async function EditCarPage({
   const car = await prisma.car.findUnique({ where: { id } });
   if (!car) notFound();
 
-  const [bookingCount, partners] = await Promise.all([
+  const [bookingCount, partners, settings] = await Promise.all([
     prisma.booking.count({ where: { carId: id } }),
     prisma.partner.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    getSettings(),
   ]);
 
   return (
@@ -62,10 +64,16 @@ export default async function EditCarPage({
           source: car.source,
           status: car.status,
           costPerDay: car.costPerDay,
+          bookingFee: car.bookingFee,
+          securityDeposit: car.securityDeposit,
           partnerId: car.partnerId,
           bookingCount,
         }}
         partners={partners}
+        defaults={{
+          bookingFee: settings.bookingFee,
+          securityDeposit: settings.securityDeposit,
+        }}
       />
     </div>
   );

@@ -88,6 +88,10 @@ model Car {
   licensePlate  String    @unique
   pricePerDay   Int       // ราคาที่ลูกค้าจ่าย
   costPerDay    Int?      // ราคาทุนที่จ่ายเจ้าของรถ (เฉพาะรถพาร์ทเนอร์)
+  /// ค่าจองของคันนี้ — ว่างคือใช้ค่ากลางจากตั้งค่าระบบ
+  bookingFee      Int?
+  /// เงินประกันของคันนี้ — ว่างคือใช้ค่ากลางจากตั้งค่าระบบ (รถหรูมักเก็บสูงกว่า)
+  securityDeposit Int?
   photoUrl      String?
   source        CarSource @default(OWN)
   status        CarStatus @default(AVAILABLE)
