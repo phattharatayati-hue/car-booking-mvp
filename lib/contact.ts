@@ -21,7 +21,7 @@ export const COMPANY = {
 };
 
 /** LINE Official Account ของบริษัท */
-export const LINE_OA_ID = "@606ugqjs";
+export const LINE_OA_ID = "@623oohcz";
 
 export const PHONES = ["061-280-9588", "092-745-8074"];
 
