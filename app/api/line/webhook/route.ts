@@ -18,7 +18,12 @@ import {
 import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
-import { PHONES, OFFICE_HOURS } from "@/lib/contact";
+import {
+  PHONES,
+  OFFICE_HOURS,
+  FACEBOOK_REVIEW_URL,
+  forLineBrowser,
+} from "@/lib/contact";
 import {
   flexBookingStatus,
   flexStatusEmpty,
@@ -59,6 +64,9 @@ const HELP_TEXT = [
   "• ติดต่อ — เบอร์โทรและเวลาทำการ",
   "",
   "หรือกดปุ่มจากเมนูด้านล่างได้เลยครับ",
+  "",
+  "อ่านรีวิวจากลูกค้าที่ใช้บริการจริง:",
+  forLineBrowser(FACEBOOK_REVIEW_URL),
 ].join("\n");
 
 /** คำที่คนรับ-ส่งรถใช้เรียกดูคิวงานของตัวเอง */
