@@ -191,6 +191,25 @@ event กันเวลาเดินทาง 30 นาที และเต
 ใบที่เลยเวลาถูกยกเลิกด้วย **lazy sweep** (`lib/unpaid-hold.ts` → `sweepUnpaidHolds()`) ที่เรียกก่อนเช็คทับคิว
 ไม่ใช่ cron เพราะ Hobby รัน cron ได้วันละครั้ง — ใช้ cron ไม่ทันกับเวลา 30 นาที
 
+**ยกเลิกใบจอง = ต้องเคลียร์ปฏิทินและคนส่งรถด้วยเสมอ** — event ใน Google Calendar ผูกกับ
+`BookingAssignment` ไม่ได้ผูกกับ `Booking` ถ้าเปลี่ยนสถานะใบจองอย่างเดียว งานมอบหมายจะยังอยู่
+event ค้างในปฏิทินของคนส่งรถ และการ์ดงานใน LINE ก็ยังอยู่ — มีคนขับไปตามนัดที่ยกเลิกไปแล้วได้จริง
+
+ใช้ `clearBookingAssignments(bookingId)` ใน `lib/calendar-sync.ts` ตัวเดียวทุกที่
+(แจ้ง LINE คนรับงาน → ลบ event → ลบแถว) เรียกจาก 3 จุด:
+
+| จุด | ไฟล์ |
+|---|---|
+| แอดมินกดยกเลิกการจอง | `app/admin/bookings/page.tsx` → `cancelBookingAction` |
+| แอดมินกดปฏิเสธคำขอ (รถไม่ว่าง) | `app/admin/bookings/page.tsx` → `rejectRequestAction` |
+| ระบบยกเลิกอัตโนมัติเพราะไม่อัปสลิปทัน | `lib/unpaid-hold.ts` → `sweepUnpaidHolds` |
+
+ฟังก์ชันไม่ throw ออกมา — Google ล่มต้องไม่ทำให้การยกเลิกใบจองล้ม
+
+**ลบใบจองทิ้ง ≠ ยกเลิก** — `BookingAssignment` ถูกลบตาม cascade พา `googleEventId` หายไปด้วย
+ทำให้ event ค้างในปฏิทินแบบตามไปลบไม่ได้อีกเลย สคริปต์ใดก็ตามที่ลบ `Booking` **ต้องถอน event ก่อน**
+(`scripts/cleanup-test.ts` และ `scripts/reset-bookings.ts` ทำแล้ว)
+
 **เอกสารส่งได้หลังมีสลิปเท่านั้น** — ช่องอัปโหลดเอกสารในหน้า `/booking/[id]` ปิดอยู่จนกว่าจะมี `deposit`
 กันคนส่งรูปบัตรประชาชนมาแล้วไม่จอง — เก็บเอกสารของคนที่ยังไม่ใช่ลูกค้าจริงคือความเสี่ยงเปล่า ๆ
 
@@ -261,7 +280,8 @@ event กันเวลาเดินทาง 30 นาที และเต
 | `lib/device-bookings.ts` | จำการจองไว้ในเครื่องลูกค้า (localStorage ไม่มีวันหมดอายุ) |
 | `lib/google-health.ts` | เช็คว่า token ปฏิทินยังใช้ได้ + แจ้งเตือนเมื่อหลุด |
 | `lib/ui.ts` | **คลาสปุ่มกลาง (`BTN`) กล่องแจ้งผล (`NOTICE`) ข้อความยืนยัน (`CONFIRM`)** |
-| `lib/unpaid-hold.ts` | กันคิวรถของใบที่ยังไม่โอน + sweep ใบที่เลยเวลา |
+| `lib/unpaid-hold.ts` | กันคิวรถของใบที่ยังไม่โอน + sweep ใบที่เลยเวลา (เคลียร์ปฏิทินให้ด้วย) |
+| `lib/calendar-sync.ts` | ซิงก์/ลบ event ปฏิทิน · **`clearBookingAssignments()` ใช้ตอนยกเลิกใบจอง** |
 | `lib/car-swap.ts` | เหตุผลการเปลี่ยนรถ (**ห้ามใส่ prisma**) |
 | `lib/return-flow.ts` | ปิดงานรับรถคืน → สร้างคิวคืนเงินประกัน + ชวนรีวิว |
 | `lib/refund.ts` | คำนวณกำหนดโอนตามเวลาทำการ + ตรวจเลขบัญชี |
@@ -311,6 +331,8 @@ npm run dev
 | `npx tsx prisma/seed-after-hours.ts` | ใส่ช่วงค่าบริการนอกเวลาเริ่มต้น 3 ช่วง |
 | `npx tsx prisma/cleanup-demo-cars.ts` | เก็บกวาดรถเดโม (ใส่ `--apply` เพื่อลงมือจริง) |
 | `npx tsx scripts/setup-richmenu.ts` | ติดตั้ง rich menu ขึ้น LINE OA |
+| `npx tsx scripts/cleanup-test.ts` | ลบเฉพาะข้อมูลทดสอบ เก็บใบจองจริง (ไม่ใส่ `--yes` = ดูเฉย ๆ) |
+| `npx tsx scripts/sweep-dead-events.ts` | กวาด event ที่ค้างในปฏิทินของใบจองที่จบไปแล้ว (ไม่ใส่ `--yes` = ดูเฉย ๆ) |
 | `npm run build` | **ต้องรันก่อน push ทุกครั้ง** |
 | `npx tsc --noEmit` | ตรวจ type |
 

@@ -6,7 +6,7 @@ import PublicShell from "@/components/PublicShell";
 import { getSettings } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
-import { BANK_ACCOUNT, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
+import { BANK_ACCOUNT, BANK, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
 import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
 
 import {
@@ -294,6 +294,31 @@ export default async function HowToBookPage() {
                 บัญชีรับโอน
               </p>
               <p className="font-semibold text-blue-900 text-lg">{BANK_ACCOUNT}</p>
+
+              {/* แอปธนาคารสแกน QR บนหน้าจอเครื่องตัวเองไม่ได้ ต้องบันทึกรูปไปเลือกจากคลังภาพ
+                  จึงต้องมีทั้งปุ่มบันทึก QR และปุ่มคัดลอกเลขบัญชีให้เลือกทางที่ถนัด */}
+              <div className="mt-4 flex flex-col sm:flex-row gap-4 sm:items-center">
+                <Image
+                  src="/payment-qr.png"
+                  alt={`QR พร้อมเพย์ ${BANK.accountName}`}
+                  width={128}
+                  height={128}
+                  className="rounded-xl bg-white p-2 shadow-sm shrink-0 self-start"
+                />
+                <div className="text-sm text-blue-900/80 space-y-1.5">
+                  <p>
+                    สแกน QR นี้ในแอปธนาคารได้เลย หรือกด{" "}
+                    <b>บันทึกรูป QR</b> ไว้ในเครื่องแล้วเลือกจากคลังภาพ
+                  </p>
+                  <p>
+                    ถ้าสะดวกพิมพ์เลขบัญชีเอง ในหน้าติดตามการจองมีปุ่ม{" "}
+                    <b>คัดลอกเลขบัญชี</b> ให้กดได้เลย ไม่ต้องพิมพ์ตามทีละตัว
+                  </p>
+                  <p className="text-blue-700/70">
+                    บันทึกรูปไม่ได้ให้กดค้างที่รูปแล้วเลือกบันทึกภาพ
+                  </p>
+                </div>
+              </div>
             </div>
             <SlipDiagram />
             <Tips
