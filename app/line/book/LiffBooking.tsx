@@ -28,9 +28,10 @@ import {
   isTimeBusy,
   type BusySpan,
 } from "@/lib/day-slots";
-import { BANK_ACCOUNT } from "@/lib/contact";
+import { BANK_ACCOUNT, BANK } from "@/lib/contact";
 
 import type { Liff } from "@/lib/liff-types";
+import CopyButton from "@/components/CopyButton";
 
 const SDK_URL = "https://static.line-scdn.net/liff/edge/2/sdk.js";
 const LOGIN_ATTEMPT_KEY = "liff_booking_login_attempt";
@@ -367,9 +368,44 @@ export default function LiffBooking({
             <p className="text-2xl font-bold text-blue-900">
               {result.deposit.toLocaleString()} ฿
             </p>
-            <p className="text-xs text-blue-800/80 mt-2 leading-relaxed">
-              {BANK_ACCOUNT}
-              <br />
+
+            {/* หน้านี้เปิดอยู่ในแอป LINE บนมือถือเครื่องเดียวกับที่ลูกค้าใช้แอปธนาคาร
+                สแกนหน้าจอตัวเองไม่ได้ จึงต้องมีทั้งบันทึกรูป QR และคัดลอกเลขบัญชี */}
+            <div className="mt-3 flex gap-3 items-start">
+              <div className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/payment-qr.png"
+                  alt={`QR ${BANK.accountName}`}
+                  width={128}
+                  height={128}
+                  className="w-32 h-32 rounded-xl bg-white p-1.5 border border-blue-200"
+                />
+                <a
+                  href="/payment-qr.png"
+                  download="phuping-qr.png"
+                  className="mt-1.5 w-32 inline-flex items-center justify-center px-2 py-1.5 rounded-lg bg-white border border-blue-200 text-blue-800 text-[11px] font-semibold"
+                >
+                  บันทึกรูป QR
+                </a>
+              </div>
+
+              <div className="text-xs text-blue-800/80 leading-relaxed min-w-0">
+                <p>{BANK.name}</p>
+                <p className="text-sm font-bold text-blue-900 tracking-wide my-0.5">
+                  {BANK.number}
+                </p>
+                <p className="truncate">ชื่อบัญชี {BANK.accountName}</p>
+                <div className="mt-1.5">
+                  <CopyButton value={BANK.number.replace(/-/g, "")} label="คัดลอกเลขบัญชี" />
+                </div>
+                <p className="mt-2 text-[11px] text-blue-800/70">
+                  บันทึก QR ไม่ได้ให้กดค้างที่รูปแล้วเลือกบันทึก
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-blue-800/80 mt-3 leading-relaxed border-t border-blue-200/70 pt-2">
               โอนแล้วส่งรูปสลิปในแชท LINE ได้เลย
             </p>
           </div>
