@@ -5,7 +5,9 @@ import PublicShell from "@/components/PublicShell";
 import FeeIcon from "@/components/FeeIcon";
 import { FEE_TERMS, SECURITY_DEPOSIT } from "@/lib/fees";
 import { getFeeItems } from "@/lib/fees-server";
+import { buildFeePosterSvg } from "@/lib/fee-poster";
 import { getSettings } from "@/lib/settings";
+import { siteUrl } from "@/lib/line";
 import { PHONES, telHref } from "@/lib/contact";
 
 export const metadata = {
@@ -16,6 +18,14 @@ export const metadata = {
 
 export default async function FeesPage() {
   const [settings, feeItems] = await Promise.all([getSettings(), getFeeItems()]);
+
+  /* โปสเตอร์วาดจากรายการชุดเดียวกับที่แสดงด้านบน จึงไม่มีทางไม่ตรงกัน
+     ฝังเป็น SVG ในหน้าเลย ไม่ใช่ <img> เพราะจะได้ใช้ฟอนต์ของเว็บและปรินต์ได้คม */
+  const posterSvg = buildFeePosterSvg({
+    items: feeItems,
+    securityDeposit: settings.securityDeposit,
+    siteUrl: siteUrl(),
+  });
 
   return (
     <PublicShell>
@@ -107,6 +117,42 @@ export default async function FeesPage() {
             </div>
           ))}
         </div>
+
+        {/* ฉบับโปสเตอร์ — วาดจากข้อมูลชุดเดียวกัน ไม่ใช่รูปที่อัปโหลดไว้
+            จึงไม่มีวันขึ้นราคาเก่าเหมือนโปสเตอร์รูปภาพที่เคยใช้ */}
+        <section className="mt-12">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">ฉบับโปสเตอร์</h2>
+              <p className="text-slate-500 text-sm mt-1">
+                สำหรับปรินต์ติดไว้ดู หรือบันทึกเก็บไว้ — ยอดตรงกับรายการด้านบนเสมอ
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {/* PNG ไว้เซฟลงมือถือและส่งในแชท · SVG ไว้ปรินต์เพราะคมทุกความละเอียด */}
+              <a
+                href="/fees-poster.png"
+                target="_blank"
+                rel="noreferrer"
+                className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
+              >
+                บันทึกเป็นรูป
+              </a>
+              <a
+                href="/fees-poster.svg"
+                target="_blank"
+                rel="noreferrer"
+                className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
+              >
+                ไฟล์สำหรับพิมพ์
+              </a>
+            </div>
+          </div>
+          <div
+            className="mx-auto max-w-[600px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+            dangerouslySetInnerHTML={{ __html: posterSvg }}
+          />
+        </section>
 
         <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="font-semibold text-amber-900 mb-3">เงื่อนไขและข้อกำหนด</h2>

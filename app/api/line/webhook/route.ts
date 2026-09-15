@@ -233,12 +233,18 @@ async function handleEvent(event: LineEvent) {
     lower === "fees"
   ) {
     const fees = await getHighlightFees();
+
+    /* ส่งการ์ดสรุปก่อน แล้วตามด้วยโปสเตอร์เป็นรูป
+       เพราะลูกค้ากดบันทึกรูปเก็บไว้ได้ แต่การ์ด Flex บันทึกไม่ได้
+       โปสเตอร์วาดจากรายการชุดเดียวกัน จึงไม่มีทางขึ้นราคาเก่า */
+    const poster = `${site}/fees-poster.png`;
     await replyRaw(replyToken, [
       flexFees({
         lines: fees.map((f) => `${f.title} — ${f.amount}`),
         depositNote: `เงินประกันความเสียหาย ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนถ้าคืนรถเรียบร้อย`,
-        url: `${siteUrl()}/fees`,
+        url: `${site}/fees`,
       }),
+      { type: "image", originalContentUrl: poster, previewImageUrl: poster },
     ]);
     return;
   }
