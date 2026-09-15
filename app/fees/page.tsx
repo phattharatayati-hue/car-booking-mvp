@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
-import FeeIcon from "@/components/FeeIcon";
 import { FEE_TERMS, SECURITY_DEPOSIT } from "@/lib/fees";
 import { getFeeItems } from "@/lib/fees-server";
 import { buildFeePosterSvg } from "@/lib/fee-poster";
@@ -21,11 +20,14 @@ export default async function FeesPage() {
 
   /* โปสเตอร์วาดจากรายการชุดเดียวกับที่แสดงด้านบน จึงไม่มีทางไม่ตรงกัน
      ฝังเป็น SVG ในหน้าเลย ไม่ใช่ <img> เพราะจะได้ใช้ฟอนต์ของเว็บและปรินต์ได้คม */
-  const posterSvg = buildFeePosterSvg({
+  const posterArgs = {
     items: feeItems,
     securityDeposit: settings.securityDeposit,
     siteUrl: siteUrl(),
-  });
+    themed: true,
+  };
+  const posterSvg = buildFeePosterSvg(posterArgs);
+  const posterMobileSvg = buildFeePosterSvg({ ...posterArgs, variant: "mobile" as const });
 
   return (
     <PublicShell>
@@ -81,78 +83,47 @@ export default async function FeesPage() {
           </div>
         </div>
 
-        <h2 className="text-xl font-bold text-slate-900 mt-10 mb-1">รายการค่าปรับและค่าบริการ</h2>
-        <p className="text-slate-500 text-sm mb-5">
-          หักจากเงินประกันก่อน ส่วนที่เหลือคืนให้ ถ้าเกินจะแจ้งยอดพร้อมหลักฐานให้ทราบ
-        </p>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          {feeItems.map((f) => (
-            <div
-              key={f.title}
-              className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-4"
+        <div className="mt-10 mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">รายการค่าปรับและค่าบริการ</h2>
+            <p className="text-slate-500 text-sm mt-1">
+              หักจากเงินประกันก่อน ส่วนที่เหลือคืนให้ ถ้าเกินจะแจ้งยอดพร้อมหลักฐานให้ทราบ
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {/* PNG ไว้เซฟลงมือถือและส่งในแชท · SVG ไว้ปรินต์เพราะคมทุกความละเอียด */}
+            <a
+              href="/fees-poster.png"
+              target="_blank"
+              rel="noreferrer"
+              className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
             >
-              <span
-                className={`w-11 h-11 shrink-0 rounded-xl grid place-items-center ${
-                  f.highlight
-                    ? "bg-amber-50 text-amber-700 border border-amber-200"
-                    : "bg-slate-100 text-slate-500"
-                }`}
-              >
-                <FeeIcon name={f.icon} className="w-6 h-6" />
-              </span>
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-900 text-[15px]">{f.title}</p>
-                <p
-                  className={`font-display font-bold text-lg tabular-nums ${
-                    f.amount.includes("ไม่คืน") ? "text-red-700" : "text-slate-900"
-                  }`}
-                >
-                  {f.amount}
-                </p>
-                {f.note ? (
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">{f.note}</p>
-                ) : null}
-              </div>
-            </div>
-          ))}
+              บันทึกเป็นรูป
+            </a>
+            <a
+              href="/fees-poster.svg"
+              target="_blank"
+              rel="noreferrer"
+              className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
+            >
+              ไฟล์สำหรับพิมพ์
+            </a>
+          </div>
         </div>
 
-        {/* ฉบับโปสเตอร์ — วาดจากข้อมูลชุดเดียวกัน ไม่ใช่รูปที่อัปโหลดไว้
-            จึงไม่มีวันขึ้นราคาเก่าเหมือนโปสเตอร์รูปภาพที่เคยใช้ */}
-        <section className="mt-12">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">ฉบับโปสเตอร์</h2>
-              <p className="text-slate-500 text-sm mt-1">
-                สำหรับปรินต์ติดไว้ดู หรือบันทึกเก็บไว้ — ยอดตรงกับรายการด้านบนเสมอ
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {/* PNG ไว้เซฟลงมือถือและส่งในแชท · SVG ไว้ปรินต์เพราะคมทุกความละเอียด */}
-              <a
-                href="/fees-poster.png"
-                target="_blank"
-                rel="noreferrer"
-                className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
-              >
-                บันทึกเป็นรูป
-              </a>
-              <a
-                href="/fees-poster.svg"
-                target="_blank"
-                rel="noreferrer"
-                className="px-5 py-2.5 rounded-full bg-white border border-slate-200 hover:border-slate-300 text-slate-700 font-semibold text-sm transition-colors"
-              >
-                ไฟล์สำหรับพิมพ์
-              </a>
-            </div>
-          </div>
-          <div
-            className="mx-auto max-w-[600px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
-            dangerouslySetInnerHTML={{ __html: posterSvg }}
-          />
-        </section>
+        {/* โปสเตอร์มีสองฉบับ เพราะฉบับเดียวใช้ได้ไม่ดีทั้งสองที่
+            จอใหญ่ใช้ฉบับกว้าง 600 ยอดชิดขวามีจุดไข่ปลาลากไปหา
+            มือถือใช้ฉบับกว้าง 380 เรียงลงแนวตั้ง ถ้าเอาฉบับ 600 มาบีบ ตัวหนังสือจะเหลือราว 9px
+            ทั้งสองฉบับวาดจากรายการชุดเดียวกัน ไม่มีทางไม่ตรงกัน */}
+        <div
+          className="fee-poster hidden sm:block mx-auto max-w-[600px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+          dangerouslySetInnerHTML={{ __html: posterSvg }}
+        />
+
+        <div
+          className="fee-poster sm:hidden mx-auto max-w-[380px] rounded-2xl border border-slate-200 bg-white p-2 shadow-sm [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+          dangerouslySetInnerHTML={{ __html: posterMobileSvg }}
+        />
 
         <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <h2 className="font-semibold text-amber-900 mb-3">เงื่อนไขและข้อกำหนด</h2>

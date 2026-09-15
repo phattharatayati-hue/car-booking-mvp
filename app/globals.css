@@ -573,3 +573,24 @@ html[data-theme="dark"] .hero-veil {
     margin: 12mm;
   }
 }
+
+/* โปสเตอร์ค่าปรับที่ฝังในหน้า /fees
+   ตัวโปสเตอร์เป็น SVG ที่อ้างตัวแปรพวกนี้ (ดู lib/fee-poster.ts → THEMED)
+   ค่าเริ่มต้นคือฉบับกระดาษขาว จึงตั้งเฉพาะชุดโหมดมืดตรงนี้พอ
+   ไฟล์แจก .svg/.png ไม่ได้อ้างตัวแปร จึงเป็นฉบับขาวเสมอ ซึ่งถูกแล้วสำหรับงานพิมพ์ */
+html[data-theme="dark"] .fee-poster {
+  --poster-paper: #131a17;
+  --poster-emerald: #1f6047;
+  --poster-ink: #e6ede9;
+  --poster-sub: #a9b8b1;
+  --poster-faint: #7d8d86;
+  --poster-hair: #26312c;
+  --poster-leader: #3a4741;
+  --poster-ivory: #1b2420;
+  --poster-pale: #d9c29b;
+  --poster-gold: #c9a570;
+  --poster-gold-text: #d4b483;
+  --poster-alert: #e07a55;
+  --poster-art-ink: #0d120f;
+  --poster-art-light: #eef3ef;
+}
