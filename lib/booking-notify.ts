@@ -4,7 +4,7 @@ import { flexDepositConfirmed, flexReadyForPickup } from "@/lib/line-flex";
 import { getSettings } from "@/lib/settings";
 import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 import { DOCUMENT_KINDS, DOCUMENT_LABEL, type DocumentKind } from "@/lib/documents";
-import { highlightFees } from "@/lib/fees";
+import { getHighlightFees } from "@/lib/fees-server";
 
 /**
  * แจ้งลูกค้าทาง LINE "ครั้งเดียว" เมื่อการจองพร้อมรับรถ
@@ -76,7 +76,7 @@ export async function notifyBookingProgress(bookingId: string): Promise<void> {
         rentalBalance,
         securityDeposit: carDeposit,
         dueOnPickup,
-        fees: highlightFees().map((f) => ({ title: f.title, amount: f.amount })),
+        fees: (await getHighlightFees()).map((f) => ({ title: f.title, amount: f.amount })),
         feesUrl: `${siteUrl()}/fees`,
         bookingUrl: link,
       }),

@@ -312,6 +312,27 @@ model AfterHoursRate {
   updatedAt   DateTime @updatedAt
 }
 
+/// ค่าปรับและค่าบริการเพิ่มเติม — แก้ได้จากหลังบ้าน /admin/fees
+/// amount เก็บเป็นข้อความ ไม่ใช่ตัวเลข เพราะของจริงมีทั้งช่วงราคา ("500 – 1,000 บาท")
+/// ราคาเริ่มต้น ("เริ่มต้น 2,000 บาท") และเงื่อนไขที่ไม่ใช่จำนวนเงิน ("ไม่คืนเงินทุกกรณี")
+model FeeItem {
+  id        String   @id @default(cuid())
+  /// ชื่อไอคอนใน components/FeeIcon.tsx — ค่าที่ไม่รู้จักจะแสดงไอคอนสำรอง
+  icon      String
+  title     String
+  amount    String
+  note      String?
+  /// โผล่ในสรุปย่อ: ฟอร์มจอง การ์ด LINE และหน้าคู่มือ
+  highlight Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  /// ลำดับการแสดง น้อยมาก่อน
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 /// มอบหมายแอดมินไปส่งรถ / ไปรับรถคืน
 /// หนึ่งงานมอบหมายให้หลายคนได้ (เช่น คนขับรถไปส่ง + คนขับรถตามไปรับกลับ)
 /// และคนละคนกันระหว่างงานส่งกับงานรับได้

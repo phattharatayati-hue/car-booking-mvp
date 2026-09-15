@@ -11,4 +11,5 @@ export const SETTINGS_TABS: TabItem[] = [
   { href: "/admin/settings", label: "ตั้งค่าระบบ" },
   { href: "/admin/pickup-points", label: "จุดรับ-ส่งรถ" },
   { href: "/admin/after-hours", label: "ค่าบริการนอกเวลา" },
+  { href: "/admin/fees", label: "ค่าปรับ" },
 ];

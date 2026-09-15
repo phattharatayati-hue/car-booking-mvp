@@ -1,6 +1,14 @@
 /**
- * ค่าปรับและค่าบริการเพิ่มเติม — แหล่งข้อมูลเดียวของทั้งระบบ
- * แก้ที่นี่แล้วเปลี่ยนทุกที่: หน้า /fees, หน้าคู่มือ, ฟอร์มจอง และข้อความใน LINE
+ * ค่าปรับและค่าบริการเพิ่มเติม — ชนิดข้อมูลและ "ค่าตั้งต้น"
+ *
+ * ของจริงที่ใช้แสดงมาจากตาราง FeeItem ในฐานข้อมูล แก้ได้จากหลังบ้าน /admin/fees
+ * อ่านผ่าน lib/fees-server.ts (`getFeeItems()` / `getHighlightFees()`) เท่านั้น
+ *
+ * รายการในไฟล์นี้เหลือไว้ 2 หน้าที่:
+ *   1. เป็นข้อมูลตั้งต้นให้ `npx tsx prisma/seed-fees.ts` ใส่ลงฐานข้อมูลครั้งแรก
+ *   2. เป็นตัวสำรองเวลาตารางยังว่าง — หน้าเว็บจะไม่ว่างเปล่าถ้ายังไม่ได้ seed
+ *
+ * ห้าม import FEE_ITEMS ไปแสดงผลตรง ๆ เพราะจะไม่เห็นราคาที่แอดมินแก้
  */
 
 export type FeeIconKey =
@@ -25,7 +33,7 @@ export type FeeItem = {
   highlight?: boolean;
 };
 
-export const FEE_ITEMS: FeeItem[] = [
+export const DEFAULT_FEE_ITEMS: FeeItem[] = [
   {
     icon: "smoke",
     title: "สูบบุหรี่ในรถ",
@@ -115,21 +123,22 @@ export const FEE_TERMS = [
   "การตัดสินของบริษัทฯ ถือเป็นที่สิ้นสุด",
 ];
 
-/** รายการที่ใช้แสดงแบบย่อในฟอร์มจองและในแชท LINE */
-export function highlightFees(): FeeItem[] {
-  return FEE_ITEMS.filter((f) => f.highlight);
-}
+/** ชื่อไอคอนทั้งหมดที่เลือกได้ในหลังบ้าน พร้อมคำอธิบายภาษาไทย */
+export const FEE_ICON_CHOICES: { key: FeeIconKey; label: string }[] = [
+  { key: "smoke", label: "บุหรี่" },
+  { key: "tar", label: "คราบยางมะตอย" },
+  { key: "dirty", label: "คราบสกปรก" },
+  { key: "key", label: "กุญแจ" },
+  { key: "keyService", label: "บริการเรื่องกุญแจ" },
+  { key: "unlock", label: "เปิดรถ" },
+  { key: "fuel", label: "น้ำมัน" },
+  { key: "tow", label: "รถลาก" },
+  { key: "ticket", label: "ใบสั่ง" },
+  { key: "earlyReturn", label: "คืนรถก่อนกำหนด" },
+  { key: "collision", label: "อุบัติเหตุ" },
+];
 
-/** ข้อความสรุปสำหรับส่งในแชท LINE */
-export function feeSummaryText(siteUrl: string): string {
-  const lines = highlightFees().map((f) => `• ${f.title} — ${f.amount}`);
-  return [
-    "⚠️ ค่าปรับที่พบบ่อย",
-    "",
-    ...lines,
-    "",
-    `เงินประกันความเสียหาย ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนถ้าคืนรถเรียบร้อย`,
-    "",
-    `รายการทั้งหมด: ${siteUrl}/fees`,
-  ].join("\n");
+/** ชื่อไอคอนที่แอดมินกรอกมาใช้ได้จริงไหม — กันค่าแปลกปลอมจากฐานข้อมูล */
+export function isFeeIconKey(v: string): v is FeeIconKey {
+  return FEE_ICON_CHOICES.some((c) => c.key === v);
 }

@@ -7,7 +7,8 @@ import { getSettings } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { BANK_ACCOUNT, BANK, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
-import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
+import { SECURITY_DEPOSIT } from "@/lib/fees";
+import { getHighlightFees } from "@/lib/fees-server";
 
 import {
   CustomerFlow,
@@ -148,10 +149,11 @@ const FAQ = [
 ];
 
 export default async function HowToBookPage() {
-  const [settings, points, rates] = await Promise.all([
+  const [settings, points, rates, fees] = await Promise.all([
     getSettings(),
     getPickupPoints(),
     getAfterHoursRates(),
+    getHighlightFees(),
   ]);
 
   const fee = settings.bookingFee;
@@ -548,22 +550,8 @@ export default async function HowToBookPage() {
             title="ค่าปรับที่ควรรู้"
             lead="เกิดขึ้นเฉพาะเมื่อมีเหตุจริง — คืนรถเรียบร้อยจะไม่มีค่าใช้จ่ายเหล่านี้เลย"
           >
-            <a
-              href="/fees-poster.jpg"
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-2xl overflow-hidden border border-slate-200 bg-white hover:border-slate-300 transition-colors"
-            >
-              <Image
-                src="/fees-poster.jpg"
-                alt="ตารางค่าปรับและค่าบริการเพิ่มเติม รถเช่า"
-                width={1080}
-                height={1935}
-                className="w-full h-auto"
-              />
-            </a>
             <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              {highlightFees().map((f) => (
+              {fees.map((f) => (
                 <li key={f.title} className="flex justify-between gap-3 border-b border-slate-100 pb-1.5">
                   <span className="text-slate-700">{f.title}</span>
                   <span className="font-semibold text-slate-900 tabular-nums shrink-0">

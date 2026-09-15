@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import Image from "next/image";
 import PublicShell from "@/components/PublicShell";
 import FeeIcon from "@/components/FeeIcon";
-import { FEE_ITEMS, FEE_TERMS, SECURITY_DEPOSIT } from "@/lib/fees";
+import { FEE_TERMS, SECURITY_DEPOSIT } from "@/lib/fees";
+import { getFeeItems } from "@/lib/fees-server";
 import { getSettings } from "@/lib/settings";
 import { PHONES, telHref } from "@/lib/contact";
 
@@ -15,7 +15,7 @@ export const metadata = {
 };
 
 export default async function FeesPage() {
-  const settings = await getSettings();
+  const [settings, feeItems] = await Promise.all([getSettings(), getFeeItems()]);
 
   return (
     <PublicShell>
@@ -77,7 +77,7 @@ export default async function FeesPage() {
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          {FEE_ITEMS.map((f) => (
+          {feeItems.map((f) => (
             <div
               key={f.title}
               className="bg-white rounded-2xl border border-slate-200 p-5 flex gap-4"
@@ -159,30 +159,7 @@ export default async function FeesPage() {
           คิดแยกจากเงินประกันความเสียหาย
         </p>
 
-        {/* โปสเตอร์ฉบับทางการ — ย้ายมาไว้ท้ายหน้า
 
-            เดิมอยู่บนสุด ต้องไถผ่านรูปยาวเกือบสองเท่าของจอก่อนถึงเนื้อหาที่อ่านได้จริง
-            ทั้งที่ตัวเลขในรูปเป็นภาพนิ่ง ค้นหาไม่เจอ ซูมแล้วเบลอ และแก้ราคาทีต้องทำรูปใหม่
-            เนื้อหาข้อความด้านบนคือฉบับจริงที่ผูกกับระบบ รูปเป็นแค่ไว้ส่งต่อในแชท */}
-        <details className="mt-10 rounded-3xl border border-slate-200 bg-white overflow-hidden">
-          <summary className="list-none cursor-pointer px-6 py-4 text-sm font-medium text-slate-700 hover:bg-slate-50">
-            ดูฉบับภาพสำหรับบันทึกหรือส่งต่อในแชท ▾
-          </summary>
-          <div className="px-4 pb-4">
-            <a href="/fees-poster.jpg" target="_blank" rel="noreferrer" className="block">
-              <Image
-                src="/fees-poster.jpg"
-                alt="ตารางค่าปรับและค่าบริการเพิ่มเติม รถเช่า ภูพิงค์ คาร์ เร้นท์"
-                width={1080}
-                height={1935}
-                className="w-full h-auto rounded-2xl border border-slate-200"
-              />
-            </a>
-            <p className="mt-2 text-center text-xs text-slate-500">
-              แตะที่ภาพเพื่อดูขนาดเต็ม · ถ้าตัวเลขในภาพไม่ตรงกับด้านบน ให้ยึดตามข้อความด้านบน
-            </p>
-          </div>
-        </details>
       </div>
     </PublicShell>
   );

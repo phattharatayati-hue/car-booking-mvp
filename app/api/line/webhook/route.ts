@@ -15,7 +15,8 @@ import {
   saveJobReading,
   driverHelpText,
 } from "@/lib/driver-jobs";
-import { highlightFees, SECURITY_DEPOSIT } from "@/lib/fees";
+import { SECURITY_DEPOSIT } from "@/lib/fees";
+import { getHighlightFees } from "@/lib/fees-server";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
 import {
@@ -231,9 +232,10 @@ async function handleEvent(event: LineEvent) {
     text.includes("เงินประกัน") ||
     lower === "fees"
   ) {
+    const fees = await getHighlightFees();
     await replyRaw(replyToken, [
       flexFees({
-        lines: highlightFees().map((f) => `${f.title} — ${f.amount}`),
+        lines: fees.map((f) => `${f.title} — ${f.amount}`),
         depositNote: `เงินประกันความเสียหาย ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนถ้าคืนรถเรียบร้อย`,
         url: `${siteUrl()}/fees`,
       }),
