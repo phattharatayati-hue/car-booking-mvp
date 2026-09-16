@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { unresolvedDocuments } from "@/lib/documents";
+import { clashWhere } from "@/lib/turnaround";
 import {
   replyMessage,
   replyRaw,
@@ -192,15 +193,14 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     where: {
       carId: car.id,
       status: { in: [...ACTIVE] },
-      startDate: { lt: end },
-      endDate: { gt: start },
+      ...clashWhere(start, end, (await getSettings()).turnaroundMinutes),
     },
   });
 
   if (clash) {
     await replyMessage(
       replyToken,
-      'ขออภัยครับ รถคันนี้มีคนจองในช่วงวันที่เลือกแล้ว\nกรุณาเลือกวันอื่น หรือพิมพ์ "จองรถ" เพื่อเลือกคันใหม่'
+      'ขออภัยครับ รถคันนี้มีคนจองในช่วงเวลาที่เลือกแล้ว (รวมเวลาเตรียมรถระหว่างคิว)\nกรุณาเลือกเวลาอื่น หรือพิมพ์ "จองรถ" เพื่อเลือกคันใหม่'
     );
     return;
   }
@@ -313,8 +313,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     where: {
       carId: car.id,
       status: { in: [...ACTIVE] },
-      startDate: { lt: end },
-      endDate: { gt: start },
+      ...clashWhere(start, end, (await getSettings()).turnaroundMinutes),
     },
   });
 

@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import { bangkokDateStr, bangkokDayRange, formatBangkokDateTime } from "@/lib/settings";
 import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
+import { getSettings } from "@/lib/settings";
+import { padRange } from "@/lib/turnaround";
 
 const DAY_MS = 86400000;
 
@@ -36,13 +38,15 @@ export async function getAvailability(
 
   // ปล่อยคิวของใบจองที่ไม่ได้อัปสลิปก่อน ปฏิทินจะได้ไม่โชว์ว่าไม่ว่างทั้งที่ว่างแล้ว
   await sweepUnpaidHolds();
+  const turnaround = (await getSettings()).turnaroundMinutes;
+  const pad = Math.max(0, turnaround) * 60_000;
 
   const bookings = await prisma.booking.findMany({
     where: {
       carId: { in: carIds },
       status: { in: [...ACTIVE_BOOKING_STATUSES] },
-      startDate: { lt: rangeEnd },
-      endDate: { gt: rangeStart },
+      startDate: { lt: new Date(rangeEnd.getTime() + pad) },
+      endDate: { gt: new Date(rangeStart.getTime() - pad) },
     },
     select: { carId: true, startDate: true, endDate: true },
   });
@@ -83,8 +87,9 @@ export async function getAvailability(
       }
 
       for (const b of mine) {
-        const bs = new Date(b.startDate);
-        const be = new Date(b.endDate);
+        // รวมช่วงเว้นเตรียมรถ — วันที่เหลือเวลาว่างไม่พอจะขึ้นเป็นติดบางช่วง/ทั้งวันตามจริง
+        const bs = new Date(new Date(b.startDate).getTime() - pad);
+        const be = new Date(new Date(b.endDate).getTime() + pad);
 
         // ไม่ทับกันเลย
         if (be <= dayStart || bs >= dayEnd) continue;
@@ -144,9 +149,11 @@ export async function getBusyRanges(
     select: { startDate: true, endDate: true },
   });
 
+  // ใบจองกินเวลาเพิ่มก่อน-หลังตามช่วงเว้นเตรียมรถ ฟอร์มจองจะปิดเวลาที่ชนให้เอง
+  const turnaround = (await getSettings()).turnaroundMinutes;
   const bookingRanges: BusyRange[] = (
     bookings as { startDate: Date; endDate: Date }[]
-  ).map((b) => ({ start: b.startDate, end: b.endDate }));
+  ).map((b) => padRange({ start: b.startDate, end: b.endDate }, turnaround));
 
   return [...bookingRanges, ...blockRanges].sort(
     (a, b) => a.start.getTime() - b.start.getTime()

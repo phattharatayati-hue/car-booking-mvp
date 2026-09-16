@@ -29,6 +29,7 @@ async function saveSettingsAction(formData: FormData) {
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
   const bookingFee = Number(formData.get("bookingFee"));
   const minLeadHours = Number(formData.get("minLeadHours"));
+  const turnaroundMinutes = Number(formData.get("turnaroundMinutes"));
   const securityDeposit = Number(formData.get("securityDeposit"));
   const lateHourlyFee = Number(formData.get("lateHourlyFee"));
   const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
@@ -85,6 +86,10 @@ async function saveSettingsAction(formData: FormData) {
   if (!Number.isInteger(minLeadHours) || minLeadHours < 0 || minLeadHours > 720) {
     redirect("/admin/settings?error=lead24");
   }
+  // เว้นเกินวันเดียวน่าจะพิมพ์ผิด
+  if (!Number.isInteger(turnaroundMinutes) || turnaroundMinutes < 0 || turnaroundMinutes > 1440) {
+    redirect("/admin/settings?error=turnaround");
+  }
   // กันคิวนานเกินวันเดียวไม่สมเหตุผล เพราะจุดประสงค์คือปล่อยคิวให้คนอื่นเร็ว ๆ
   if (!Number.isInteger(holdMinutes) || holdMinutes < 0 || holdMinutes > 1440) {
     redirect("/admin/settings?error=hold");
@@ -137,6 +142,7 @@ async function saveSettingsAction(formData: FormData) {
     returnReminderMinutesBefore: minutesBefore,
     bookingFee,
     minLeadHours,
+    turnaroundMinutes,
     securityDeposit,
     serviceNote,
     lateHourlyFee,
@@ -200,6 +206,9 @@ async function saveSettingsAction(formData: FormData) {
         `เวลาทำการคืนเงิน: ${before.refundOpenHour}:00-${before.refundCloseHour}:00 → ${refundOpenHour}:00-${refundCloseHour}:00`
       );
     }
+    if ((before.turnaroundMinutes ?? 120) !== turnaroundMinutes) {
+      changes.push(`เว้นช่วงเตรียมรถ: ${before.turnaroundMinutes ?? 120} → ${turnaroundMinutes} นาที`);
+    }
     if (before.minLeadHours !== minLeadHours) {
       changes.push(`ต้องจองล่วงหน้า: ${before.minLeadHours} → ${minLeadHours} ชม.`);
     }
@@ -248,6 +257,7 @@ const ERRORS: Record<string, string> = {
   late: "ค่าเลทต่อชั่วโมงและช่วงผ่อนปรนต้องเป็นจำนวนเต็มไม่ติดลบ",
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
+  turnaround: "ช่วงเว้นเตรียมรถต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่เว้น)",
   company: "ข้อมูลบริษัทไม่ครบ หรือยาวเกินกำหนด",
   signer: "ไม่พบบัญชีผู้ลงนามที่เลือก",
   signerNoSig:
@@ -413,6 +423,27 @@ export default async function SettingsPage({
               />
               <p className="text-xs text-slate-400 mt-1.5">
                 ค่าแนะนำคือ 24 ชั่วโมง · 48 = สองวัน · 0 = ไม่บังคับ
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="turnaroundMinutes">
+                เว้นช่วงเตรียมรถระหว่างคิว (นาที)
+              </label>
+              <input
+                id="turnaroundMinutes"
+                name="turnaroundMinutes"
+                type="number"
+                min="0"
+                max="1440"
+                step="15"
+                required
+                defaultValue={settings.turnaroundMinutes}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                เผื่อล้างรถก่อนคิวถัดไป · 120 = 2 ชั่วโมง (คืน 10:00 → คนถัดไปรับได้ 12:00) · 0 = ไม่เว้น
+                · แอดมินสร้างใบจองเองข้ามช่วงนี้ได้
               </p>
             </div>
 

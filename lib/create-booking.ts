@@ -1,3 +1,4 @@
+import { clashWhere, CLASH_TURNAROUND_NOTE } from "@/lib/turnaround";
 import { prisma } from "@/lib/prisma";
 import { getSettings, lateRuleFromSettings, toBangkokDate } from "@/lib/settings";
 import { quoteBooking } from "@/lib/pricing";
@@ -112,15 +113,18 @@ export async function createBooking(
     where: {
       carId,
       status: { in: [...ACTIVE_BOOKING_STATUSES] },
-      startDate: { lt: end },
-      endDate: { gt: start },
+      /* เว้นช่วงเตรียมรถระหว่างคิว — แอดมินที่ข้ามกฎลูกค้าได้ ข้ามช่วงเว้นได้ด้วย
+         (รู้เองว่าล้างรถทันไหม) แต่ทับเวลาจริงของใบอื่นไม่ได้ */
+      ...clashWhere(start, end, skipRules ? 0 : settings.turnaroundMinutes),
     },
   });
   if (overlapping) {
     return {
       ok: false,
       status: 409,
-      error: "รถคันนี้ถูกจองในช่วงวันที่เลือกแล้ว กรุณาเลือกวันอื่นหรือรถคันอื่น",
+      error:
+        "รถคันนี้ถูกจองในช่วงเวลาที่เลือกแล้ว กรุณาเลือกเวลาอื่นหรือรถคันอื่น" +
+        CLASH_TURNAROUND_NOTE(skipRules ? 0 : settings.turnaroundMinutes),
     };
   }
 
