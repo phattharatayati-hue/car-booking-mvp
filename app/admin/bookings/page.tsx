@@ -365,7 +365,7 @@ async function approveRequestAction(formData: FormData) {
       `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
       "",
       `กรุณาโอนค่าจอง ${(await getSettings()).bookingFee.toLocaleString()} บาท`,
-      "แล้วส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ",
+      "แล้วแนบสลิปและอัปโหลดเอกสารที่ลิงก์นี้ครับ",
       "",
       `${siteUrl()}/booking/${bookingId}`,
     ].join("\n")

@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob";
+import { unresolvedDocuments } from "@/lib/documents";
 import {
   replyMessage,
   replyRaw,
   getProfileName,
-  getMessageContent,
   notifyAdminRaw,
   siteUrl,
 } from "@/lib/line";
@@ -14,7 +13,7 @@ import {
   datePicker,
   bookingDone,
   flexNewBookingAdmin,
-  flexSlipUploadedAdmin,
+  flexUploadOnWeb,
   FlexCar,
 } from "@/lib/line-flex";
 
@@ -458,93 +457,55 @@ export async function handlePhoneInput(
   return true;
 }
 
-/** รับรูปสลิปที่ลูกค้าส่งเข้ามาในแชท */
-export async function handleSlipImage(
+/**
+ * ลูกค้าส่งรูปเข้ามาในแชท
+ *
+ * ไม่รับสลิปหรือเอกสารทางแชทแล้ว — ทุกอย่างแนบผ่านหน้าการจองบนเว็บ
+ * เพราะรูปในแชทไม่รู้ว่าเป็นเอกสารชนิดไหน และเคยตอบซ้ำทีละรูปจนลูกค้างง
+ *
+ * - ยังไม่แนบสลิป            → ตอบปุ่มแนบสลิป
+ * - แนบแล้วแต่เอกสารไม่ครบ  → ตอบปุ่มอัปโหลดเอกสาร
+ * - อย่างอื่น                → เงียบ ให้แอดมินคุยเอง (รูปยังอยู่ในแชท OA)
+ *
+ * ส่งหลายรูปพร้อมกัน LINE จะส่ง event มาทีละรูปพร้อม imageSet
+ * ตอบเฉพาะรูปแรกของชุด
+ */
+export async function handleCustomerImage(
   replyToken: string,
   lineUserId: string,
-  messageId: string
-): Promise<boolean> {
+  imageSet?: { index?: number; total?: number }
+): Promise<void> {
+  if (imageSet && (imageSet.index ?? 1) > 1) return;
+
   const customer = await prisma.customer.findUnique({ where: { lineUserId } });
-  if (!customer) {
-    await replyMessage(
-      replyToken,
-      'ยังไม่พบการจองของคุณครับ\nพิมพ์ "จองรถ" เพื่อเริ่มจองได้เลย'
-    );
-    return true;
-  }
+  if (!customer) return;
 
-  // การจองล่าสุดที่ยังรอสลิป
   const booking = await prisma.booking.findFirst({
-    where: { customerId: customer.id, status: "PENDING_DEPOSIT" },
+    where: {
+      customerId: customer.id,
+      status: { in: ["PENDING_DEPOSIT", "CONFIRMED"] },
+      endDate: { gte: new Date() },
+    },
     orderBy: { createdAt: "desc" },
-    include: { car: true, deposit: true },
+    include: { deposit: true, documents: true },
   });
+  if (!booking) return;
 
-  if (!booking) {
-    await replyMessage(
-      replyToken,
-      "ไม่พบการจองที่รอสลิปค่าจองครับ\nถ้าต้องการจองใหม่ พิมพ์ \"จองรถ\" ได้เลย"
-    );
-    return true;
+  const bookingUrl = `${siteUrl()}/booking/${booking.id}`;
+  const needSlip = !booking.deposit || booking.deposit.status === "REJECTED";
+
+  if (needSlip && booking.status === "PENDING_DEPOSIT") {
+    await replyRaw(replyToken, [
+      flexUploadOnWeb({ bookingId: booking.id, target: "slip", bookingUrl }),
+    ]);
+    return;
   }
 
-  const content = await getMessageContent(messageId);
-  if (!content) {
-    await replyMessage(replyToken, "ดาวน์โหลดรูปไม่สำเร็จ กรุณาส่งใหม่อีกครั้งครับ");
-    return true;
+  if (booking.deposit && unresolvedDocuments(booking.documents).length > 0) {
+    await replyRaw(replyToken, [
+      flexUploadOnWeb({ bookingId: booking.id, target: "docs", bookingUrl }),
+    ]);
   }
-
-  try {
-    const ext = content.contentType.includes("png") ? "png" : "jpg";
-    const blob = await put(`slips/line-${booking.id}-${messageId}.${ext}`, content.buffer, {
-      access: "private",
-      addRandomSuffix: true,
-      contentType: content.contentType,
-    });
-
-    const settings = await getSettings();
-    const amount = booking.deposit?.amount || settings.bookingFee;
-    const slipUrl = `/api/file?p=${encodeURIComponent(blob.pathname)}`;
-
-    await prisma.deposit.upsert({
-      where: { bookingId: booking.id },
-      create: {
-        bookingId: booking.id,
-        amount,
-        slipImageUrl: slipUrl,
-        status: "PENDING",
-      },
-      update: { slipImageUrl: slipUrl, status: "PENDING" },
-    });
-
-    await replyMessage(
-      replyToken,
-      [
-        "✅ ได้รับสลิปแล้วครับ",
-        "",
-        `รหัสจอง: ${booking.id.slice(0, 8).toUpperCase()}`,
-        `รถ: ${booking.car.brand} ${booking.car.name}`,
-        "",
-        "แอดมินจะตรวจสอบและยืนยันให้เร็วที่สุด",
-        "เราจะแจ้งผลกลับมาทางแชทนี้ครับ",
-      ].join("\n")
-    );
-
-    await notifyAdminRaw(
-      flexSlipUploadedAdmin({
-        bookingId: booking.id,
-        carLabel: `${booking.car.brand} ${booking.car.name}`,
-        customerName: customer.fullName,
-        amount,
-        adminUrl: `${siteUrl()}/admin/bookings`,
-      })
-    );
-  } catch (err) {
-    console.error("slip upload failed:", err);
-    await replyMessage(replyToken, "บันทึกสลิปไม่สำเร็จ กรุณาลองใหม่อีกครั้งครับ");
-  }
-
-  return true;
 }
 
 /** จัดการ postback ทั้งหมดจากปุ่มในแชท */

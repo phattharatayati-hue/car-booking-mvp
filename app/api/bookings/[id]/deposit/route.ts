@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notifyAdminRaw, siteUrl } from "@/lib/line";
-import { flexSlipUploadedAdmin } from "@/lib/line-flex";
+import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
+import { flexSlipReceived, flexSlipUploadedAdmin } from "@/lib/line-flex";
+import { DOCUMENT_LABEL, unresolvedDocuments } from "@/lib/documents";
 
 export async function POST(
   request: Request,
@@ -20,7 +21,7 @@ export async function POST(
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { deposit: true, car: true, customer: true },
+    include: { deposit: true, car: true, customer: true, documents: true },
   });
   if (!booking) {
     return NextResponse.json({ error: "ไม่พบรายการจอง" }, { status: 404 });
@@ -87,6 +88,23 @@ export async function POST(
     );
   } catch (err) {
     console.error("notifyAdmin failed:", err);
+  }
+
+  /* ส่งต่อให้ลูกค้าอัปโหลดเอกสารทันที ไม่ต้องรอแอดมินตรวจสลิป
+     ลูกค้าที่จองโดยไม่ผูก LINE จะไม่ได้ข้อความนี้ แต่หน้าเว็บเปิดช่องเอกสารให้ต่ออยู่แล้ว */
+  if (booking.customer.lineUserId) {
+    try {
+      await pushRaw(booking.customer.lineUserId, [
+        flexSlipReceived({
+          bookingId: booking.id,
+          carLabel: `${booking.car.brand} ${booking.car.name}`,
+          missing: unresolvedDocuments(booking.documents).map((k) => DOCUMENT_LABEL[k]),
+          bookingUrl: `${siteUrl()}/booking/${booking.id}`,
+        }),
+      ]);
+    } catch (err) {
+      console.error("push slip received failed:", err);
+    }
   }
 
   return NextResponse.json(deposit);

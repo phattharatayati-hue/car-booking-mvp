@@ -35,7 +35,7 @@ import {
   startBooking,
   handlePostback,
   handlePhoneInput,
-  handleSlipImage,
+  handleCustomerImage,
   cancelDraft,
 } from "@/lib/line-booking";
 
@@ -45,7 +45,12 @@ type LineEvent = {
   type: string;
   replyToken?: string;
   source?: { userId?: string; type?: string };
-  message?: { type: string; text?: string; id?: string };
+  message?: {
+    type: string;
+    text?: string;
+    id?: string;
+    imageSet?: { id?: string; index?: number; total?: number };
+  };
   postback?: { data: string; params?: { date?: string; datetime?: string } };
 };
 
@@ -146,7 +151,7 @@ async function handleEvent(event: LineEvent) {
 
   if (event.type !== "message" || !userId) return;
 
-  // รูปจากคนรับ-ส่งรถ = รูปสภาพรถ ต้องเช็คก่อนรูปสลิปลูกค้า
+  // รูปจากคนรับ-ส่งรถ = รูปสภาพรถ ต้องเช็คก่อนรูปของลูกค้า
   if (event.message?.type === "image" && event.message.id) {
     const handoff = await saveJobPhoto(userId, event.message.id);
     if (handoff) {
@@ -154,8 +159,8 @@ async function handleEvent(event: LineEvent) {
       return;
     }
 
-    // ไม่ใช่พนักงาน — ถือเป็นสลิปค่าจองของลูกค้า
-    await handleSlipImage(replyToken, userId, event.message.id);
+    // ไม่ใช่พนักงาน — ลูกค้าส่งรูป ไม่บันทึก แต่พาไปแนบบนหน้าเว็บ
+    await handleCustomerImage(replyToken, userId, event.message.imageSet);
     return;
   }
 
@@ -339,7 +344,7 @@ function bookingStatusFlex(booking: BookingForDisplay, site: string) {
   let tone: "green" | "ok" | "warn" | "danger";
 
   if (!booking.deposit) {
-    note = "ยังไม่ได้ส่งสลิปค่าจอง — ส่งรูปสลิปเข้ามาในแชทนี้ได้เลยครับ";
+    note = "ยังไม่ได้แนบสลิปค่าจอง — กดปุ่มด้านล่างเพื่อเปิดหน้าการจองแล้วแนบสลิปได้เลยครับ";
     tone = "warn";
   } else if (booking.deposit.status === "PENDING") {
     note = "ได้รับสลิปแล้ว รอแอดมินตรวจสอบ";

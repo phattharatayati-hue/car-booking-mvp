@@ -15,6 +15,8 @@ import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
 import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
+import { getCarRates } from "@/lib/car-rates-server";
+import { priceForDay } from "@/lib/car-rates";
 
 export default async function BookCarPage({
   params,
@@ -38,6 +40,11 @@ export default async function BookCarPage({
   const availabilityMap = await getAvailability([car.id], fromStr, 90);
   const availability = availabilityMap.get(car.id) ?? {};
   const busySpans = await getBusySpans(car.id, 120);
+
+  /* ราคาตามช่วงวัน — ต้องส่งให้ฟอร์ม ไม่งั้นหน้าเว็บคิดด้วยราคาปกติ
+     ขณะที่เซิร์ฟเวอร์คิดตามช่วง ยอดที่ลูกค้าเห็นจะไม่ตรงบิล */
+  const carRates = await getCarRates(car.id);
+  const todayPrice = priceForDay(fromStr, car.pricePerDay, carRates);
 
   /* ลูกค้าที่เข้าสู่ระบบไว้แล้ว — เติมชื่อ เบอร์ อีเมลให้อัตโนมัติ
      ไม่บังคับให้เข้าสู่ระบบก่อนจอง เพราะการขวางด้วยหน้า login
@@ -86,6 +93,7 @@ export default async function BookCarPage({
               timeOptions={times}
               afterHoursRates={afterHoursRates}
               busySpans={busySpans}
+              carRates={carRates}
               isRequest={isRequest}
               availability={availability}
               pickupPoints={pickupPoints}
@@ -141,9 +149,14 @@ export default async function BookCarPage({
                   <div className="flex justify-between pt-3 border-t border-slate-100">
                     <dt className="text-slate-500">ราคาต่อวัน</dt>
                     <dd className="text-lg font-bold text-blue-700">
-                      {car.pricePerDay.toLocaleString()} ฿
+                      {todayPrice.price.toLocaleString()} ฿
                     </dd>
                   </div>
+                  {carRates.some((r) => r.kind === "PRICE") && (
+                    <p className="text-xs text-slate-500 -mt-1 text-right">
+                      ราคาวันนี้{todayPrice.rate ? ` (${todayPrice.rate.label})` : ""} · ราคาเปลี่ยนตามช่วงวัน ยอดรวมคิดตามวันที่เลือก
+                    </p>
+                  )}
                 </dl>
 
                 <div

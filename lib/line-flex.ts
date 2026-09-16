@@ -803,6 +803,80 @@ export function flexSlipUploadedAdmin(d: {
   });
 }
 
+/**
+ * ลูกค้าแนบสลิปบนเว็บแล้ว — ส่งต่อทันทีให้ส่งเอกสาร ไม่ต้องรอแอดมินตรวจสลิปก่อน
+ * missing ว่าง = เอกสารครบแล้ว ไม่ต้องมีปุ่ม
+ */
+export function flexSlipReceived(d: {
+  bookingId: string;
+  carLabel: string;
+  missing: string[];
+  bookingUrl: string;
+}) {
+  const needDocs = d.missing.length > 0;
+  return card({
+    altText: needDocs
+      ? `ได้รับสลิปแล้ว ${code(d.bookingId)} — กรุณาอัปโหลดเอกสาร ${d.missing.length} รายการ`
+      : `ได้รับสลิปแล้ว ${code(d.bookingId)} — รอแอดมินตรวจสอบ`,
+    title: "ได้รับสลิปแล้ว",
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    body: [
+      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      {
+        type: "text",
+        text: needDocs
+          ? "แอดมินกำลังตรวจสอบสลิป ระหว่างนี้อัปโหลดเอกสารต่อได้เลยครับ"
+          : "แอดมินกำลังตรวจสอบ เราจะแจ้งผลกลับมาทางแชทนี้ครับ",
+        size: "sm",
+        color: INK,
+        wrap: true,
+      },
+      ...(needDocs
+        ? [
+            line,
+            sectionTitle(`เอกสารที่ต้องส่ง ${d.missing.length} รายการ`),
+            bullets(d.missing),
+            noteBox(["ถ่ายรูปให้ชัด เห็นข้อมูลครบ อัปโหลดผ่านปุ่มด้านล่าง"]),
+          ]
+        : []),
+    ],
+    buttons: needDocs
+      ? [btn("อัปโหลดเอกสาร", `${d.bookingUrl}#docs`)]
+      : [btn("ดูการจอง", d.bookingUrl)],
+  });
+}
+
+/**
+ * ลูกค้าส่งรูปเข้าแชท — ระบบไม่รับสลิปหรือเอกสารทางแชทแล้ว
+ * ตอบครั้งเดียวพร้อมปุ่มพาไปหน้าที่ต้องทำ
+ */
+export function flexUploadOnWeb(d: {
+  bookingId: string;
+  target: "slip" | "docs";
+  bookingUrl: string;
+}) {
+  const isSlip = d.target === "slip";
+  const label = isSlip ? "สลิปค่าจอง" : "เอกสาร";
+  return card({
+    altText: `กรุณาแนบ${label}ผ่านปุ่มในข้อความนี้`,
+    title: `แนบ${label}ผ่านปุ่มนี้ครับ`,
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    tone: "gold",
+    body: [
+      {
+        type: "text",
+        text: `ระบบไม่ได้บันทึกรูปที่ส่งในแชทเป็น${label} กรุณากดปุ่มด้านล่างแล้วแนบในหน้าการจองอีกครั้ง`,
+        size: "sm",
+        color: INK,
+        wrap: true,
+      },
+    ],
+    buttons: [
+      btn(isSlip ? "แนบสลิปค่าจอง" : "อัปโหลดเอกสาร", `${d.bookingUrl}#${d.target}`),
+    ],
+  });
+}
+
 export function flexUnassignedAdmin(d: {
   count: number;
   jobs: string[];
