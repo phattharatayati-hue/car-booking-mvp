@@ -40,38 +40,68 @@ const IMAGE_PATH = ["richmenu.jpg", "richmenu.png"]
   .find((f) => fs.existsSync(f)) ?? path.join(__dirname, "richmenu.jpg");
 const IMAGE_TYPE = IMAGE_PATH.endsWith(".png") ? "image/png" : "image/jpeg";
 
-/** ขนาดมาตรฐานของ LINE: 2500 x 1686 แบ่ง 3 คอลัมน์ 2 แถว */
+/**
+ * ผัง 4 ช่อง — ปุ่มใหญ่เต็มความกว้างด้านบน + 3 ปุ่มเรียงด้านล่าง
+ *
+ * ขนาดที่ LINE รับคือ 2500x1686 เท่านั้น (หรือ 2500x843 สำหรับเมนูเตี้ย)
+ * รูปเมนูต้องวางองค์ประกอบให้ตรงกับพิกัดข้างล่างนี้ ไม่งั้นกดแล้วไม่ตรงปุ่ม:
+ *
+ *   ┌───────────────────────────────────────┐ y=0
+ *   │         ค่าบริการและการจอง            │
+ *   ├───────────┬───────────┬───────────────┤ y=880
+ *   │  ค่าปรับ  │ การจองของฉัน │  ติดต่อเรา  │
+ *   └───────────┴───────────┴───────────────┘ y=1686
+ *   x=0        833         1666          2500
+ *
+ * พื้นที่กดครอบคลุมทั้งรูปแบบไม่มีช่องว่าง — คนกดพลาดขอบนิดหน่อยก็ยังโดนปุ่ม
+ */
 const W = 2500;
 const H = 1686;
-const CELL_W = Math.floor(W / 3);
-const CELL_H = Math.floor(H / 2);
+const TOP_H = 880;
+const BOTTOM_H = H - TOP_H;
+const COL_W = Math.floor(W / 3);
 
-function cell(col: number, row: number) {
-  return { x: col * CELL_W, y: row * CELL_H, width: CELL_W, height: CELL_H };
+/** ช่องแถวล่าง — ช่องขวาสุดกินเศษที่หารไม่ลงตัว จะได้ไม่เหลือแถบกดไม่ได้ */
+function bottom(col: number) {
+  const x = col * COL_W;
+  return {
+    x,
+    y: TOP_H,
+    width: col === 2 ? W - x : COL_W,
+    height: BOTTOM_H,
+  };
 }
 
 const richMenu = {
   size: { width: W, height: H },
   selected: true,
-  name: "เมนูหลัก - ระบบจองรถ",
+  name: "เมนูหลัก 4 ช่อง - ระบบจองรถ",
   chatBarText: "เมนู",
   areas: [
-    /* แถวบน — ก่อนจอง
-       "จองรถเลย" เริ่มขั้นตอนจองในแชทเลย ไม่เด้งออกเว็บ */
+    /* 1. ค่าบริการและการจอง — เปิดหน้ารถทั้งหมดบนเว็บ
+          หน้านั้นมีทั้งรูปรถ ราคาต่อวัน และปุ่มจองในตัว จบได้ในหน้าเดียว */
     {
-      bounds: cell(0, 0),
-      action: { type: "postback", label: "จองรถ", data: "action=start_booking", displayText: "จองรถ" },
+      bounds: { x: 0, y: 0, width: W, height: TOP_H },
+      action: { type: "uri", label: "ค่าบริการและการจอง", uri: `${SITE}/cars` },
     },
-    { bounds: cell(1, 0), action: { type: "uri", label: "รถทั้งหมด", uri: `${SITE}/cars` } },
-    /* ค่าบริการตอบในแชทเลย เร็วกว่าเปิดเว็บ — คีย์เวิร์ด "ค่าปรับ" อยู่ใน webhook แล้ว */
-    { bounds: cell(2, 0), action: { type: "message", label: "ค่าบริการ", text: "ค่าปรับ" } },
 
-    /* แถวล่าง — หลังจอง */
-    { bounds: cell(0, 1), action: { type: "message", label: "เช็คสถานะ", text: "เช็คสถานะ" } },
-    /* ทางเข้าอัปโหลดเอกสาร/ดูประวัติ — ต้อง login ด้วย LINE ที่หน้านี้ */
-    { bounds: cell(1, 1), action: { type: "uri", label: "การจองของฉัน", uri: `${SITE}/my` } },
+    /* 2. ค่าปรับและค่าเสียหาย — ตอบเป็นการ์ดในแชท เร็วกว่าเปิดเว็บ
+          คำว่า "ค่าปรับ" เป็นคีย์เวิร์ดที่ webhook จับอยู่แล้ว */
     {
-      bounds: cell(2, 1),
+      bounds: bottom(0),
+      action: { type: "message", label: "ค่าปรับและค่าเสียหาย", text: "ค่าปรับ" },
+    },
+
+    /* 3. รายการจองของฉัน — ต้องล็อกอินด้วย LINE ที่หน้านี้
+          ดูประวัติการจองและอัปโหลดเอกสารได้ */
+    {
+      bounds: bottom(1),
+      action: { type: "uri", label: "รายการจองของฉัน", uri: `${SITE}/my` },
+    },
+
+    /* 4. ติดต่อเรา — การ์ดเบอร์โทรกดโทรออกได้เลยจากในแชท */
+    {
+      bounds: bottom(2),
       action: { type: "message", label: "ติดต่อเรา", text: "ติดต่อแอดมิน" },
     },
   ],
@@ -85,6 +115,7 @@ async function main() {
   if (!fs.existsSync(IMAGE_PATH)) {
     console.error(`ไม่พบไฟล์รูป: ${IMAGE_PATH}`);
     console.error("วางไฟล์ scripts/richmenu.jpg ขนาด 2500x1686 ไม่เกิน 1 MB ก่อน");
+    console.error("ผัง: ปุ่มบนเต็มความกว้างสูง 880px · ปุ่มล่าง 3 ช่อง ช่องละ 833px สูง 806px");
     process.exit(1);
   }
 

@@ -295,6 +295,35 @@ async function rejectDocumentAction(formData: FormData) {
   revalidatePath("/admin/bookings");
 }
 
+/**
+ * แอดมินเปลี่ยนรูปสลิปแทนลูกค้า — ลูกค้าส่งสลิปใหม่มาทางแชท
+ * เปลี่ยนแค่รูป ไม่แตะยอดและสถานะ (ถ้ายืนยันไปแล้วก็ยังยืนยันอยู่)
+ */
+async function adminReplaceSlipAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const fileUrl = String(formData.get("fileUrl") ?? "");
+  if (!bookingId || !fileUrl.startsWith("/api/file?p=")) return;
+
+  const updated = await prisma.deposit.updateMany({
+    where: { bookingId },
+    data: { slipImageUrl: fileUrl },
+  });
+  if (updated.count === 0) return;
+
+  await audit({
+    action: "booking.slip_admin_replace",
+    summary: `แอดมินเปลี่ยนรูปสลิปแทนลูกค้า — การจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+  });
+
+  revalidatePath("/admin/bookings");
+}
+
 async function rejectDepositAction(formData: FormData) {
   "use server";
   const bookingId = formData.get("bookingId") as string;
@@ -1513,6 +1542,17 @@ export default async function AdminBookingsPage({
                           <p className="text-[11px] font-medium text-slate-600 leading-tight">
                             {DOCUMENT_LABEL[kind]}
                           </p>
+                          {/* ลูกค้าส่งรูปใหม่มาทางแชท แอดมินเปลี่ยนแทนได้ — ทับของเดิมและนับเป็นผ่าน */}
+                          <span className="ml-auto shrink-0">
+                            <AdminDocUpload
+                              bookingId={b.id}
+                              kind={kind}
+                              label={DOCUMENT_LABEL[kind]}
+                              action={adminUploadDocumentAction}
+                              buttonText="เปลี่ยนรูป"
+                              confirmText={`เปลี่ยนรูป${DOCUMENT_LABEL[kind]}? รูปเดิมจะถูกแทนที่ และนับเป็น "ผ่าน" ทันที`}
+                            />
+                          </span>
                           <span
                             className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full border ${DOC_STATUS_CLASS[status]}`}
                           >
@@ -1637,6 +1677,17 @@ export default async function AdminBookingsPage({
                           ? "ยืนยันแล้ว"
                           : "ปฏิเสธ"}
                       </span>
+                    </p>
+                    <p className="mt-1">
+                      <AdminDocUpload
+                        bookingId={b.id}
+                        kind="SLIP"
+                        label="สลิปค่าจอง"
+                        uploadKind="slip"
+                        action={adminReplaceSlipAction}
+                        buttonText="เปลี่ยนรูปสลิป"
+                        confirmText="เปลี่ยนรูปสลิป? รูปเดิมจะถูกแทนที่ ยอดและสถานะสลิปไม่เปลี่ยน"
+                      />
                     </p>
                   </div>
 
