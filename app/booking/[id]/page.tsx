@@ -345,11 +345,13 @@ export default async function BookingStatusPage({
                 (d: {
                   kind: string;
                   fileUrl: string;
+                  extraUrls?: string[];
                   status: string;
                   rejectReason: string | null;
                 }) => ({
                   kind: d.kind,
                   fileUrl: d.fileUrl,
+                  extraUrls: d.extraUrls ?? [],
                   status: d.status,
                   rejectReason: d.rejectReason,
                 })

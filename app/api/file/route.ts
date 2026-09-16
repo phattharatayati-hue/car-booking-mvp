@@ -42,6 +42,29 @@ async function jobTokenAllows(token: string, pathname: string): Promise<boolean>
   }
 }
 
+/**
+ * ทางเข้าที่สาม: ลูกค้าดูรูปเอกสารของตัวเองจากหน้าการจอง (/booking/<id>)
+ * ลิงก์หน้าการจองเป็นกุญแจอยู่แล้ว (รหัสสุ่มเดาไม่ได้) จึงให้ดูได้เฉพาะ
+ * รูปเอกสารของการจองนั้น และเฉพาะตอนใบยังไม่ปิด
+ */
+async function bookingAllows(bookingId: string, pathname: string): Promise<boolean> {
+  try {
+    const url = `/api/file?p=${encodeURIComponent(pathname)}`;
+    const doc = await prisma.bookingDocument.findFirst({
+      where: {
+        bookingId,
+        OR: [{ fileUrl: url }, { extraUrls: { has: url } }],
+        booking: { status: { notIn: ["CANCELLED", "REJECTED", "COMPLETED"] } },
+      },
+      select: { id: true },
+    });
+    return Boolean(doc);
+  } catch (err) {
+    console.error("booking file check failed:", err);
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const pathname = searchParams.get("p");
@@ -63,7 +86,12 @@ export async function GET(request: Request) {
       // ทางเข้าที่สอง: คนรับ-ส่งรถเปิดจากลิงก์งานของตัวเอง (/job/<token>)
       // ต้องผ่านครบ 3 ข้อ — กุญแจถูก, อยู่ในช่วงเวลาทำงาน, และไฟล์นี้เป็นเอกสารของการจองนั้นจริง
       const token = searchParams.get("t");
-      const allowed = token ? await jobTokenAllows(token, pathname) : false;
+      const bookingId = searchParams.get("b");
+      const allowed = token
+        ? await jobTokenAllows(token, pathname)
+        : bookingId && pathname.startsWith("documents/")
+          ? await bookingAllows(bookingId, pathname)
+          : false;
 
       if (!allowed) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });

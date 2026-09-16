@@ -16,6 +16,8 @@ import {
 export type UploadedDoc = {
   kind: string;
   fileUrl: string;
+  /** รูปเพิ่มของเอกสารชนิดเดียวกัน */
+  extraUrls?: string[];
   status: string;
   rejectReason: string | null;
 };
@@ -43,6 +45,7 @@ export default function DocumentUpload({
 }) {
   const router = useRouter();
   const [busyKind, setBusyKind] = useState<DocumentKind | null>(null);
+  const [busyText, setBusyText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const byKind = new Map(uploaded.map((d) => [d.kind, d]));
@@ -54,32 +57,90 @@ export default function DocumentUpload({
     (k) => byKind.get(k)?.status === "REJECTED"
   );
 
-  async function upload(kind: DocumentKind, file: File) {
+  /** เลือกไฟล์แล้วเช็คก่อนอัป — ไฟล์ไหนมีปัญหาหยุดทั้งชุด จะได้ไม่ส่งไปครึ่ง ๆ */
+  function pick(
+    kind: DocumentKind,
+    list: FileList | null,
+    mode: "add" | "replace" | "replaceAll",
+    index?: number
+  ) {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
+    for (const f of files) {
+      const problem = checkFile(f);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+    upload(kind, mode === "replace" ? files.slice(0, 1) : files, mode, index);
+  }
+
+  async function upload(
+    kind: DocumentKind,
+    files: File[],
+    mode: "add" | "replace" | "replaceAll",
+    index?: number
+  ) {
     setBusyKind(kind);
     setError(null);
 
     try {
-      const form = new FormData();
-      form.append("file", await shrinkImage(file, { maxEdge: 1800, quality: 0.85, targetBytes: 700_000 }));
-      form.append("kind", "document");
-      const upRes = await fetch("/api/upload", { method: "POST", body: form });
-      const upData = await upRes.json().catch(() => null);
-      if (!upRes.ok || !upData?.url) {
-        throw new Error(upData?.error ?? (upRes.status === 413
-            ? "ไฟล์ใหญ่เกินไป กรุณาย่อรูปหรือถ่ายใหม่ด้วยความละเอียดต่ำลง"
-            : `อัปโหลดไม่สำเร็จ (${upRes.status})`));
+      const fileUrls: string[] = [];
+      for (const [i, file] of files.entries()) {
+        setBusyText(files.length > 1 ? `กำลังอัปโหลด ${i + 1}/${files.length}...` : "กำลังอัปโหลด...");
+        const form = new FormData();
+        form.append("file", await shrinkImage(file, { maxEdge: 1800, quality: 0.85, targetBytes: 700_000 }));
+        form.append("kind", "document");
+        const upRes = await fetch("/api/upload", { method: "POST", body: form });
+        const upData = await upRes.json().catch(() => null);
+        if (!upRes.ok || !upData?.url) {
+          throw new Error(upData?.error ?? (upRes.status === 413
+              ? "ไฟล์ใหญ่เกินไป กรุณาย่อรูปหรือถ่ายใหม่ด้วยความละเอียดต่ำลง"
+              : `อัปโหลดไม่สำเร็จ (${upRes.status})`));
+        }
+        fileUrls.push(upData.url);
       }
 
+      setBusyText("กำลังบันทึก...");
       const res = await fetch(`/api/bookings/${bookingId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, fileUrl: upData.url }),
+        body: JSON.stringify({ kind, fileUrls, mode, index }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error ?? `บันทึกไม่สำเร็จ (${res.status})`);
       }
 
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+    } finally {
+      setBusyKind(null);
+    }
+  }
+
+  async function removeImage(kind: DocumentKind, index: number, isLast: boolean) {
+    const ok = window.confirm(
+      isLast
+        ? `ลบรูปนี้? เป็นรูปสุดท้ายของ${DOCUMENT_LABEL[kind]} ต้องอัปใหม่ภายหลัง`
+        : `ลบ${DOCUMENT_LABEL[kind]} รูปที่ ${index + 1}?`
+    );
+    if (!ok) return;
+    setBusyKind(kind);
+    setBusyText("กำลังลบ...");
+    setError(null);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/documents`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, index }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error ?? `ลบไม่สำเร็จ (${res.status})`);
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
@@ -119,7 +180,7 @@ export default function DocumentUpload({
       <ul className="flex flex-col gap-3">
         {DOCUMENT_KINDS.map((kind, i) => {
           const doc = byKind.get(kind);
-          const fileUrl = doc?.fileUrl;
+          const images = doc ? [doc.fileUrl, ...(doc.extraUrls ?? [])] : [];
           const status = doc?.status as DocumentStatus | undefined;
           const approved = status === "APPROVED";
           const isRejected = status === "REJECTED";
@@ -183,50 +244,92 @@ export default function DocumentUpload({
                     </p>
                   )}
 
+                  {images.length > 0 && !isRejected && (
+                    <ul className="mt-3 grid grid-cols-3 gap-2">
+                      {images.map((url, idx) => (
+                        <li key={`${url}-${idx}`} className="min-w-0">
+                          <a
+                            href={`${url}&b=${bookingId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="relative block aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-100"
+                            title="เปิดดูรูปขนาดเต็ม"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`${url}&b=${bookingId}`}
+                              alt={`${DOCUMENT_LABEL[kind]} รูปที่ ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute top-1 left-1 text-[10px] px-1.5 rounded bg-black/60 text-white">
+                              {idx + 1}
+                            </span>
+                          </a>
+                          <div className="mt-1 flex items-center justify-between text-xs">
+                            <label
+                              className={`cursor-pointer font-medium text-blue-700 hover:underline ${
+                                busy ? "opacity-50 pointer-events-none" : ""
+                              }`}
+                            >
+                              เปลี่ยน
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="sr-only"
+                                disabled={busy}
+                                onChange={(e) => {
+                                  const list = e.target.files;
+                                  pick(kind, list, "replace", idx);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => removeImage(kind, idx, images.length === 1)}
+                              className="font-medium text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              ลบ
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <label
                       className={`cursor-pointer text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
-                        fileUrl && !isRejected
+                        images.length > 0 && !isRejected
                           ? "border border-slate-200 text-slate-700 hover:bg-white"
                           : "bg-blue-600 hover:bg-blue-700 text-white"
                       } ${busy ? "opacity-60 pointer-events-none" : ""}`}
                     >
                       {busy
-                        ? "กำลังอัปโหลด..."
+                        ? busyText
                         : isRejected
                         ? "ส่งใหม่"
-                        : fileUrl
-                        ? "เปลี่ยนรูป"
+                        : images.length > 0
+                        ? "+ เพิ่มรูป"
                         : "อัปโหลดรูป"}
                       <input
                         type="file"
                         accept="image/*"
+                        multiple
                         className="sr-only"
                         disabled={busy}
                         onChange={(e) => {
-                          const f = e.target.files?.[0];
+                          const list = e.target.files;
+                          // ไม่ผ่าน = ส่งใหม่ทั้งชุด รูปเดิมถูกแทนที่
+                          pick(kind, list, isRejected ? "replaceAll" : "add");
                           e.target.value = "";
-                          if (!f) return;
-                          const problem = checkFile(f);
-                          if (problem) {
-                            setError(problem);
-                            return;
-                          }
-                          upload(kind, f);
                         }}
                       />
                     </label>
-
-                    {fileUrl && (
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-medium text-blue-700 hover:underline"
-                      >
-                        ดูรูปที่ส่งไว้
-                      </a>
-                    )}
+                    <span className="text-xs text-slate-400">
+                      เลือกได้หลายรูป เช่น ด้านหน้า-ด้านหลัง
+                    </span>
                   </div>
                 </div>
               </div>
@@ -236,8 +339,8 @@ export default function DocumentUpload({
       </ul>
 
       <p className="mt-5 text-xs text-slate-500 leading-relaxed">
-        รองรับไฟล์รูป JPG PNG WEBP ขนาดไม่เกิน 8MB ต่อไฟล์
-        · เอกสารเก็บเป็นความลับ เฉพาะแอดมินที่ล็อกอินแล้วเท่านั้นที่เปิดดูได้
+        รองรับไฟล์รูป JPG PNG WEBP ขนาดไม่เกิน 8MB ต่อไฟล์ สูงสุด 10 รูปต่อเอกสาร
+        · เอกสารเก็บเป็นความลับ เปิดดูได้เฉพาะจากลิงก์การจองนี้และแอดมินเท่านั้น
       </p>
     </div>
   );
