@@ -20,12 +20,20 @@ export type DepositSummary = {
   exceptions: DepositException[];
   /** "เงินประกันความเสียหาย 3,000 บาท · เฉพาะ Fortuner 5,000 บาท" */
   text: string;
-  /** ข้อความกล่องล่างของการ์ดค่าปรับ */
+  /** ข้อความคืนเงินประกันแบบบรรทัดเดียว (หน้าเว็บ) */
   refundNote: string;
+  /** ข้อความคืนเงินประกันแยกบรรทัด (กล่องล่างการ์ด LINE) */
+  refundLines: string[];
 };
 
+export const DEPOSIT_REFUND_LINES = [
+  "กรณีคืนรถ ตรวจเช็ครถแล้วไม่มีความเสียหายใดๆ",
+  "เติมน้ำมันเต็มถัง",
+  "คืนเงินประกันเต็มจำนวน",
+];
+
 export const DEPOSIT_REFUND_NOTE =
-  "กรณีคืนรถ ตรวจเช็ครถแล้วไม่มีปัญหาใดๆ คืนเงินประกันเต็มจำนวน";
+  "กรณีคืนรถ ตรวจเช็ครถแล้วไม่มีความเสียหายใดๆ และเติมน้ำมันเต็มถัง คืนเงินประกันเต็มจำนวน";
 
 const baht = (n: number) => `${n.toLocaleString()} บาท`;
 
@@ -62,5 +70,6 @@ export async function getDepositSummary(): Promise<DepositSummary> {
     exceptions,
     text: depositText(defaultAmount, exceptions),
     refundNote: DEPOSIT_REFUND_NOTE,
+    refundLines: DEPOSIT_REFUND_LINES,
   };
 }

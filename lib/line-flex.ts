@@ -1089,7 +1089,8 @@ export function flexFees(d: {
   lines: string[];
   /** "เงินประกันความเสียหาย 3,000 บาท · เฉพาะ Fortuner 5,000 บาท" */
   depositText: string;
-  depositNote: string;
+  /** กล่องล่าง — หนึ่งรายการต่อบรรทัด */
+  depositNote: string | string[];
   url: string;
 }) {
   return card({
@@ -1117,7 +1118,7 @@ export function flexFees(d: {
           wrap: true,
         })),
       },
-      noteBox([d.depositNote]),
+      noteBox(Array.isArray(d.depositNote) ? d.depositNote : [d.depositNote]),
     ],
     buttons: [btn("ดูรายการทั้งหมด", d.url)],
   });

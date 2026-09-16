@@ -247,7 +247,7 @@ async function handleEvent(event: LineEvent) {
       flexFees({
         lines: fees.map((f) => `${f.title} — ${f.amount}`),
         depositText: deposit.text,
-        depositNote: deposit.refundNote,
+        depositNote: deposit.refundLines,
         url: `${site}/fees`,
       }),
     ]);
