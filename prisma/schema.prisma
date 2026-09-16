@@ -203,6 +203,8 @@ model BookingDocument {
   bookingId String
   kind      DocumentKind
   fileUrl   String
+  /// รูปเพิ่มของเอกสารชนิดเดียวกัน (เช่น บัตรหน้า-หลัง ตั๋วไป-กลับ) — รูปแรกอยู่ที่ fileUrl
+  extraUrls String[]     @default([])
   status       DocumentStatus @default(PENDING)
   /// เหตุผลที่ไม่ผ่าน — แสดงให้ลูกค้าเห็นเพื่อส่งใหม่ให้ถูก
   rejectReason String?

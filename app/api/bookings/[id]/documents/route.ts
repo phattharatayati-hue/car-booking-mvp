@@ -56,6 +56,8 @@ export async function POST(
       // ส่งใหม่ = กลับไปรอตรวจ และล้างเหตุผลที่เคยไม่ผ่านทิ้ง
       update: {
         fileUrl,
+        // ลูกค้าอัปใหม่ = แทนทั้งชุด รูปเพิ่มที่แอดมินเคยใส่ไว้ถือว่าเลิกใช้
+        extraUrls: [],
         status: "PENDING",
         rejectReason: null,
         reviewedBy: null,

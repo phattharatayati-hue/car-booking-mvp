@@ -61,7 +61,7 @@ export type PurgeResult = {
 export async function purgeStaleDocuments(actor: AuditActor): Promise<PurgeResult> {
   const docs = await prisma.bookingDocument.findMany({
     where: staleDocumentWhere(),
-    select: { id: true, fileUrl: true, bookingId: true },
+    select: { id: true, fileUrl: true, extraUrls: true, bookingId: true },
   });
 
   if (docs.length === 0) {
@@ -72,13 +72,13 @@ export async function purgeStaleDocuments(actor: AuditActor): Promise<PurgeResul
   let blobsFailed = 0;
 
   // ลบทีละไฟล์ ไฟล์ไหนพังก็ข้าม ไม่ให้ล้มทั้งชุด
-  for (const doc of docs) {
+  for (const url of docs.flatMap((d) => [d.fileUrl, ...(d.extraUrls ?? [])])) {
     try {
-      await del(doc.fileUrl);
+      await del(url);
       blobsDeleted++;
     } catch (err) {
       blobsFailed++;
-      console.error("purge blob failed:", doc.fileUrl, err);
+      console.error("purge blob failed:", url, err);
     }
   }
 

@@ -90,6 +90,7 @@ type BookingRow = {
     fileUrl: string;
     status: string;
     rejectReason: string | null;
+    extraUrls?: string[];
   }[];
 };
 
@@ -148,36 +149,47 @@ async function adminUploadDocumentAction(formData: FormData) {
 
   const bookingId = String(formData.get("bookingId") ?? "");
   const kind = String(formData.get("kind") ?? "");
-  const fileUrl = String(formData.get("fileUrl") ?? "");
-
-  if (!bookingId || !DOCUMENT_KINDS.includes(kind as DocumentKind)) return;
+  const mode = String(formData.get("mode") ?? "add");
+  const index = Number(formData.get("index") ?? -1);
   // รับเฉพาะไฟล์ที่เพิ่งอัปผ่าน /api/upload ของเราเอง ไม่ใช่ URL อะไรก็ได้จากข้างนอก
-  if (!fileUrl.startsWith("/api/file?p=")) return;
+  const urls = formData
+    .getAll("fileUrl")
+    .map(String)
+    .filter((u) => u.startsWith("/api/file?p="));
+
+  if (!bookingId || !DOCUMENT_KINDS.includes(kind as DocumentKind) || urls.length === 0) return;
+  const docKind = kind as DocumentKind;
+
+  const existing = await prisma.bookingDocument.findUnique({
+    where: { bookingId_kind: { bookingId, kind: docKind } },
+  });
+  const current = existing ? [existing.fileUrl, ...(existing.extraUrls ?? [])] : [];
+
+  let next: string[];
+  if (mode === "replace" && existing && index >= 0 && index < current.length) {
+    next = current.map((u, i) => (i === index ? urls[0] : u));
+  } else {
+    next = [...current, ...urls];
+  }
+
+  const reviewed = {
+    status: "APPROVED" as const,
+    rejectReason: null,
+    reviewedBy: session.user.email ?? null,
+    reviewedAt: new Date(),
+  };
 
   await prisma.bookingDocument.upsert({
-    where: { bookingId_kind: { bookingId, kind: kind as DocumentKind } },
-    create: {
-      bookingId,
-      kind: kind as DocumentKind,
-      fileUrl,
-      status: "APPROVED",
-      reviewedBy: session.user.email ?? null,
-      reviewedAt: new Date(),
-    },
-    update: {
-      fileUrl,
-      status: "APPROVED",
-      rejectReason: null,
-      reviewedBy: session.user.email ?? null,
-      reviewedAt: new Date(),
-    },
+    where: { bookingId_kind: { bookingId, kind: docKind } },
+    create: { bookingId, kind: docKind, fileUrl: next[0], extraUrls: next.slice(1), ...reviewed },
+    update: { fileUrl: next[0], extraUrls: next.slice(1), ...reviewed },
   });
 
   await audit({
     action: "booking.document_admin_upload",
-    summary: `แอดมินอัปเอกสาร ${DOCUMENT_LABEL[kind as DocumentKind]} แทนลูกค้า — การจอง ${bookingId
-      .slice(0, 8)
-      .toUpperCase()}`,
+    summary: `แอดมิน${mode === "replace" ? "เปลี่ยน" : "เพิ่ม"}รูป ${DOCUMENT_LABEL[docKind]} ${
+      mode === "replace" ? "1" : urls.length
+    } รูปแทนลูกค้า — การจอง ${bookingId.slice(0, 8).toUpperCase()}`,
     entity: "booking",
     entityId: bookingId,
   });
@@ -190,6 +202,42 @@ async function adminUploadDocumentAction(formData: FormData) {
     all.length === DOCUMENT_KINDS.length &&
     all.every((d: { status: string }) => d.status === "APPROVED");
   if (allApproved) await notifyBookingProgress(bookingId);
+
+  revalidatePath("/admin/bookings");
+}
+
+/** ลบรูปเอกสารทีละรูป — ลบรูปสุดท้ายแล้วเอกสารชนิดนั้นกลับเป็น "ยังไม่ส่ง" */
+async function adminDeleteDocumentImageAction(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const documentId = String(formData.get("documentId") ?? "");
+  const index = Number(formData.get("index") ?? -1);
+  const doc = await prisma.bookingDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return;
+
+  const current = [doc.fileUrl, ...(doc.extraUrls ?? [])];
+  if (index < 0 || index >= current.length) return;
+  const next = current.filter((_, i) => i !== index);
+
+  if (next.length === 0) {
+    await prisma.bookingDocument.delete({ where: { id: doc.id } });
+  } else {
+    await prisma.bookingDocument.update({
+      where: { id: doc.id },
+      data: { fileUrl: next[0], extraUrls: next.slice(1) },
+    });
+  }
+
+  await audit({
+    action: "booking.document_admin_delete_image",
+    summary: `แอดมินลบรูป ${DOCUMENT_LABEL[doc.kind as DocumentKind]} 1 รูป (เหลือ ${
+      next.length
+    }) — การจอง ${doc.bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: doc.bookingId,
+  });
 
   revalidatePath("/admin/bookings");
 }
@@ -1542,15 +1590,14 @@ export default async function AdminBookingsPage({
                           <p className="text-[11px] font-medium text-slate-600 leading-tight">
                             {DOCUMENT_LABEL[kind]}
                           </p>
-                          {/* ลูกค้าส่งรูปใหม่มาทางแชท แอดมินเปลี่ยนแทนได้ — ทับของเดิมและนับเป็นผ่าน */}
+                          {/* ลูกค้าส่งรูปเพิ่มมาทางแชท แอดมินใส่แทนได้ — นับเป็นผ่าน */}
                           <span className="ml-auto shrink-0">
                             <AdminDocUpload
                               bookingId={b.id}
                               kind={kind}
                               label={DOCUMENT_LABEL[kind]}
                               action={adminUploadDocumentAction}
-                              buttonText="เปลี่ยนรูป"
-                              confirmText={`เปลี่ยนรูป${DOCUMENT_LABEL[kind]}? รูปเดิมจะถูกแทนที่ และนับเป็น "ผ่าน" ทันที`}
+                              buttonText="+ เพิ่มรูป"
                             />
                           </span>
                           <span
@@ -1560,21 +1607,64 @@ export default async function AdminBookingsPage({
                           </span>
                         </div>
 
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="relative block h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:border-blue-400 transition-colors"
-                          title="เปิดดูขนาดเต็ม"
-                        >
-                          <Image
-                            src={doc.fileUrl}
-                            alt={DOCUMENT_LABEL[kind]}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        </a>
+                        {(() => {
+                          const images = [doc.fileUrl, ...(doc.extraUrls ?? [])];
+                          return (
+                            <div className={`grid gap-2 ${images.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                              {images.map((url, i) => (
+                                <div key={`${url}-${i}`}>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="relative block h-24 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:border-blue-400 transition-colors"
+                                    title="เปิดดูขนาดเต็ม"
+                                  >
+                                    <Image
+                                      src={url}
+                                      alt={`${DOCUMENT_LABEL[kind]} รูปที่ ${i + 1}`}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                    {images.length > 1 && (
+                                      <span className="absolute top-1 left-1 text-[10px] px-1.5 rounded bg-black/60 text-white">
+                                        {i + 1}
+                                      </span>
+                                    )}
+                                  </a>
+                                  <div className="mt-1 flex items-center justify-between gap-2">
+                                    <AdminDocUpload
+                                      bookingId={b.id}
+                                      kind={kind}
+                                      label={DOCUMENT_LABEL[kind]}
+                                      action={adminUploadDocumentAction}
+                                      mode="replace"
+                                      index={i}
+                                      buttonText="เปลี่ยน"
+                                      confirmText={`เปลี่ยน${DOCUMENT_LABEL[kind]} รูปที่ ${i + 1}? รูปนี้จะถูกแทนที่ และเอกสารนับเป็น "ผ่าน"`}
+                                    />
+                                    <form action={adminDeleteDocumentImageAction}>
+                                      <input type="hidden" name="documentId" value={doc.id} />
+                                      <input type="hidden" name="index" value={i} />
+                                      <ActionButton
+                                        className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                                        pendingText="กำลังลบ…"
+                                        confirm={
+                                          images.length === 1
+                                            ? `ลบรูปนี้? เป็นรูปสุดท้าย — ${DOCUMENT_LABEL[kind]} จะกลับเป็น "ยังไม่ส่ง"`
+                                            : `ลบ${DOCUMENT_LABEL[kind]} รูปที่ ${i + 1}?`
+                                        }
+                                      >
+                                        ลบ
+                                      </ActionButton>
+                                    </form>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
 
                         {doc.rejectReason && (
                           <p className="mt-2 text-[11px] text-red-700 leading-relaxed">
@@ -1686,6 +1776,7 @@ export default async function AdminBookingsPage({
                         uploadKind="slip"
                         action={adminReplaceSlipAction}
                         buttonText="เปลี่ยนรูปสลิป"
+                        multiple={false}
                         confirmText="เปลี่ยนรูปสลิป? รูปเดิมจะถูกแทนที่ ยอดและสถานะสลิปไม่เปลี่ยน"
                       />
                     </p>

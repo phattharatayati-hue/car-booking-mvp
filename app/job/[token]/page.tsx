@@ -256,13 +256,16 @@ export default async function JobDocumentsPage({
                   ตรวจผ่านแล้ว
                 </span>
               </figcaption>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${doc.fileUrl}&t=${encodeURIComponent(token)}`}
-                alt={DOCUMENT_LABEL[doc.kind as DocumentKind] ?? doc.kind}
-                data-no-dim
-                className="w-full h-auto bg-slate-100"
-              />
+              {[doc.fileUrl, ...(doc.extraUrls ?? [])].map((u, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={u}
+                  src={`${u}&t=${encodeURIComponent(token)}`}
+                  alt={`${DOCUMENT_LABEL[doc.kind as DocumentKind] ?? doc.kind} รูปที่ ${i + 1}`}
+                  data-no-dim
+                  className="w-full h-auto bg-slate-100 border-b border-slate-100"
+                />
+              ))}
             </figure>
           ))
         )}

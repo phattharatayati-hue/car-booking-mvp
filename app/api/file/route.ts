@@ -20,7 +20,11 @@ async function jobTokenAllows(token: string, pathname: string): Promise<boolean>
 
     // เอกสารลูกค้าที่ตรวจผ่านแล้วของการจองนี้
     const doc = await prisma.bookingDocument.findFirst({
-      where: { bookingId: job.bookingId, fileUrl: url, status: "APPROVED" },
+      where: {
+        bookingId: job.bookingId,
+        status: "APPROVED",
+        OR: [{ fileUrl: url }, { extraUrls: { has: url } }],
+      },
       select: { id: true },
     });
     if (doc) return true;
