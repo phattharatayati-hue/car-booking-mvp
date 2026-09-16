@@ -1085,6 +1085,46 @@ export function flexStatusEmpty(d: { carsUrl: string }) {
 }
 
 /** ค่าปรับและเงินประกัน — เมนู "ค่าบริการ" */
+/**
+ * กล่องเงื่อนไขคืนเงินประกัน — หัวข้อ / ✓ เงื่อนไขทีละบรรทัด / ผลลัพธ์ตัวหนา
+ * ทำแยกจาก noteBox เพราะข้อความยาวต่อกันบรรทัดเดียวจะตัดคำกลางวลีบนมือถือ
+ */
+function refundBox(lines: string[]) {
+  const [title, ...rest] = lines;
+  const result = rest[rest.length - 1];
+  const conditions = rest.slice(0, -1);
+  return {
+    type: "box",
+    layout: "vertical",
+    backgroundColor: CREAM,
+    cornerRadius: "10px",
+    paddingAll: "12px",
+    spacing: "sm",
+    contents: [
+      { type: "text", text: title, size: "sm", weight: "bold", color: INK, wrap: true },
+      ...conditions.map((c) => ({
+        type: "box",
+        layout: "baseline",
+        spacing: "sm",
+        contents: [
+          { type: "text", text: "✓", size: "sm", color: OK, flex: 0 },
+          { type: "text", text: c, size: "sm", color: INK, wrap: true, flex: 1 },
+        ],
+      })),
+      { type: "separator", margin: "sm", color: GOLD_PALE },
+      {
+        type: "text",
+        text: `→ ${result}`,
+        size: "sm",
+        weight: "bold",
+        color: OK,
+        wrap: true,
+        margin: "sm",
+      },
+    ],
+  };
+}
+
 export function flexFees(d: {
   lines: string[];
   /** "เงินประกันความเสียหาย 3,000 บาท · เฉพาะ Fortuner 5,000 บาท" */
@@ -1118,7 +1158,9 @@ export function flexFees(d: {
           wrap: true,
         })),
       },
-      noteBox(Array.isArray(d.depositNote) ? d.depositNote : [d.depositNote]),
+      Array.isArray(d.depositNote) && d.depositNote.length >= 3
+        ? refundBox(d.depositNote)
+        : noteBox(Array.isArray(d.depositNote) ? d.depositNote : [d.depositNote]),
     ],
     buttons: [btn("ดูรายการทั้งหมด", d.url)],
   });

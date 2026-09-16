@@ -75,8 +75,8 @@ export default async function FeesPage() {
                 เงินประกันความเสียหาย ชำระวันรับรถ
               </p>
               {deposit.exceptions.length > 0 && (
-                <div className="mt-3 rounded-xl bg-white/70 border border-blue-100 px-4 py-3">
-                  <p className="text-xs font-semibold text-blue-900 mb-1.5">
+                <div className="mt-3 rounded-xl bg-surface border border-blue-200 px-4 py-3">
+                  <p className="text-xs font-semibold text-blue-700 mb-1.5">
                     รถที่เงินประกันต่างจากปกติ
                   </p>
                   <ul className="flex flex-col gap-1">
