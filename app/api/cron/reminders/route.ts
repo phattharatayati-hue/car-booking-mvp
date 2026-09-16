@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmin, notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexReturnReminder, flexUnassignedAdmin } from "@/lib/line-flex";
-import { SECURITY_DEPOSIT } from "@/lib/fees";
+import { securityDepositOf } from "@/lib/car-money";
 import {
   getSettings,
   formatBangkokDateTime,
@@ -18,7 +18,13 @@ type DueBooking = {
   id: string;
   endDate: Date;
   totalPrice: number;
-  car: { brand: string; name: string; licensePlate: string };
+  car: {
+    brand: string;
+    name: string;
+    licensePlate: string;
+    bookingFee: number | null;
+    securityDeposit: number | null;
+  };
   customer: { fullName: string; lineUserId: string | null };
 };
 
@@ -227,7 +233,7 @@ export async function GET(request: Request) {
           plate: b.car.licensePlate,
           end: b.endDate,
           headline,
-          securityDeposit: SECURITY_DEPOSIT.amount,
+          securityDeposit: securityDepositOf(b.car, settings),
           feesUrl: `${siteUrl()}/fees`,
           bookingUrl: `${siteUrl()}/booking/${b.id}`,
         }),

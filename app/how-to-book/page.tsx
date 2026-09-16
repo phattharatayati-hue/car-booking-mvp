@@ -7,7 +7,7 @@ import { getSettings } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { BANK_ACCOUNT, BANK, PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
-import { SECURITY_DEPOSIT } from "@/lib/fees";
+import { getDepositSummary } from "@/lib/deposit-summary";
 import { getHighlightFees } from "@/lib/fees-server";
 
 import {
@@ -149,11 +149,12 @@ const FAQ = [
 ];
 
 export default async function HowToBookPage() {
-  const [settings, points, rates, fees] = await Promise.all([
+  const [settings, points, rates, fees, deposit] = await Promise.all([
     getSettings(),
     getPickupPoints(),
     getAfterHoursRates(),
     getHighlightFees(),
+    getDepositSummary(),
   ]);
 
   const fee = settings.bookingFee;
@@ -562,7 +563,7 @@ export default async function HowToBookPage() {
             </ul>
             <Tips
               items={[
-                `เงินประกัน ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนเมื่อคืนรถเรียบร้อย เติมน้ำมันคืนตามระดับที่รับ และไม่มีค่าปรับค้าง`,
+                `${deposit.text} — ${deposit.refundNote} (เติมน้ำมันคืนตามระดับที่รับ และไม่มีค่าปรับค้าง)`,
                 "ถ้ามีค่าปรับ ทางร้านหักจากเงินประกันก่อน แล้วคืนส่วนที่เหลือพร้อมแจ้งหลักฐาน",
                 "ค่าปรับข้างต้นเป็นอัตราเริ่มต้น อาจต่างกันตามรุ่นรถและระดับความเสียหาย",
               ]}

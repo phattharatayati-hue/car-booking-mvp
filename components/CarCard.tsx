@@ -12,7 +12,10 @@ type CarCardProps = {
     source: string;
     licensePlate: string;
     partnerId?: string | null;
+    securityDeposit?: number | null;
   };
+  /** เงินประกันค่ากลาง — ส่งมาแล้วการ์ดของคันที่ตั้งแยกจะติดป้ายบอก */
+  defaultDeposit?: number;
   /** ว่างไหมใน "วันแรกที่จองได้" (ไม่ใช่วันนี้ — มีกฎจองล่วงหน้า ดู lib/booking-rules.ts)
       พร้อมวันว่างถัดไปถ้าวันนั้นเต็ม */
   availability?: { busyToday: boolean; nextFree: string | null; from?: string };
@@ -21,7 +24,18 @@ type CarCardProps = {
   showPlate?: boolean;
 };
 
-export default function CarCard({ car, availability, showPlate = false }: CarCardProps) {
+export default function CarCard({
+  car,
+  availability,
+  showPlate = false,
+  defaultDeposit,
+}: CarCardProps) {
+  const specialDeposit =
+    defaultDeposit != null &&
+    car.securityDeposit != null &&
+    car.securityDeposit !== defaultDeposit
+      ? car.securityDeposit
+      : null;
   const isRequest = needsApproval(car);
 
   /* เลี่ยงคำว่า "ว่างวันนี้" เพราะจองวันนี้ไม่ได้อยู่แล้วเมื่อมีกฎจองล่วงหน้า
@@ -131,6 +145,11 @@ export default function CarCard({ car, availability, showPlate = false }: CarCar
               {car.pricePerDay.toLocaleString()}
             </span>
             <span className="text-sm text-slate-500"> ฿/วัน</span>
+            {specialDeposit != null && (
+              <p className="mt-1 text-[11px] font-medium text-amber-700">
+                เงินประกัน {specialDeposit.toLocaleString()} ฿
+              </p>
+            )}
           </div>
           <Link
             href={`/cars/${car.id}/book`}

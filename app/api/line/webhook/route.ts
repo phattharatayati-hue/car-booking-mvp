@@ -15,7 +15,7 @@ import {
   saveJobReading,
   driverHelpText,
 } from "@/lib/driver-jobs";
-import { SECURITY_DEPOSIT } from "@/lib/fees";
+import { getDepositSummary } from "@/lib/deposit-summary";
 import { getHighlightFees } from "@/lib/fees-server";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
@@ -242,10 +242,12 @@ async function handleEvent(event: LineEvent) {
     /* ส่งเป็นการ์ด Flex อย่างเดียว ไม่แนบรูปโปสเตอร์
        เคยลองส่งรูปตามหลังแล้ว แต่ในแชทมันยาวและอ่านยากกว่าการ์ด
        ลูกค้าที่อยากได้รูปกดปุ่มในการ์ดไปหน้า /fees แล้วบันทึกเอาได้ */
+    const deposit = await getDepositSummary();
     await replyRaw(replyToken, [
       flexFees({
         lines: fees.map((f) => `${f.title} — ${f.amount}`),
-        depositNote: `เงินประกันความเสียหาย ${SECURITY_DEPOSIT.amount.toLocaleString()} บาท คืนเต็มจำนวนถ้าคืนรถเรียบร้อย`,
+        depositText: deposit.text,
+        depositNote: deposit.refundNote,
         url: `${site}/fees`,
       }),
     ]);

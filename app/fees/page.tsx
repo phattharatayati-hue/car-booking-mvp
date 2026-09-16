@@ -6,17 +6,22 @@ import { FEE_TERMS, SECURITY_DEPOSIT } from "@/lib/fees";
 import { getFeeItems } from "@/lib/fees-server";
 import { buildFeePosterSvg } from "@/lib/fee-poster";
 import { getSettings } from "@/lib/settings";
+import { getDepositSummary } from "@/lib/deposit-summary";
 import { siteUrl } from "@/lib/line";
 import { PHONES, telHref } from "@/lib/contact";
 
 export const metadata = {
-  title: "ค่าปรับและค่าบริการเพิ่มเติม · PHUPING CORPORATION",
+  title: "เงินประกันและค่าปรับ · PHUPING CORPORATION",
   description:
     "อัตราค่าปรับและค่าบริการเพิ่มเติมของรถเช่า ภูพิงค์ คอร์ปอเรชั่น — อ่านก่อนจองเพื่อความเข้าใจตรงกัน",
 };
 
 export default async function FeesPage() {
-  const [settings, feeItems] = await Promise.all([getSettings(), getFeeItems()]);
+  const [settings, feeItems, deposit] = await Promise.all([
+    getSettings(),
+    getFeeItems(),
+    getDepositSummary(),
+  ]);
 
   /* โปสเตอร์วาดจากรายการชุดเดียวกับที่แสดงด้านบน จึงไม่มีทางไม่ตรงกัน
      ฝังเป็น SVG ในหน้าเลย ไม่ใช่ <img> เพราะจะได้ใช้ฟอนต์ของเว็บและปรินต์ได้คม */
@@ -36,10 +41,10 @@ export default async function FeesPage() {
           <nav className="text-sm text-slate-500 mb-3">
             <Link href="/" className="hover:text-blue-700">หน้าแรก</Link>
             <span className="mx-2">/</span>
-            <span className="text-slate-700">ค่าปรับและค่าบริการเพิ่มเติม</span>
+            <span className="text-slate-700">เงินประกันและค่าปรับ</span>
           </nav>
           <h1 className="text-3xl font-bold text-slate-900">
-            ค่าปรับและค่าบริการเพิ่มเติม
+            เงินประกันและค่าปรับ
           </h1>
           <p className="text-slate-500 mt-2 max-w-2xl leading-relaxed">
             เปิดเผยไว้ตรงนี้ทั้งหมดก่อนคุณจอง เพื่อให้เข้าใจตรงกันตั้งแต่ต้น
@@ -64,11 +69,30 @@ export default async function FeesPage() {
                 Security Deposit
               </p>
               <p className="mt-1 font-display text-3xl font-bold text-blue-900 tabular-nums">
-                {SECURITY_DEPOSIT.amount.toLocaleString()} บาท
+                {deposit.defaultAmount.toLocaleString()} บาท
               </p>
               <p className="text-blue-900/80 text-sm mt-1">
-                เงินประกันความเสียหาย ชำระวันรับรถ และ<b>ได้คืนเต็มจำนวน</b> เมื่อ
+                เงินประกันความเสียหาย ชำระวันรับรถ
               </p>
+              {deposit.exceptions.length > 0 && (
+                <div className="mt-3 rounded-xl bg-white/70 border border-blue-100 px-4 py-3">
+                  <p className="text-xs font-semibold text-blue-900 mb-1.5">
+                    รถที่เงินประกันต่างจากปกติ
+                  </p>
+                  <ul className="flex flex-col gap-1">
+                    {deposit.exceptions.map((e) => (
+                      <li key={e.label} className="flex justify-between gap-4 text-sm text-blue-900">
+                        <span>เฉพาะ {e.label}</span>
+                        <span className="font-semibold tabular-nums">
+                          {e.amount.toLocaleString()} บาท
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-blue-900 text-sm mt-3 font-medium">{deposit.refundNote}</p>
+              <p className="text-blue-900/80 text-xs mt-2">โดยต้องครบทุกข้อต่อไปนี้</p>
               <ul className="mt-3 flex flex-col gap-1.5">
                 {SECURITY_DEPOSIT.conditions.map((c) => (
                   <li key={c} className="flex gap-2.5 text-sm text-blue-900">
@@ -143,7 +167,7 @@ export default async function FeesPage() {
             ไม่สูบบุหรี่ในรถ · เติมน้ำมันคืนตามระดับที่รับไป · เก็บกุญแจให้ดี ·
             ถ่ายรูปสภาพรถตอนรับไว้เป็นหลักฐาน · คืนรถตามเวลานัด ·
             ถ้าเกิดอุบัติเหตุหรือยางแตก โทรแจ้งร้านก่อนดำเนินการเอง
-            ทำครบเท่านี้ได้เงินประกัน {SECURITY_DEPOSIT.amount.toLocaleString()} บาทคืนเต็มจำนวน
+            ทำครบเท่านี้ได้เงินประกันคืนเต็มจำนวน
           </p>
         </div>
 

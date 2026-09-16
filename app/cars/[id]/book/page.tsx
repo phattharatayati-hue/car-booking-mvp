@@ -17,6 +17,7 @@ import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
 import { getCarRates } from "@/lib/car-rates-server";
 import { priceForDay } from "@/lib/car-rates";
+import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 
 export default async function BookCarPage({
   params,
@@ -152,6 +153,18 @@ export default async function BookCarPage({
                       {todayPrice.price.toLocaleString()} ฿
                     </dd>
                   </div>
+                  <div className="flex justify-between">
+                    <dt className="text-slate-500">เงินประกัน (ชำระวันรับรถ)</dt>
+                    <dd className="font-medium text-slate-900 text-right">
+                      {securityDepositOf(car, settings).toLocaleString()} ฿
+                      {car.securityDeposit != null &&
+                        car.securityDeposit !== settings.securityDeposit && (
+                          <span className="ml-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            เฉพาะรุ่นนี้
+                          </span>
+                        )}
+                    </dd>
+                  </div>
                   {carRates.some((r) => r.kind === "PRICE") && (
                     <p className="text-xs text-slate-500 -mt-1 text-right">
                       ราคาวันนี้{todayPrice.rate ? ` (${todayPrice.rate.label})` : ""} · ราคาเปลี่ยนตามช่วงวัน ยอดรวมคิดตามวันที่เลือก
@@ -174,7 +187,7 @@ export default async function BookCarPage({
                     </>
                   ) : (
                     <>
-                      หลังจองสำเร็จ ระบบจะแสดงยอดค่าจอง {settings.bookingFee.toLocaleString()} บาท
+                      หลังจองสำเร็จ ระบบจะแสดงยอดค่าจอง {bookingFeeOf(car, settings).toLocaleString()} บาท
                       ให้โอนแล้วอัปโหลดสลิปเพื่อยืนยันการจอง
                     </>
                   )}

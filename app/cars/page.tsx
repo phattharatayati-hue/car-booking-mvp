@@ -17,6 +17,7 @@ type CarCardData = {
   photoUrl: string | null;
   source: string;
   licensePlate: string;
+  securityDeposit?: number | null;
 };
 
 const SORTS = [
@@ -170,6 +171,7 @@ export default async function CarsPage({
                 car={car}
                 availability={availabilityFor(car.id)}
                 showPlate={dupNames.has(`${car.brand} ${car.name}`)}
+                defaultDeposit={settings.securityDeposit}
               />
             ))}
           </div>

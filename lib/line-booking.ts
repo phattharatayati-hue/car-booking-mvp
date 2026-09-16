@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { unresolvedDocuments } from "@/lib/documents";
 import { clashWhere } from "@/lib/turnaround";
+import { bookingFeeOf } from "@/lib/car-money";
 import {
   replyMessage,
   replyRaw,
@@ -375,7 +376,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
 
   await clearDraft(lineUserId);
 
-  const deposit = (await getSettings()).bookingFee;
+  const deposit = bookingFeeOf(car, await getSettings());
 
   if (isRequest) {
     await replyMessage(
@@ -408,6 +409,11 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
         deposit,
         bankInfo: BANK_INFO,
         bookingUrl: `${siteUrl()}/booking/${booking.id}`,
+        specialDeposit:
+          car.securityDeposit != null &&
+          car.securityDeposit !== (await getSettings()).securityDeposit
+            ? car.securityDeposit
+            : null,
       }),
     ]);
   }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexSlipReceived, flexSlipUploadedAdmin } from "@/lib/line-flex";
 import { DOCUMENT_LABEL, unresolvedDocuments } from "@/lib/documents";
+import { getSettings } from "@/lib/settings";
 
 export async function POST(
   request: Request,
@@ -94,8 +95,12 @@ export async function POST(
      ลูกค้าที่จองโดยไม่ผูก LINE จะไม่ได้ข้อความนี้ แต่หน้าเว็บเปิดช่องเอกสารให้ต่ออยู่แล้ว */
   if (booking.customer.lineUserId) {
     try {
+      const defaultDeposit = (await getSettings()).securityDeposit;
+      const carDeposit = booking.car.securityDeposit;
       await pushRaw(booking.customer.lineUserId, [
         flexSlipReceived({
+          specialDeposit:
+            carDeposit != null && carDeposit !== defaultDeposit ? carDeposit : null,
           bookingId: booking.id,
           carLabel: `${booking.car.brand} ${booking.car.name}`,
           missing: unresolvedDocuments(booking.documents).map((k) => DOCUMENT_LABEL[k]),

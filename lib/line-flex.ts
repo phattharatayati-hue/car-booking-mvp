@@ -304,6 +304,8 @@ export function bookingDone(opts: {
   deposit: number;
   bankInfo: string;
   bookingUrl?: string;
+  /** เงินประกันของรถคันนี้ — ใส่เฉพาะคันที่ตั้งแยกจากค่ากลาง */
+  specialDeposit?: number | null;
 }) {
   const url = opts.bookingUrl;
   return card({
@@ -313,6 +315,9 @@ export function bookingDone(opts: {
     body: [
       { type: "text", text: opts.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
       kv("ยอดรวม", `${opts.total.toLocaleString()} บาท`),
+      ...(opts.specialDeposit
+        ? [kv("เงินประกันรถคันนี้", `${opts.specialDeposit.toLocaleString()} บาท (ชำระวันรับรถ)`)]
+        : []),
       line,
       amountBox("โอนค่าจองเพื่อกันวันให้คุณ", opts.deposit, opts.bankInfo),
       noteBox([
@@ -812,6 +817,8 @@ export function flexSlipReceived(d: {
   carLabel: string;
   missing: string[];
   bookingUrl: string;
+  /** เงินประกันของรถคันนี้ — ใส่เฉพาะคันที่ตั้งแยกจากค่ากลาง */
+  specialDeposit?: number | null;
 }) {
   const needDocs = d.missing.length > 0;
   return card({
@@ -822,6 +829,9 @@ export function flexSlipReceived(d: {
     subtitle: `รหัสจอง ${code(d.bookingId)}`,
     body: [
       { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      ...(d.specialDeposit
+        ? [kv("เงินประกันรถคันนี้", `${d.specialDeposit.toLocaleString()} บาท (ชำระวันรับรถ)`)]
+        : []),
       {
         type: "text",
         text: needDocs
@@ -1075,13 +1085,26 @@ export function flexStatusEmpty(d: { carsUrl: string }) {
 }
 
 /** ค่าปรับและเงินประกัน — เมนู "ค่าบริการ" */
-export function flexFees(d: { lines: string[]; depositNote: string; url: string }) {
+export function flexFees(d: {
+  lines: string[];
+  /** "เงินประกันความเสียหาย 3,000 บาท · เฉพาะ Fortuner 5,000 บาท" */
+  depositText: string;
+  depositNote: string;
+  url: string;
+}) {
   return card({
-    altText: "ค่าปรับและค่าบริการเพิ่มเติม",
-    title: "ค่าบริการและค่าปรับ",
-    subtitle: "เกิดขึ้นเฉพาะเมื่อมีเหตุจริง",
+    altText: `เงินประกันและค่าปรับ — ${d.depositText}`,
+    title: "เงินประกันและค่าปรับ",
+    subtitle: d.depositText,
     tone: "warn",
     body: [
+      {
+        type: "text",
+        text: "ค่าปรับเกิดขึ้นเฉพาะเมื่อมีเหตุจริง",
+        size: "xs",
+        color: MUTED,
+        wrap: true,
+      },
       {
         type: "box",
         layout: "vertical",

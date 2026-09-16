@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { audit } from "@/lib/audit";
@@ -22,6 +23,7 @@ type CarRow = {
   photoUrl: string | null;
   source: string;
   status: string;
+  securityDeposit?: number | null;
   _count?: { rates: number };
 };
 
@@ -145,6 +147,7 @@ export default async function AdminCarsPage({
   const active = status === "AVAILABLE" || status === "UNAVAILABLE" ? status : null;
   const term = (q ?? "").trim();
 
+  const defaultDeposit = (await getSettings()).securityDeposit;
   const cars = await prisma.car.findMany({
     where: {
       ...(active ? { status: active } : {}),
@@ -302,6 +305,15 @@ export default async function AdminCarsPage({
                   <td className="px-5 py-3.5 text-slate-600">{car.licensePlate}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-900">
                     {car.pricePerDay.toLocaleString()} ฿
+                    {car.securityDeposit != null &&
+                      car.securityDeposit !== defaultDeposit && (
+                        <span
+                          className="block mt-0.5 text-[10px] font-medium text-amber-700"
+                          title="ตั้งเงินประกันเฉพาะคันไว้ในหน้าแก้ไขรถ"
+                        >
+                          ประกัน {car.securityDeposit.toLocaleString()} (แยก)
+                        </span>
+                      )}
                   </td>
                   <td className="px-5 py-3.5 text-slate-600">
                     {car.source === "OWN" ? "รถของเรา" : "พาร์ทเนอร์"}
