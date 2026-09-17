@@ -371,6 +371,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
       endDate: end,
       totalPrice: total,
       status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
+      channel: "LINE_CHAT",
     },
   });
 

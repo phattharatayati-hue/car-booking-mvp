@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { channelOf, CHANNEL_LABEL, CHANNEL_CLASS } from "@/lib/booking-channel";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { audit } from "@/lib/audit";
@@ -57,7 +58,9 @@ type BookingRow = {
     costPerDay: number | null;
     partner: { name: string; phone: string; lineId: string | null } | null;
   };
-  customer: { fullName: string; phone: string };
+  customer: { fullName: string; phone: string; lineUserId?: string | null };
+  channel?: string | null;
+  createdByAdminUserId?: string | null;
   deposit: {
     amount: number;
     slipImageUrl: string;
@@ -1119,6 +1122,9 @@ export default async function AdminBookingsPage({
                           {b.car.brand} {b.car.name}
                         </p>
                         <p className="text-xs text-slate-500 font-mono">{b.car.licensePlate}</p>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <ChannelBadges b={b} />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-slate-900">{b.customer.fullName}</p>
@@ -1210,6 +1216,7 @@ export default async function AdminBookingsPage({
                     <span className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                       #{b.id.slice(0, 8).toUpperCase()}
                     </span>
+                    <ChannelBadges b={b} />
                   </div>
                   <p className="text-sm text-slate-600 mt-1.5">
                     {b.customer.fullName} · {b.customer.phone}
@@ -1894,5 +1901,33 @@ export default async function AdminBookingsPage({
         </nav>
       )}
     </div>
+  );
+}
+
+/** ป้ายช่องทางที่จอง + ลูกค้าผูก LINE ไว้ไหม (ส่งแจ้งเตือนทาง LINE ได้หรือเปล่า) */
+function ChannelBadges({ b }: { b: BookingRow }) {
+  const ch = channelOf(b);
+  const linked = Boolean(b.customer.lineUserId);
+  const pill = "text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap";
+  return (
+    <>
+      <span className={`${pill} ${ch ? CHANNEL_CLASS[ch] : "bg-slate-100 text-slate-500 border-slate-200"}`}>
+        {ch ? CHANNEL_LABEL[ch] : "ไม่ทราบช่องทาง"}
+      </span>
+      <span
+        className={`${pill} ${
+          linked
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-amber-50 text-amber-700 border-amber-200"
+        }`}
+        title={
+          linked
+            ? "ลูกค้าผูกบัญชี LINE ไว้ — ระบบส่งแจ้งเตือนทาง LINE ได้"
+            : "ลูกค้าไม่ได้ผูก LINE — ระบบส่งแจ้งเตือนไม่ได้ ต้องโทรหรือทักเอง"
+        }
+      >
+        {linked ? "✓ เชื่อม LINE แล้ว" : "ไม่ได้เชื่อม LINE"}
+      </span>
+    </>
   );
 }

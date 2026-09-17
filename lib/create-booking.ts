@@ -45,6 +45,8 @@ export type CreateBookingInput = {
   skipCustomerRules?: boolean;
   /** ยอดรวมที่ตกลงกันจริง — ใส่มาแล้วใช้ทับยอดที่ระบบคิด */
   priceOverride?: number | null;
+  /** ช่องทางที่จอง — ดู lib/booking-channel.ts */
+  channel?: "WEB" | "LIFF" | "LINE_CHAT" | "ADMIN";
   /** บันทึกภายใน เขียนลง adminNote ตั้งแต่สร้าง */
   adminNote?: string | null;
   /** สร้างเป็นยืนยันแล้วเลย (เก็บค่าจองมาแล้ว) */
@@ -243,6 +245,7 @@ export async function createBooking(
           ? "REQUESTED"
           : "PENDING_DEPOSIT",
       adminNote: input.adminNote?.trim() || null,
+      channel: input.channel ?? (input.createdByAdminUserId ? "ADMIN" : "WEB"),
       silent: Boolean(input.silent),
       createdByAdminUserId: input.createdByAdminUserId ?? null,
       // นาฬิกากันคิวเริ่มเดินเมื่อลูกค้าโอนได้จริงเท่านั้น

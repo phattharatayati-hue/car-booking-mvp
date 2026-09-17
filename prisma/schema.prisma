@@ -177,6 +177,8 @@ model Booking {
   silent               Boolean  @default(false)
   /// แอดมินคนที่สร้างใบนี้เอง — ว่างคือลูกค้าจองเองผ่านเว็บ/LIFF/แชท
   createdByAdminUserId String?
+  /// ช่องทางที่จอง: WEB | LIFF | LINE_CHAT | ADMIN — ใบเก่าเป็น null
+  channel              String?
   /// กันคิวรถให้ถึงเวลานี้ ถ้ายังไม่อัปสลิประบบจะยกเลิกให้ (null = ไม่ยกเลิกเอง)
   /// ตั้งตอนเข้าสถานะ PENDING_DEPOSIT ไม่ใช่ตอนสร้างใบ เพราะรถพาร์ทเนอร์ต้องรอเจ้าของตอบก่อน
   holdUntil    DateTime?

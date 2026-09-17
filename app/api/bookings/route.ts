@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     pickupPlace: body.pickupPlace,
     returnPlace: body.returnPlace,
     customerId,
+    channel: "WEB",
   });
 
   if (!result.ok) {

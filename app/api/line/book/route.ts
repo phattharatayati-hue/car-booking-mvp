@@ -98,6 +98,7 @@ export async function POST(request: Request) {
       fullName: name,
       phone: finalPhone,
       lineUserId,
+      channel: "LIFF",
       pickupPlace,
       returnPlace,
     });
