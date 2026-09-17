@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { needsApproval } from "@/lib/booking-status";
+import { specItems } from "@/lib/car-specs";
 
 type CarCardProps = {
   car: {
@@ -13,6 +14,9 @@ type CarCardProps = {
     licensePlate: string;
     partnerId?: string | null;
     securityDeposit?: number | null;
+    engineCc?: number | null;
+    horsepower?: number | null;
+    fuelType?: string | null;
   };
   /** เงินประกันค่ากลาง — ส่งมาแล้วการ์ดของคันที่ตั้งแยกจะติดป้ายบอก */
   defaultDeposit?: number;
@@ -138,6 +142,20 @@ export default function CarCard({
             ประกันชั้น 1
           </span>
         </div>
+
+        {specItems(car).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {specItems(car).map((s) => (
+              <span
+                key={s.key}
+                className="text-[11px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full"
+                title={s.label}
+              >
+                {s.value}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="mt-4 pt-4 border-t border-slate-100 flex items-end justify-between gap-3">
           <div>

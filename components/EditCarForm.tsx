@@ -1,5 +1,6 @@
 "use client";
 
+import { FUEL_TYPES } from "@/lib/car-specs";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -21,6 +22,9 @@ export type CarForEdit = {
   costPerDay: number | null;
   bookingFee: number | null;
   securityDeposit: number | null;
+  engineCc: number | null;
+  horsepower: number | null;
+  fuelType: string | null;
   partnerId: string | null;
   bookingCount: number;
 };
@@ -83,6 +87,9 @@ export default function EditCarForm({
           costPerDay: data.get("costPerDay") || null,
           bookingFee: data.get("bookingFee") || null,
           securityDeposit: data.get("securityDeposit") || null,
+          engineCc: data.get("engineCc") || null,
+          horsepower: data.get("horsepower") || null,
+          fuelType: data.get("fuelType") || null,
           partnerId: data.get("partnerId") || null,
           ...(photoUrl ? { photoUrl } : {}),
         }),
@@ -247,6 +254,59 @@ export default function EditCarForm({
                 placeholder={`ค่ากลาง ${defaults.securityDeposit.toLocaleString()}`}
                 className={inputClass}
               />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <span className={labelClass}>สเปครถ (แสดงให้ลูกค้าเห็น)</span>
+          <p className="text-xs text-slate-500 mb-3">ไม่บังคับ · ช่องที่เว้นว่างจะไม่แสดงหน้าเว็บ</p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass} htmlFor="engineCc">ขนาดเครื่องยนต์ (cc)</label>
+              <input
+                id="engineCc"
+                name="engineCc"
+                type="number"
+                min="0"
+                max="10000"
+                defaultValue={car.engineCc ?? ""}
+                placeholder="เช่น 1200"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="horsepower">แรงม้า</label>
+              <input
+                id="horsepower"
+                name="horsepower"
+                type="number"
+                min="0"
+                max="2000"
+                defaultValue={car.horsepower ?? ""}
+                placeholder="เช่น 90"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="fuelType">น้ำมันที่ใช้</label>
+              <select
+                id="fuelType"
+                name="fuelType"
+                defaultValue={car.fuelType ?? ""}
+                className={inputClass}
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {/* ค่าเก่าที่ไม่อยู่ในรายการ ยังเลือกค้างไว้ได้ */}
+                {car.fuelType && !(FUEL_TYPES as readonly string[]).includes(car.fuelType) && (
+                  <option value={car.fuelType}>{car.fuelType}</option>
+                )}
+                {FUEL_TYPES.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

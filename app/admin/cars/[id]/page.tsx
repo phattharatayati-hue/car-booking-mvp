@@ -66,6 +66,9 @@ export default async function EditCarPage({
           costPerDay: car.costPerDay,
           bookingFee: car.bookingFee,
           securityDeposit: car.securityDeposit,
+          engineCc: car.engineCc ?? null,
+          horsepower: car.horsepower ?? null,
+          fuelType: car.fuelType ?? null,
           partnerId: car.partnerId,
           bookingCount,
         }}

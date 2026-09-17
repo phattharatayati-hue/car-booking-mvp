@@ -18,6 +18,7 @@ import LineLoginButton from "@/components/LineLoginButton";
 import { getCarRates } from "@/lib/car-rates-server";
 import { priceForDay } from "@/lib/car-rates";
 import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
+import { specItems } from "@/lib/car-specs";
 
 export default async function BookCarPage({
   params,
@@ -147,6 +148,12 @@ export default async function BookCarPage({
                       {car.source === "OWN" ? "รถของเรา" : "รถพาร์ทเนอร์"}
                     </dd>
                   </div>
+                  {specItems(car).map((s) => (
+                    <div key={s.key} className="flex justify-between">
+                      <dt className="text-slate-500">{s.label}</dt>
+                      <dd className="font-medium text-slate-900">{s.value}</dd>
+                    </div>
+                  ))}
                   <div className="flex justify-between pt-3 border-t border-slate-100">
                     <dt className="text-slate-500">ราคาต่อวัน</dt>
                     <dd className="text-lg font-bold text-blue-700">

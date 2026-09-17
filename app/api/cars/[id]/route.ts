@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { optionalInt, optionalText } from "@/lib/car-specs";
 
 export async function PATCH(
   request: Request,
@@ -42,6 +43,9 @@ export async function PATCH(
           : body.securityDeposit === null || body.securityDeposit === ""
             ? null
             : Number(body.securityDeposit),
+      engineCc: optionalInt(body.engineCc),
+      horsepower: optionalInt(body.horsepower),
+      fuelType: optionalText(body.fuelType),
       partnerId: body.partnerId === undefined ? undefined : body.partnerId || null,
       // ผูกเจ้าของรถ = รถพาร์ทเนอร์เสมอ กันข้อมูลขัดกัน
       source:

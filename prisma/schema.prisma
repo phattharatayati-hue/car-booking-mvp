@@ -92,6 +92,10 @@ model Car {
   bookingFee      Int?
   /// เงินประกันของคันนี้ — ว่างคือใช้ค่ากลางจากตั้งค่าระบบ (รถหรูมักเก็บสูงกว่า)
   securityDeposit Int?
+  /// สเปคที่แสดงให้ลูกค้า — ว่างได้ทุกช่อง
+  engineCc        Int?
+  horsepower      Int?
+  fuelType        String?
   photoUrl      String?
   source        CarSource @default(OWN)
   status        CarStatus @default(AVAILABLE)

@@ -1,3 +1,4 @@
+import { specItems } from "@/lib/car-specs";
 /**
  * ข้อความแบบ Flex สำหรับการจองรถผ่านแชท LINE
  */
@@ -11,6 +12,9 @@ export type FlexCar = {
   pricePerDay: number;
   photoUrl: string | null;
   source: string;
+  engineCc?: number | null;
+  horsepower?: number | null;
+  fuelType?: string | null;
 };
 
 /* ---------- โทนสีแบรนด์ ----------
@@ -106,6 +110,17 @@ function carBubble(car: FlexCar, site: string) {
             { type: "text", text: "บาท / วัน", size: "sm", color: MUTED },
           ],
         },
+        ...(specItems(car).length
+          ? [
+              {
+                type: "text",
+                text: specItems(car).map((s) => s.value).join(" · "),
+                size: "xs",
+                color: MUTED,
+                wrap: true,
+              },
+            ]
+          : []),
         ...(car.source === "PARTNER"
           ? [{ type: "text", text: "รถพาร์ทเนอร์", size: "xxs", color: MUTED }]
           : []),

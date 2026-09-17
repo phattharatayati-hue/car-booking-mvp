@@ -18,6 +18,9 @@ type CarCardData = {
   source: string;
   licensePlate: string;
   securityDeposit?: number | null;
+  engineCc?: number | null;
+  horsepower?: number | null;
+  fuelType?: string | null;
 };
 
 const SORTS = [
