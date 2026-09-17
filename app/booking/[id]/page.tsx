@@ -84,12 +84,21 @@ export default async function BookingStatusPage({
           me ? (
             <ClaimBooking bookingId={booking.id} />
           ) : (
-            <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <p className="text-sm text-slate-600 mb-3">
-                เข้าสู่ระบบด้วย LINE เพื่อเก็บการจองนี้ไว้ในประวัติของคุณ
-                และรับแจ้งเตือนสถานะทางแชท
+            /* ไม่บังคับ แต่ทำให้เด่น — ลูกค้าที่ไม่ผูก LINE ระบบส่งแจ้งเตือนอะไรไม่ได้เลย */
+            <div className="mb-5 rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5">
+              <p className="font-semibold text-emerald-900">รับแจ้งเตือนการจองทาง LINE</p>
+              <p className="text-xs text-emerald-800/80 mt-0.5 mb-3">
+                ไม่บังคับ · กดครั้งเดียว ไม่ต้องสมัครสมาชิก
               </p>
-              <LineLoginButton next={`/booking/${booking.id}`} />
+              <ul className="mb-4 flex flex-col gap-1.5 text-sm text-emerald-900">
+                <li>✓ แจ้งทันทีเมื่อยืนยันสลิปและการจอง</li>
+                <li>✓ ส่งรายละเอียดวันรับรถ และเตือนก่อนถึงเวลาคืนรถ</li>
+                <li>✓ เปิดดูการจองนี้ได้ทุกเมื่อ ไม่ต้องเก็บลิงก์เอง</li>
+              </ul>
+              <LineLoginButton
+                next={`/booking/${booking.id}`}
+                label="รับแจ้งเตือนทาง LINE"
+              />
             </div>
           )
         )}

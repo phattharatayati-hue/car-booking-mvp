@@ -1219,7 +1219,14 @@ export default async function AdminBookingsPage({
                     <ChannelBadges b={b} />
                   </div>
                   <p className="text-sm text-slate-600 mt-1.5">
-                    {b.customer.fullName} · {b.customer.phone}
+                    {b.customer.fullName} ·{" "}
+                    <a
+                      href={`tel:${b.customer.phone}`}
+                      className="font-mono font-medium text-blue-700 hover:underline"
+                      title="กดเพื่อโทร"
+                    >
+                      📞 {b.customer.phone || "ไม่มีเบอร์"}
+                    </a>
                   </p>
                   <p className="text-sm text-slate-500 mt-0.5">
                     รับ {formatBangkokDateTime(b.startDate)}

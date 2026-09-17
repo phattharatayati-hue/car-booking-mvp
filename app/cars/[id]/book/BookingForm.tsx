@@ -441,12 +441,18 @@ export default function BookingForm({
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass} htmlFor="phone">เบอร์โทร</label>
+              <label className={labelClass} htmlFor="phone">
+                เบอร์โทร <span className="text-red-600">*</span>
+              </label>
               <input
                 id="phone"
                 name="phone"
+                type="tel"
                 defaultValue={defaultPhone}
                 required
+                minLength={9}
+                title="กรอกเบอร์โทร 10 หลัก เช่น 0812345678 (ต่างประเทศขึ้นต้นด้วย +)"
+                autoComplete="tel"
                 inputMode="tel"
                 placeholder="08X-XXX-XXXX"
                 className={inputClass}
