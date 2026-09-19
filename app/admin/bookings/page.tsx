@@ -61,6 +61,7 @@ type BookingRow = {
   customer: { fullName: string; phone: string; lineUserId?: string | null };
   channel?: string | null;
   createdByAdminUserId?: string | null;
+  createdAt: Date;
   deposit: {
     amount: number;
     slipImageUrl: string;
@@ -1116,6 +1117,9 @@ export default async function AdminBookingsPage({
                       </td>
                       <td className="px-4 py-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
                         #{b.id.slice(0, 8).toUpperCase()}
+                        <span className="block mt-0.5 font-sans font-normal text-[11px] text-slate-400">
+                          จองเข้ามา {formatBangkokDateTime(b.createdAt)}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-900">
@@ -1233,6 +1237,10 @@ export default async function AdminBookingsPage({
                   </p>
                   <p className="text-sm text-slate-500">
                     คืน {formatBangkokDateTime(b.endDate)}
+                  </p>
+                  {/* เวลาที่ลูกค้ากดจองเข้ามา — ใช้ดูว่าใบไหนเพิ่งเข้ามา และคู่กับเวลายกเลิกอัตโนมัติ */}
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    จองเข้ามา {formatBangkokDateTime(b.createdAt)}
                   </p>
                   {(b.pickupPlace || b.returnPlace) && (
                     <p className="text-sm text-slate-500 mt-0.5">
