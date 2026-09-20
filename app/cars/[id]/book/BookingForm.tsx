@@ -20,6 +20,7 @@ import {
   formatRateRange,
   type CarRateView,
 } from "@/lib/car-rates";
+import { bestPromotion, type PromotionView } from "@/lib/promotions";
 import {
   DEFAULT_LEAD_HOURS,
   earliestPickup,
@@ -47,6 +48,7 @@ export default function BookingForm({
   afterHoursRates,
   busySpans = [],
   carRates = [],
+  promotions = [],
   isRequest = false,
   availability,
   pickupPoints,
@@ -62,6 +64,7 @@ export default function BookingForm({
   afterHoursRates: AfterHoursRate[];
   busySpans?: BusySpan[];
   carRates?: CarRateView[];
+  promotions?: PromotionView[];
   isRequest?: boolean;
   /** กติกาค่าคืนรถล่าช้า — มาจากหน้าตั้งค่าระบบ */
   lateRule?: LateRule;
@@ -154,7 +157,12 @@ export default function BookingForm({
         )
       : 0;
 
-  const total = rentTotal + afterHoursTotal + lateFee;
+  /* ส่วนลดคิดจากค่าเช่าอย่างเดียว ตรงกับที่ lib/pricing.ts คิดฝั่งเซิร์ฟเวอร์ */
+  const promoHit =
+    days > 0 && startDate ? bestPromotion(promotions, startDate, days, rentTotal) : null;
+  const discount = promoHit?.amount ?? 0;
+
+  const total = Math.max(0, rentTotal + afterHoursTotal + lateFee - discount);
 
   // ช่วงที่แอดมินปิดรับจอง
   const blocked = blockingRates(startDate, endDate, carRates);
@@ -462,6 +470,13 @@ export default function BookingForm({
               {returnFee.fee > 0 && (
                 <span className="block text-xs text-amber-700 mt-0.5">
                   + คืนรถนอกเวลา {returnFee.fee.toLocaleString()} ฿
+                </span>
+              )}
+              {promoHit && discount > 0 && (
+                <span className="block text-xs font-medium text-emerald-700 mt-0.5">
+                  − {promoHit.promo.name} ลดวันละ{" "}
+                  {promoHit.promo.discountPerDay.toLocaleString()} ฿ × {days} วัน ={" "}
+                  {discount.toLocaleString()} ฿
                 </span>
               )}
               {lateFee > 0 && (

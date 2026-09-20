@@ -183,6 +183,10 @@ model Booking {
   createdByAdminUserId String?
   /// ช่องทางที่จอง: WEB | LIFF | LINE_CHAT | ADMIN — ใบเก่าเป็น null
   channel              String?
+  /// ส่วนลดที่ได้ ณ ตอนจอง — เก็บไว้กับใบ ไม่คิดใหม่ทีหลัง
+  discountAmount       Int      @default(0)
+  /// ชื่อโปรฯ ที่ใช้ ณ ตอนนั้น
+  discountLabel        String?
   /// กันคิวรถให้ถึงเวลานี้ ถ้ายังไม่อัปสลิประบบจะยกเลิกให้ (null = ไม่ยกเลิกเอง)
   /// ตั้งตอนเข้าสถานะ PENDING_DEPOSIT ไม่ใช่ตอนสร้างใบ เพราะรถพาร์ทเนอร์ต้องรอเจ้าของตอบก่อน
   holdUntil    DateTime?
@@ -221,6 +225,25 @@ model BookingDocument {
 
   /// อัปโหลดใหม่ทับของเดิมได้ แต่เก็บชนิดละหนึ่งไฟล์ต่อการจอง
   @@unique([bookingId, kind])
+}
+
+/// ส่วนลดตามช่วงวัน — ยึดวันรับรถ ลดเป็นบาทต่อวัน เข้าได้ทีละโปรฯ
+model Promotion {
+  id             String   @id @default(cuid())
+  /// ชื่อที่ลูกค้าเห็นในบิล เช่น "โปรฯ โลว์ซีซัน"
+  name           String
+  /// ช่วงที่ใช้ได้ — เทียบกับวันรับรถ (endDate นับรวมวันนั้น)
+  startDate      DateTime
+  endDate        DateTime
+  /// เช่าอย่างน้อยกี่วันถึงเข้าเงื่อนไข
+  minDays        Int      @default(1)
+  /// ลดกี่บาทต่อวัน
+  discountPerDay Int
+  /// เพดานส่วนลดต่อการจอง — ว่างคือไม่จำกัด
+  maxDiscount    Int?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 /// ตั้งค่าระบบ — มีแถวเดียว (id = "default")

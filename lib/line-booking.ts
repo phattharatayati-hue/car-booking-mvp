@@ -28,6 +28,7 @@ import {
 import { quoteBooking, feeForMinute, bangkokMinuteOfDay } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { getCarRates } from "@/lib/car-rates-server";
+import { getActivePromotions } from "@/lib/promotions-server";
 import {
   blockingRates,
   bangkokDateStrOf,
@@ -223,6 +224,7 @@ async function handlePickEnd(replyToken: string, lineUserId: string, dateStr: st
     pricePerDay: car.pricePerDay,
     rates,
     carRates,
+    promotions: await getActivePromotions(),
     lateRule: lateRuleFromSettings(await getSettings()),
   });
   const days = quote.days;
@@ -334,6 +336,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     pricePerDay: car.pricePerDay,
     rates,
     carRates: await getCarRates(car.id),
+    promotions: await getActivePromotions(),
     lateRule: lateRuleFromSettings(await getSettings()),
   });
   const total = quote.total;
@@ -370,6 +373,8 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
       startDate: start,
       endDate: end,
       totalPrice: total,
+      discountAmount: quote.discount,
+      discountLabel: quote.promotionName,
       status: isRequest ? "REQUESTED" : "PENDING_DEPOSIT",
       channel: "LINE_CHAT",
     },

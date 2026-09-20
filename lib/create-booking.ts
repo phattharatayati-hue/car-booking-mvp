@@ -11,6 +11,7 @@ import { getPickupPoints } from "@/lib/pickup-points-server";
 import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
 import { sweepUnpaidHolds, holdUntilFrom } from "@/lib/unpaid-hold";
 import { getCarRates } from "@/lib/car-rates-server";
+import { getActivePromotions } from "@/lib/promotions-server";
 import { bookingFeeOf } from "@/lib/car-money";
 import {
   bangkokDateStrOf,
@@ -158,12 +159,16 @@ export async function createBooking(
 
   // ราคา = ค่าเช่าตามจำนวนวัน + ค่าธรรมเนียมนอกเวลา (คิดแยกตอนรับและตอนคืน)
   const rates = await getAfterHoursRates();
+  /* โปรฯ คิดให้เฉพาะใบที่ลูกค้าจองเอง — ใบที่แอดมินกรอกมักตกลงราคากันแล้ว
+     และส่งยอดจริงมาทาง priceOverride อยู่แล้ว */
+  const promotions = skipRules ? [] : await getActivePromotions();
   const quote = quoteBooking({
     start,
     end,
     pricePerDay: car.pricePerDay,
     rates,
     carRates,
+    promotions,
     lateRule: lateRuleFromSettings(settings),
   });
 
@@ -261,6 +266,8 @@ export async function createBooking(
           ? "REQUESTED"
           : "PENDING_DEPOSIT",
       adminNote: input.adminNote?.trim() || null,
+      discountAmount: input.priceOverride != null ? 0 : quote.discount,
+      discountLabel: input.priceOverride != null ? null : quote.promotionName,
       channel: input.channel ?? (input.createdByAdminUserId ? "ADMIN" : "WEB"),
       silent: Boolean(input.silent),
       createdByAdminUserId: input.createdByAdminUserId ?? null,

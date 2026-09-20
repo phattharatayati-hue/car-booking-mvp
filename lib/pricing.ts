@@ -9,9 +9,15 @@
 import {
   rentSegments,
   formatRateRange,
+  bangkokDateStrOf,
   type CarRateView,
   type RentSegment,
 } from "@/lib/car-rates";
+import {
+  bestPromotion,
+  promotionLineLabel,
+  type PromotionView,
+} from "@/lib/promotions";
 
 export const MINUTES_PER_DAY = 24 * 60;
 
@@ -170,7 +176,7 @@ export function durationLabel(d: RentalDuration): string {
 }
 
 export type QuoteLine = {
-  kind: "rent" | "pickup" | "return" | "late";
+  kind: "rent" | "pickup" | "return" | "late" | "discount";
   label: string;
   amount: number;
 };
@@ -189,6 +195,10 @@ export type Quote = {
   pickupFee: number;
   returnFee: number;
   afterHoursTotal: number;
+  /** ส่วนลดที่ได้ (บาท) — หักจากค่าเช่าแล้วในยอด total */
+  discount: number;
+  /** ชื่อโปรฯ ที่ใช้ — null คือไม่มีส่วนลด */
+  promotionName: string | null;
   total: number;
   lines: QuoteLine[];
 };
@@ -210,6 +220,8 @@ export function quoteBooking(params: {
   end: Date;
   pricePerDay: number;
   rates: AfterHoursRate[];
+  /** โปรฯ ที่เปิดอยู่ — ไม่ส่งมาก็ไม่มีส่วนลด */
+  promotions?: PromotionView[];
   /** ช่วงราคาตามวันของรถคันนั้น — ไม่ส่งมาก็ใช้ราคาปกติทุกวัน */
   carRates?: CarRateView[];
   /** กติกาค่าคืนรถล่าช้า — ไม่ส่งมาก็ใช้ค่าตั้งต้น */
@@ -221,6 +233,7 @@ export function quoteBooking(params: {
     pricePerDay,
     rates,
     carRates = [],
+    promotions = [],
     lateRule = DEFAULT_LATE_RULE,
   } = params;
 
@@ -272,10 +285,24 @@ export function quoteBooking(params: {
     });
   }
 
+  /* ส่วนลดคิดจากค่าเช่าเท่านั้น ไม่ลดค่านอกเวลาและค่าเลท
+     เพราะสองอย่างนั้นเป็นต้นทุนที่เกิดจริงของร้าน ไม่ใช่ราคาขาย */
+  const hit = bestPromotion(promotions, bangkokDateStrOf(start), days, rentTotal);
+  const discount = hit?.amount ?? 0;
+  if (hit && discount > 0) {
+    lines.push({
+      kind: "discount",
+      label: promotionLineLabel(hit, days),
+      amount: -discount,
+    });
+  }
+
   const afterHoursTotal = pickup.fee + ret.fee;
 
   return {
     days,
+    discount,
+    promotionName: hit?.promo.name ?? null,
     lateHours: duration.lateHours,
     lateFee,
     duration,
@@ -284,7 +311,7 @@ export function quoteBooking(params: {
     pickupFee: pickup.fee,
     returnFee: ret.fee,
     afterHoursTotal,
-    total: rentTotal + afterHoursTotal + lateFee,
+    total: Math.max(0, rentTotal + afterHoursTotal + lateFee - discount),
     lines,
   };
 }

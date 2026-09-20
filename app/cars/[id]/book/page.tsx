@@ -16,6 +16,7 @@ import { bangkokDateStr } from "@/lib/settings";
 import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
 import { getCarRates } from "@/lib/car-rates-server";
+import { getActivePromotions } from "@/lib/promotions-server";
 import { priceForDay } from "@/lib/car-rates";
 import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
 import { specItems } from "@/lib/car-specs";
@@ -46,6 +47,7 @@ export default async function BookCarPage({
   /* ราคาตามช่วงวัน — ต้องส่งให้ฟอร์ม ไม่งั้นหน้าเว็บคิดด้วยราคาปกติ
      ขณะที่เซิร์ฟเวอร์คิดตามช่วง ยอดที่ลูกค้าเห็นจะไม่ตรงบิล */
   const carRates = await getCarRates(car.id);
+  const promotions = await getActivePromotions();
   const todayPrice = priceForDay(fromStr, car.pricePerDay, carRates);
 
   /* ลูกค้าที่เข้าสู่ระบบไว้แล้ว — เติมชื่อ เบอร์ อีเมลให้อัตโนมัติ
@@ -96,6 +98,7 @@ export default async function BookCarPage({
               afterHoursRates={afterHoursRates}
               busySpans={busySpans}
               carRates={carRates}
+              promotions={promotions}
               isRequest={isRequest}
               availability={availability}
               pickupPoints={pickupPoints}

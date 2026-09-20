@@ -130,6 +130,22 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/promotions",
+    group: "fleet",
+    label: "ส่วนลด",
+    icon: (
+      <>
+        <path
+          d="M4 8.5A2.5 2.5 0 016.5 6H11l7 7-4.5 4.5L6.5 10.5A2.5 2.5 0 014 8.5z"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinejoin="round"
+        />
+        <circle cx="8" cy="10" r="1.2" fill="currentColor" />
+      </>
+    ),
+  },
+  {
     href: "/admin/storage",
     group: "system",
     label: "พื้นที่เก็บไฟล์",

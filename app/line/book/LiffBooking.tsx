@@ -1,5 +1,6 @@
 "use client";
 
+import { bestPromotion, type PromotionView } from "@/lib/promotions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
@@ -80,6 +81,7 @@ export default function LiffBooking({
   busySpans = [],
   liffId,
   pickupPoints,
+  promotions = [],
   lateRule = DEFAULT_LATE_RULE,
   minLeadHours = DEFAULT_LEAD_HOURS,
 }: {
@@ -94,6 +96,7 @@ export default function LiffBooking({
   /** ต้องจองล่วงหน้ากี่ชั่วโมง — มาจากหน้าตั้งค่าระบบ (0 = ไม่บังคับ) */
   minLeadHours?: number;
   pickupPoints: PickupOption[];
+  promotions?: PromotionView[];
 }) {
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -243,7 +246,10 @@ export default function LiffBooking({
   const lateHours = duration?.lateHours ?? 0;
   const lateFee =
     lateHours > 0 ? Math.min(lateHours * lateRule.hourlyFee, car.pricePerDay) : 0;
-  const total = days * car.pricePerDay + afterHoursTotal + lateFee;
+  const rentTotal = days * car.pricePerDay;
+  const promoHit = days > 0 && startDate ? bestPromotion(promotions, startDate, days, rentTotal) : null;
+  const discount = promoHit?.amount ?? 0;
+  const total = Math.max(0, rentTotal + afterHoursTotal + lateFee - discount);
 
   async function handleSubmit() {
     if (!startDate || !endDate) {
@@ -696,6 +702,11 @@ export default function LiffBooking({
             {lateFee > 0 && (
               <span className="block text-xs text-amber-700 mt-0.5">
                 + คืนรถล่าช้า {lateHours} ชม. {lateFee.toLocaleString()} ฿
+              </span>
+            )}
+            {promoHit && discount > 0 && (
+              <span className="block text-xs font-medium text-emerald-700 mt-0.5">
+                − {promoHit.promo.name} ลด {discount.toLocaleString()} ฿
               </span>
             )}
             {duration?.roundedUpToDay && (
