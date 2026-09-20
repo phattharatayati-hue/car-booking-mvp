@@ -86,12 +86,16 @@ export default function BookingForm({
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
-  const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
+  /* เริ่มเป็นค่าว่าง ไม่ใช่ตัวเลือกแรกของรายการ
+     เดิมค่าเริ่มต้นคือ 00:00 ลูกค้าจึงกดจองผ่านไปได้ทั้งที่ยังไม่ได้เลือกเวลา
+     แล้วใบจองกลายเป็นนัดเที่ยงคืนโดยไม่มีใครตั้งใจ */
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const timesChosen = Boolean(startTime && endTime);
 
   // วันเต็ม + ชั่วโมงเลท ตามกติกาที่แอดมินตั้งไว้
   const duration =
-    startDate && endDate
+    startDate && endDate && timesChosen
       ? rentalDuration(
           new Date(`${startDate}T${startTime}:00+07:00`),
           new Date(`${endDate}T${endTime}:00+07:00`),
@@ -103,11 +107,13 @@ export default function BookingForm({
   const startChoices = timeChoicesFor(startDate, timeOptions, busySpans, earliestAt);
   // เวลาคืนรถไม่ต้องติดกฎจองล่วงหน้า เพราะยังไงก็อยู่หลังเวลารับรถอยู่แล้ว
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
-  const overlaps = rangeBusy(startDate, startTime, endDate, endTime, busySpans);
+  const overlaps = timesChosen
+    ? rangeBusy(startDate, startTime, endDate, endTime, busySpans)
+    : false;
 
   // ถ้าเวลาที่เลือกอยู่กลายเป็นเวลาที่ชน ให้เลื่อนไปเวลาว่างแรกของวันนั้นให้เลย
   useEffect(() => {
-    if (!startDate) return;
+    if (!startDate || !startTime) return;
     const startChoice = startChoices.find((c) => c.time === startTime);
     if (startChoice?.busy || startChoice?.tooSoon) {
       const next = firstFreeTime(startDate, timeOptions, busySpans, earliestAt);
@@ -117,7 +123,7 @@ export default function BookingForm({
   }, [startDate]);
 
   useEffect(() => {
-    if (!endDate) return;
+    if (!endDate || !endTime) return;
     if (endChoices.find((c) => c.time === endTime)?.busy) {
       const next = firstFreeTime(endDate, timeOptions, busySpans);
       if (next) setEndTime(next);
@@ -125,13 +131,13 @@ export default function BookingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endDate]);
 
-  const pickupFee = feeForTime(startTime, afterHoursRates);
-  const returnFee = feeForTime(endTime, afterHoursRates);
+  const pickupFee = feeForTime(startTime || "12:00", afterHoursRates);
+  const returnFee = feeForTime(endTime || "12:00", afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
 
   // ค่าเช่าคิดรายวันตามช่วงราคาของรถคันนี้ แล้วยุบวันที่ราคาเท่ากันเข้าด้วยกัน
   const segments =
-    days > 0 && startDate
+    days > 0 && startDate && timesChosen
       ? rentSegments(new Date(`${startDate}T${startTime}:00+07:00`), days, pricePerDay, carRates)
       : [];
   const rentTotal = segments.reduce((sum, seg) => sum + seg.total, 0);
@@ -168,6 +174,12 @@ export default function BookingForm({
 
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถบนปฏิทิน");
+      setSubmitting(false);
+      return;
+    }
+
+    if (!startTime || !endTime) {
+      setError("กรุณาเลือกเวลารับรถและเวลาคืนรถ");
       setSubmitting(false);
       return;
     }
@@ -291,10 +303,14 @@ export default function BookingForm({
             <select
               id="startTime"
               name="startTime"
+              required
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className={inputClass}
             >
+              <option value="" disabled>
+                — เลือกเวลารับรถ —
+              </option>
               {startChoices.map((c) => (
                 <option key={c.time} value={c.time} disabled={c.busy || c.tooSoon}>
                   {c.time} น.
@@ -302,8 +318,10 @@ export default function BookingForm({
                 </option>
               ))}
             </select>
-            <p className={`text-xs mt-1.5 ${pickupFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
-              {feeHint(pickupFee)}
+            <p className={`text-xs mt-1.5 ${
+              !startTime ? "text-red-600" : pickupFee.fee > 0 ? "text-amber-700" : "text-slate-500"
+            }`}>
+              {startTime ? feeHint(pickupFee) : "กรุณาเลือกเวลารับรถ"}
             </p>
           </div>
           <div>
@@ -313,18 +331,24 @@ export default function BookingForm({
             <select
               id="endTime"
               name="endTime"
+              required
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               className={inputClass}
             >
+              <option value="" disabled>
+                — เลือกเวลาคืนรถ —
+              </option>
               {endChoices.map((c) => (
                 <option key={c.time} value={c.time} disabled={c.busy}>
                   {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
                 </option>
               ))}
             </select>
-            <p className={`text-xs mt-1.5 ${returnFee.fee > 0 ? "text-amber-700" : "text-slate-500"}`}>
-              {feeHint(returnFee)}
+            <p className={`text-xs mt-1.5 ${
+              !endTime ? "text-red-600" : returnFee.fee > 0 ? "text-amber-700" : "text-slate-500"
+            }`}>
+              {endTime ? feeHint(returnFee) : "กรุณาเลือกเวลาคืนรถ"}
             </p>
           </div>
         </div>

@@ -107,8 +107,10 @@ export default function LiffBooking({
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [startTime, setStartTime] = useState(timeOptions[0] ?? "10:00");
-  const [endTime, setEndTime] = useState(timeOptions[0] ?? "10:00");
+  /* ว่างไว้ก่อน ไม่ใช่ตัวเลือกแรก (00:00) — บังคับให้ลูกค้าเลือกเวลาเอง */
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const timesChosen = Boolean(startTime && endTime);
   const [phone, setPhone] = useState("");
   const [pickupPlace, setPickupPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
   const [returnPlace, setReturnPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
@@ -186,7 +188,7 @@ export default function LiffBooking({
 
   // วันเต็ม + ชั่วโมงเลท ตามกติกาที่แอดมินตั้งไว้
   const duration =
-    startDate && endDate
+    startDate && endDate && timesChosen
       ? rentalDuration(
           new Date(`${startDate}T${startTime}:00+07:00`),
           new Date(`${endDate}T${endTime}:00+07:00`),
@@ -197,10 +199,13 @@ export default function LiffBooking({
   // ปิดเวลาที่รถยังอยู่กับลูกค้าอื่น
   const startChoices = timeChoicesFor(startDate, timeOptions, busySpans, earliestAt);
   const endChoices = timeChoicesFor(endDate, timeOptions, busySpans);
-  const overlaps = rangeBusy(startDate, startTime, endDate, endTime, busySpans);
+  const overlaps = timesChosen
+    ? rangeBusy(startDate, startTime, endDate, endTime, busySpans)
+    : false;
 
   useEffect(() => {
     if (!startDate) return;
+    if (!startTime) return;
     const startChoice = startChoices.find((c) => c.time === startTime);
     if (startChoice?.busy || startChoice?.tooSoon) {
       const next = firstFreeTime(startDate, timeOptions, busySpans, earliestAt);
@@ -211,6 +216,7 @@ export default function LiffBooking({
 
   useEffect(() => {
     if (!endDate) return;
+    if (!endTime) return;
     if (endChoices.find((c) => c.time === endTime)?.busy) {
       const next = firstFreeTime(endDate, timeOptions, busySpans);
       if (next) setEndTime(next);
@@ -220,18 +226,18 @@ export default function LiffBooking({
 
   /** เช่าวันเดียว — เวลาคืนต้องหลังเวลารับ */
   const sameDay = Boolean(startDate && endDate && startDate === endDate);
-  const sameDayInvalid = sameDay && endTime <= startTime;
+  const sameDayInvalid = sameDay && timesChosen && endTime <= startTime;
 
   useEffect(() => {
     if (!sameDay) return;
-    if (endTime > startTime) return;
+    if (!startTime || !endTime || endTime > startTime) return;
     const next = timeOptions.find((t) => t > startTime && !isTimeBusy(endDate, t, busySpans));
     if (next) setEndTime(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sameDay, startTime, endDate]);
 
-  const pickupFee = feeForTime(startTime, afterHoursRates);
-  const returnFee = feeForTime(endTime, afterHoursRates);
+  const pickupFee = feeForTime(startTime || "12:00", afterHoursRates);
+  const returnFee = feeForTime(endTime || "12:00", afterHoursRates);
   const afterHoursTotal = pickupFee.fee + returnFee.fee;
   const lateHours = duration?.lateHours ?? 0;
   const lateFee =
@@ -241,6 +247,11 @@ export default function LiffBooking({
   async function handleSubmit() {
     if (!startDate || !endDate) {
       setError("กรุณาเลือกวันรับและวันคืนรถ");
+      return;
+    }
+    if (!startTime || !endTime) {
+      setError("กรุณาเลือกเวลารับรถและเวลาคืนรถ");
+      setSubmitting(false);
       return;
     }
     if (startDate === endDate && endTime <= startTime) {
@@ -540,10 +551,14 @@ export default function LiffBooking({
           </label>
           <select
             id="st"
+            required
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
           >
+            <option value="" disabled>
+              — เลือกเวลารับรถ —
+            </option>
             {startChoices.map((c) => (
               <option key={c.time} value={c.time} disabled={c.busy || c.tooSoon}>
                 {c.time} น.
@@ -564,10 +579,14 @@ export default function LiffBooking({
           </label>
           <select
             id="et"
+            required
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
           >
+            <option value="" disabled>
+              — เลือกเวลาคืนรถ —
+            </option>
             {endChoices.map((c) => (
               <option key={c.time} value={c.time} disabled={c.busy}>
                 {c.time} น.{c.busy ? " — รถไม่ว่าง" : ""}
