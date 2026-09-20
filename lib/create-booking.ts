@@ -78,6 +78,13 @@ export async function createBooking(
   }
 
   const settings = await getSettings();
+  /* เวลารับ-คืนต้องมาครบเสมอ ไม่ปล่อยให้ตกเป็น 00:00 เงียบ ๆ
+     ใบที่เวลาเป็นเที่ยงคืนทำให้คนส่งรถไม่รู้ว่านัดกี่โมง และค่านอกเวลาคิดผิด */
+  const timeOk = (t?: string) => typeof t === "string" && /^\d{2}:\d{2}$/.test(t.slice(0, 5));
+  if (!timeOk(startTime) || !timeOk(endTime)) {
+    return { ok: false, status: 400, error: "กรุณาเลือกเวลารับรถและเวลาคืนรถ" };
+  }
+
   const start = toBangkokDate(String(startDate), startTime);
   const end = toBangkokDate(String(endDate), endTime);
 

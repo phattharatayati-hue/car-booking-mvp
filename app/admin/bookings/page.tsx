@@ -12,7 +12,13 @@ import Link from "next/link";
 import AdminDocUpload from "@/components/AdminDocUpload";
 import { pushMessage, siteUrl } from "@/lib/line";
 import { notifyBookingProgress } from "@/lib/booking-notify";
-import { formatBangkokDateTime, getSettings } from "@/lib/settings";
+import {
+  formatBangkokDateTime,
+  getSettings,
+  bangkokDateStr,
+  formatBangkokTime,
+  toBangkokDate,
+} from "@/lib/settings";
 import {
   DOCUMENT_KINDS,
   DOCUMENT_LABEL,
@@ -371,6 +377,114 @@ async function adminReplaceSlipAction(formData: FormData) {
     summary: `แอดมินเปลี่ยนรูปสลิปแทนลูกค้า — การจอง ${bookingId.slice(0, 8).toUpperCase()}`,
     entity: "booking",
     entityId: bookingId,
+  });
+
+  revalidatePath("/admin/bookings");
+}
+
+/**
+ * แอดมินแก้ข้อมูลใบจองที่ลูกค้ากรอกมา — วัน-เวลา จุดรับ-ส่ง ชื่อ เบอร์ และยอดรวม
+ *
+ * มีไว้เพราะลูกค้ากรอกผิดบ่อย (เลือกเวลาพลาด พิมพ์เบอร์ตก) แล้วโทรมาขอแก้
+ * เดิมต้องยกเลิกใบเก่าแล้วสร้างใหม่ ซึ่งทำให้ประวัติและใบเสร็จเพี้ยน
+ *
+ * ไม่แตะราคาที่คิดไว้เองอัตโนมัติ — แอดมินพิมพ์ยอดที่ตกลงกันจริงลงไป
+ * และไม่ย้ายนัดของคนส่ง-รับรถให้ ต้องไปแก้ในส่วนมอบหมายงานเอง
+ */
+async function editBookingAction(formData: FormData) {
+  "use server";
+  await requireStaff();
+
+  const bookingId = String(formData.get("bookingId") ?? "");
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { customer: true },
+  });
+  if (!booking) redirect("/admin/bookings?error=notfound");
+
+  const startDate = String(formData.get("startDate") ?? "");
+  const endDate = String(formData.get("endDate") ?? "");
+  const startTime = String(formData.get("startTime") ?? "");
+  const endTime = String(formData.get("endTime") ?? "");
+  const timeOk = (t: string) => /^\d{2}:\d{2}$/.test(t);
+  const dateOk = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  if (!dateOk(startDate) || !dateOk(endDate) || !timeOk(startTime) || !timeOk(endTime)) {
+    redirect("/admin/bookings?error=edit_input");
+  }
+
+  const start = toBangkokDate(startDate, startTime);
+  const end = toBangkokDate(endDate, endTime);
+  if (end <= start) redirect("/admin/bookings?error=edit_range");
+
+  // ห้ามชนกับใบอื่นของรถคันเดียวกัน — แอดมินข้ามช่วงเว้นเตรียมรถได้ แต่ทับเวลาจริงไม่ได้
+  const clash = await prisma.booking.findFirst({
+    where: {
+      carId: booking.carId,
+      id: { not: booking.id },
+      status: { in: [...ACTIVE_BOOKING_STATUSES] as never[] },
+      startDate: { lt: end },
+      endDate: { gt: start },
+    },
+    select: { id: true },
+  });
+  if (clash) redirect("/admin/bookings?error=edit_busy");
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").replace(/[\s-]/g, "");
+  const pickupPlace = String(formData.get("pickupPlace") ?? "").trim() || null;
+  const returnPlace = String(formData.get("returnPlace") ?? "").trim() || null;
+  const priceRaw = Math.floor(Number(formData.get("totalPrice")));
+  const totalPrice =
+    Number.isFinite(priceRaw) && priceRaw >= 0 && priceRaw <= 10_000_000
+      ? priceRaw
+      : booking.totalPrice;
+
+  const changes: string[] = [];
+  if (booking.startDate.getTime() !== start.getTime()) {
+    changes.push(`รับรถ: ${formatBangkokDateTime(booking.startDate)} → ${formatBangkokDateTime(start)}`);
+  }
+  if (booking.endDate.getTime() !== end.getTime()) {
+    changes.push(`คืนรถ: ${formatBangkokDateTime(booking.endDate)} → ${formatBangkokDateTime(end)}`);
+  }
+  if ((booking.pickupPlace ?? "") !== (pickupPlace ?? "")) {
+    changes.push(`จุดรับ: ${booking.pickupPlace ?? "—"} → ${pickupPlace ?? "—"}`);
+  }
+  if ((booking.returnPlace ?? "") !== (returnPlace ?? "")) {
+    changes.push(`จุดคืน: ${booking.returnPlace ?? "—"} → ${returnPlace ?? "—"}`);
+  }
+  if (booking.totalPrice !== totalPrice) {
+    changes.push(`ยอดรวม: ${booking.totalPrice.toLocaleString()} → ${totalPrice.toLocaleString()} บาท`);
+  }
+  if (fullName && fullName !== booking.customer.fullName) {
+    changes.push(`ชื่อลูกค้า: ${booking.customer.fullName} → ${fullName}`);
+  }
+  if (phone && phone !== booking.customer.phone) {
+    changes.push(`เบอร์: ${booking.customer.phone} → ${phone}`);
+  }
+
+  await prisma.booking.update({
+    where: { id: booking.id },
+    data: { startDate: start, endDate: end, pickupPlace, returnPlace, totalPrice },
+  });
+
+  /* ชื่อและเบอร์อยู่ที่ตัวลูกค้า ไม่ใช่ใบจอง — แก้แล้วมีผลกับใบอื่นของคนเดียวกันด้วย
+     ซึ่งเป็นสิ่งที่ต้องการ เพราะปกติที่แก้คือพิมพ์ผิดตั้งแต่แรก */
+  if (fullName || phone) {
+    await prisma.customer.update({
+      where: { id: booking.customerId },
+      data: {
+        ...(fullName ? { fullName } : {}),
+        ...(phone ? { phone } : {}),
+      },
+    });
+  }
+
+  await audit({
+    action: "booking.admin_edit",
+    summary: `แก้ข้อมูลการจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: changes.length ? changes.join(" · ") : "ไม่มีค่าใดเปลี่ยน",
   });
 
   revalidatePath("/admin/bookings");
@@ -735,6 +849,9 @@ const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
   nobody: { text: "ยังไม่ได้เลือกคน — เลือกอย่างน้อยหนึ่งงานก่อนกดมอบหมาย", tone: "error" },
   notfound: { text: "ไม่พบการจองนี้", tone: "error" },
   assign: { text: "ข้อมูลไม่ครบ กรุณาลองใหม่", tone: "error" },
+  edit_input: { text: "วันหรือเวลาไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง", tone: "error" },
+  edit_range: { text: "เวลาคืนรถต้องหลังเวลารับรถ", tone: "error" },
+  edit_busy: { text: "แก้ไม่ได้ เพราะช่วงเวลาใหม่ชนกับใบจองอื่นของรถคันนี้", tone: "error" },
 };
 
 export default async function AdminBookingsPage({
@@ -1387,10 +1504,118 @@ export default async function AdminBookingsPage({
                     <span className="inline-block transition-transform group-open/edit:rotate-90">
                       ›
                     </span>{" "}
-                    เปลี่ยนรถ / แก้บันทึกภายใน
+                    แก้ข้อมูลการจอง / เปลี่ยนรถ / บันทึกภายใน
                   </summary>
 
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-5">
+                    {/* แก้สิ่งที่ลูกค้ากรอกมา — วัน-เวลา จุดรับ-ส่ง ชื่อ เบอร์ ยอดรวม */}
+                    <form action={editBookingAction} className="space-y-3">
+                      <input type="hidden" name="bookingId" value={b.id} />
+                      <p className="text-xs font-medium text-slate-500">ข้อมูลที่ลูกค้าจองมา</p>
+                      <div className="grid sm:grid-cols-4 gap-2">
+                        <label className="text-xs text-slate-500">
+                          วันรับรถ
+                          <input
+                            type="date"
+                            name="startDate"
+                            required
+                            defaultValue={bangkokDateStr(b.startDate)}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          เวลารับรถ
+                          <input
+                            type="time"
+                            name="startTime"
+                            required
+                            defaultValue={formatBangkokTime(b.startDate)}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          วันคืนรถ
+                          <input
+                            type="date"
+                            name="endDate"
+                            required
+                            defaultValue={bangkokDateStr(b.endDate)}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          เวลาคืนรถ
+                          <input
+                            type="time"
+                            name="endTime"
+                            required
+                            defaultValue={formatBangkokTime(b.endDate)}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <label className="text-xs text-slate-500">
+                          จุดรับรถ
+                          <input
+                            name="pickupPlace"
+                            defaultValue={b.pickupPlace ?? ""}
+                            placeholder="เช่น สนามบินเชียงใหม่"
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          จุดคืนรถ
+                          <input
+                            name="returnPlace"
+                            defaultValue={b.returnPlace ?? ""}
+                            placeholder="เช่น สนามบินเชียงใหม่"
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-2">
+                        <label className="text-xs text-slate-500">
+                          ชื่อลูกค้า
+                          <input
+                            name="fullName"
+                            defaultValue={b.customer.fullName}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          เบอร์โทร
+                          <input
+                            name="phone"
+                            defaultValue={b.customer.phone}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="text-xs text-slate-500">
+                          ยอดรวม (บาท)
+                          <input
+                            type="number"
+                            name="totalPrice"
+                            min="0"
+                            defaultValue={b.totalPrice}
+                            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ActionButton
+                          className={BTN.smGhost}
+                          pendingText="กำลังบันทึก…"
+                          confirm={"บันทึกการแก้ไขใบจองนี้?\nระบบไม่แจ้งลูกค้าให้อัตโนมัติ และไม่ย้ายนัดของคนส่ง-รับรถ"}
+                        >
+                          บันทึกการแก้ไข
+                        </ActionButton>
+                        <span className="text-xs text-slate-400">
+                          แก้ชื่อหรือเบอร์จะมีผลกับใบจองอื่นของลูกค้าคนเดียวกันด้วย
+                        </span>
+                      </div>
+                    </form>
+
                     <form action={saveNoteAction} className="space-y-2">
                       <input type="hidden" name="bookingId" value={b.id} />
                       <label

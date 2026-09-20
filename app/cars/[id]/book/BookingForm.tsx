@@ -285,7 +285,9 @@ export default function BookingForm({
 
         <div className="grid sm:grid-cols-2 gap-4 mt-4">
           <div className="min-w-0">
-            <label className={labelClass} htmlFor="startTime">เวลารับรถ</label>
+            <label className={labelClass} htmlFor="startTime">
+              เวลารับรถ <span className="text-red-600">*</span>
+            </label>
             <select
               id="startTime"
               name="startTime"
@@ -305,7 +307,9 @@ export default function BookingForm({
             </p>
           </div>
           <div>
-            <label className={labelClass} htmlFor="endTime">เวลาคืนรถ</label>
+            <label className={labelClass} htmlFor="endTime">
+              เวลาคืนรถ <span className="text-red-600">*</span>
+            </label>
             <select
               id="endTime"
               name="endTime"
