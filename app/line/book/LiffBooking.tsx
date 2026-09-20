@@ -112,8 +112,9 @@ export default function LiffBooking({
   const [endTime, setEndTime] = useState("");
   const timesChosen = Boolean(startTime && endTime);
   const [phone, setPhone] = useState("");
-  const [pickupPlace, setPickupPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
-  const [returnPlace, setReturnPlace] = useState(pickupPoints[0]?.name ?? OTHER_PLACE);
+  /* ไม่เลือกให้ล่วงหน้า — ลูกค้าต้องเลือกจุดรับ-คืนเอง ไม่งั้นได้จุดแรกของรายการติดไปทุกใบ */
+  const [pickupPlace, setPickupPlace] = useState("");
+  const [returnPlace, setReturnPlace] = useState("");
   const [needPhone, setNeedPhone] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -251,6 +252,11 @@ export default function LiffBooking({
     }
     if (!startTime || !endTime) {
       setError("กรุณาเลือกเวลารับรถและเวลาคืนรถ");
+      setSubmitting(false);
+      return;
+    }
+    if (pickupPoints.length > 0 && (!pickupPlace || !returnPlace)) {
+      setError("กรุณาเลือกจุดรับรถและจุดคืนรถ");
       setSubmitting(false);
       return;
     }
@@ -606,14 +612,18 @@ export default function LiffBooking({
         <div className="bg-white rounded-2xl border border-slate-200 p-4 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
           <div className="min-w-0">
             <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="pp">
-              จุดรับรถ
+              จุดรับรถ *
             </label>
             <select
               id="pp"
+              required
               value={pickupPlace}
               onChange={(e) => setPickupPlace(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
             >
+              <option value="" disabled>
+                — เลือกจุดรับรถ —
+              </option>
               {pickupPoints.map((p) => (
                 <option key={p.id} value={p.name}>{pointLabel(p)}</option>
               ))}
@@ -622,14 +632,18 @@ export default function LiffBooking({
           </div>
           <div className="min-w-0">
             <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="rp">
-              จุดคืนรถ
+              จุดคืนรถ *
             </label>
             <select
               id="rp"
+              required
               value={returnPlace}
               onChange={(e) => setReturnPlace(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
             >
+              <option value="" disabled>
+                — เลือกจุดคืนรถ —
+              </option>
               {pickupPoints.map((p) => (
                 <option key={p.id} value={p.name}>{pointLabel(p)}</option>
               ))}

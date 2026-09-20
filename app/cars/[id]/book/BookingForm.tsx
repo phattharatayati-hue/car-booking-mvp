@@ -89,6 +89,8 @@ export default function BookingForm({
   /* เริ่มเป็นค่าว่าง ไม่ใช่ตัวเลือกแรกของรายการ
      เดิมค่าเริ่มต้นคือ 00:00 ลูกค้าจึงกดจองผ่านไปได้ทั้งที่ยังไม่ได้เลือกเวลา
      แล้วใบจองกลายเป็นนัดเที่ยงคืนโดยไม่มีใครตั้งใจ */
+  const [pickupPlace, setPickupPlace] = useState("");
+  const [returnPlace, setReturnPlace] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const timesChosen = Boolean(startTime && endTime);
@@ -180,6 +182,12 @@ export default function BookingForm({
 
     if (!startTime || !endTime) {
       setError("กรุณาเลือกเวลารับรถและเวลาคืนรถ");
+      setSubmitting(false);
+      return;
+    }
+
+    if (pickupPoints.length > 0 && (!pickupPlace || !returnPlace)) {
+      setError("กรุณาเลือกจุดรับรถและจุดคืนรถ");
       setSubmitting(false);
       return;
     }
@@ -356,8 +364,20 @@ export default function BookingForm({
         {pickupPoints.length > 0 && (
           <div className="grid sm:grid-cols-2 gap-4 mt-4">
             <div>
-              <label className={labelClass} htmlFor="pickupPlace">จุดรับรถ</label>
-              <select id="pickupPlace" name="pickupPlace" className={inputClass}>
+              <label className={labelClass} htmlFor="pickupPlace">
+                จุดรับรถ <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="pickupPlace"
+                name="pickupPlace"
+                required
+                value={pickupPlace}
+                onChange={(e) => setPickupPlace(e.target.value)}
+                className={inputClass}
+              >
+                <option value="" disabled>
+                  — เลือกจุดรับรถ —
+                </option>
                 {pickupPoints.map((p) => (
                   <option key={p.id} value={p.name}>{pointLabel(p)}</option>
                 ))}
@@ -365,8 +385,20 @@ export default function BookingForm({
               </select>
             </div>
             <div>
-              <label className={labelClass} htmlFor="returnPlace">จุดคืนรถ</label>
-              <select id="returnPlace" name="returnPlace" className={inputClass}>
+              <label className={labelClass} htmlFor="returnPlace">
+                จุดคืนรถ <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="returnPlace"
+                name="returnPlace"
+                required
+                value={returnPlace}
+                onChange={(e) => setReturnPlace(e.target.value)}
+                className={inputClass}
+              >
+                <option value="" disabled>
+                  — เลือกจุดคืนรถ —
+                </option>
                 {pickupPoints.map((p) => (
                   <option key={p.id} value={p.name}>{pointLabel(p)}</option>
                 ))}
@@ -457,7 +489,9 @@ export default function BookingForm({
         <h2 className="text-sm font-semibold text-slate-900 mb-3">ข้อมูลผู้เช่า</h2>
         <div className="flex flex-col gap-4">
           <div>
-            <label className={labelClass} htmlFor="fullName">ชื่อ-นามสกุล</label>
+            <label className={labelClass} htmlFor="fullName">
+              ชื่อ-นามสกุล <span className="text-red-600">*</span>
+            </label>
             <input
               id="fullName"
               name="fullName"
