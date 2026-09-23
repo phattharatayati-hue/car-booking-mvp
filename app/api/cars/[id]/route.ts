@@ -46,6 +46,8 @@ export async function PATCH(
       engineCc: optionalInt(body.engineCc),
       horsepower: optionalInt(body.horsepower),
       fuelType: optionalText(body.fuelType),
+      noSteepRoutes:
+        typeof body.noSteepRoutes === "boolean" ? body.noSteepRoutes : undefined,
       partnerId: body.partnerId === undefined ? undefined : body.partnerId || null,
       // ผูกเจ้าของรถ = รถพาร์ทเนอร์เสมอ กันข้อมูลขัดกัน
       source:

@@ -103,6 +103,8 @@ export default async function BookCarPage({
               promotions={promotions}
               tripPlaces={tripPlaces}
               tripAreaRates={tripAreaRates}
+              noSteepRoutes={car.noSteepRoutes}
+              steepRoutePenalty={settings.steepRoutePenalty}
               isRequest={isRequest}
               availability={availability}
               pickupPoints={pickupPoints}

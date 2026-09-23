@@ -4,11 +4,14 @@ import TripPlanEditor, {
   emptyTripRow,
   rowsToInputs,
   tripRowsProblem,
+  steepNamesIn,
   type TripRow,
 } from "@/components/TripPlanEditor";
+import SteepRouteNotice from "@/components/SteepRouteNotice";
 import {
   resolveTripPlans,
   tripSurchargeOf,
+  steepBlockMessage,
   type TripPlaceView,
   type TripAreaRateView,
 } from "@/lib/trip-plans";
@@ -63,6 +66,8 @@ export default function BookingForm({
   promotions = [],
   tripPlaces = [],
   tripAreaRates = [],
+  noSteepRoutes = false,
+  steepRoutePenalty = 1000,
   isRequest = false,
   availability,
   pickupPoints,
@@ -88,6 +93,8 @@ export default function BookingForm({
   pickupPoints: PickupOption[];
   tripPlaces?: TripPlaceView[];
   tripAreaRates?: TripAreaRateView[];
+  noSteepRoutes?: boolean;
+  steepRoutePenalty?: number;
   /* เติมให้อัตโนมัติเมื่อลูกค้าเข้าสู่ระบบไว้แล้ว — ยังแก้ไขได้ทุกช่อง */
   defaultName?: string;
   defaultPhone?: string;
@@ -225,6 +232,12 @@ export default function BookingForm({
     const tripProblem = tripRowsProblem(tripRows);
     if (tripProblem) {
       setError(tripProblem);
+      setSubmitting(false);
+      return;
+    }
+    const steepNames = noSteepRoutes ? steepNamesIn(tripRows, tripPlaces) : [];
+    if (steepNames.length > 0) {
+      setError(steepBlockMessage(steepNames, steepRoutePenalty));
       setSubmitting(false);
       return;
     }
@@ -543,10 +556,17 @@ export default function BookingForm({
           บอกเราคร่าว ๆ ว่าจะขับไปที่ไหนบ้าง เลือกได้หลายที่ ไม่ต้องระบุวัน ·
           ให้บริการเชียงใหม่ ลำพูน และลำปาง
         </p>
+        {noSteepRoutes && (
+          <div className="mb-3">
+            <SteepRouteNotice places={tripPlaces} penalty={steepRoutePenalty} />
+          </div>
+        )}
         <TripPlanEditor
           rows={tripRows}
           onChange={setTripRows}
           places={tripPlaces}
+          noSteep={noSteepRoutes}
+          steepPenalty={steepRoutePenalty}
           inputClass={inputClass}
         />
       </section>

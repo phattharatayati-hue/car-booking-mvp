@@ -1,7 +1,14 @@
 "use client";
 
-import TripPlanEditor, { emptyTripRow, rowsToInputs, tripRowsProblem, type TripRow } from "@/components/TripPlanEditor";
-import type { TripPlaceView } from "@/lib/trip-plans";
+import TripPlanEditor, {
+  emptyTripRow,
+  rowsToInputs,
+  tripRowsProblem,
+  steepNamesIn,
+  type TripRow,
+} from "@/components/TripPlanEditor";
+import SteepRouteNotice from "@/components/SteepRouteNotice";
+import { steepBlockMessage, type TripPlaceView } from "@/lib/trip-plans";
 import { bestPromotion, type PromotionView } from "@/lib/promotions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -66,6 +73,7 @@ export type LiffCar = {
   pricePerDay: number;
   photoUrl: string | null;
   isRequest: boolean;
+  noSteepRoutes?: boolean;
 };
 
 type Result = {
@@ -85,6 +93,7 @@ export default function LiffBooking({
   pickupPoints,
   promotions = [],
   tripPlaces = [],
+  steepRoutePenalty = 1000,
   lateRule = DEFAULT_LATE_RULE,
   minLeadHours = DEFAULT_LEAD_HOURS,
 }: {
@@ -101,6 +110,7 @@ export default function LiffBooking({
   pickupPoints: PickupOption[];
   promotions?: PromotionView[];
   tripPlaces?: TripPlaceView[];
+  steepRoutePenalty?: number;
 }) {
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -274,6 +284,12 @@ export default function LiffBooking({
     const tripProblem = tripRowsProblem(tripRows);
     if (tripProblem) {
       setError(tripProblem);
+      setSubmitting(false);
+      return;
+    }
+    const steepNames = car.noSteepRoutes ? steepNamesIn(tripRows, tripPlaces) : [];
+    if (steepNames.length > 0) {
+      setError(steepBlockMessage(steepNames, steepRoutePenalty));
       setSubmitting(false);
       return;
     }
@@ -701,7 +717,18 @@ export default function LiffBooking({
         <p className="text-xs text-slate-500 mb-3">
           จะขับไปที่ไหนบ้าง เลือกได้หลายที่ · ให้บริการเชียงใหม่ ลำพูน ลำปาง
         </p>
-        <TripPlanEditor rows={tripRows} onChange={setTripRows} places={tripPlaces} />
+        {car.noSteepRoutes && (
+          <div className="mb-3">
+            <SteepRouteNotice places={tripPlaces} penalty={steepRoutePenalty} />
+          </div>
+        )}
+        <TripPlanEditor
+          rows={tripRows}
+          onChange={setTripRows}
+          places={tripPlaces}
+          noSteep={car.noSteepRoutes}
+          steepPenalty={steepRoutePenalty}
+        />
       </div>
 
       {overlaps && (

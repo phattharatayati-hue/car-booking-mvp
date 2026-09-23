@@ -30,6 +30,7 @@ async function saveSettingsAction(formData: FormData) {
   const bookingFee = Number(formData.get("bookingFee"));
   const minLeadHours = Number(formData.get("minLeadHours"));
   const turnaroundMinutes = Number(formData.get("turnaroundMinutes"));
+  const steepRoutePenalty = Number(formData.get("steepRoutePenalty"));
   const securityDeposit = Number(formData.get("securityDeposit"));
   const lateHourlyFee = Number(formData.get("lateHourlyFee"));
   const lateRoundUpHours = Number(formData.get("lateRoundUpHours"));
@@ -87,6 +88,9 @@ async function saveSettingsAction(formData: FormData) {
     redirect("/admin/settings?error=lead24");
   }
   // เว้นเกินวันเดียวน่าจะพิมพ์ผิด
+  if (!Number.isInteger(steepRoutePenalty) || steepRoutePenalty < 0 || steepRoutePenalty > 100_000) {
+    redirect("/admin/settings?error=steep");
+  }
   if (!Number.isInteger(turnaroundMinutes) || turnaroundMinutes < 0 || turnaroundMinutes > 1440) {
     redirect("/admin/settings?error=turnaround");
   }
@@ -143,6 +147,7 @@ async function saveSettingsAction(formData: FormData) {
     bookingFee,
     minLeadHours,
     turnaroundMinutes,
+    steepRoutePenalty,
     securityDeposit,
     serviceNote,
     lateHourlyFee,
@@ -206,6 +211,9 @@ async function saveSettingsAction(formData: FormData) {
         `เวลาทำการคืนเงิน: ${before.refundOpenHour}:00-${before.refundCloseHour}:00 → ${refundOpenHour}:00-${refundCloseHour}:00`
       );
     }
+    if ((before.steepRoutePenalty ?? 1000) !== steepRoutePenalty) {
+      changes.push(`ค่าปรับขึ้นเส้นทางชัน: ${before.steepRoutePenalty ?? 1000} → ${steepRoutePenalty} บาท`);
+    }
     if ((before.turnaroundMinutes ?? 120) !== turnaroundMinutes) {
       changes.push(`เว้นช่วงเตรียมรถ: ${before.turnaroundMinutes ?? 120} → ${turnaroundMinutes} นาที`);
     }
@@ -258,6 +266,7 @@ const ERRORS: Record<string, string> = {
   lateHours: "จุดที่ปัดเป็นวันต้องอยู่ระหว่าง 1-24 ชั่วโมง",
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
   turnaround: "ช่วงเว้นเตรียมรถต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่เว้น)",
+  steep: "ค่าปรับขึ้นเส้นทางชันต้องเป็นจำนวนเต็ม 0 ขึ้นไป",
   company: "ข้อมูลบริษัทไม่ครบ หรือยาวเกินกำหนด",
   signer: "ไม่พบบัญชีผู้ลงนามที่เลือก",
   signerNoSig:
@@ -444,6 +453,25 @@ export default async function SettingsPage({
               <p className="text-xs text-slate-400 mt-1.5">
                 เผื่อล้างรถก่อนคิวถัดไป · 120 = 2 ชั่วโมง (คืน 10:00 → คนถัดไปรับได้ 12:00) · 0 = ไม่เว้น
                 · แอดมินสร้างใบจองเองข้ามช่วงนี้ได้
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass} htmlFor="steepRoutePenalty">
+                ค่าปรับนำรถขึ้นเส้นทางชันที่ห้าม (บาท)
+              </label>
+              <input
+                id="steepRoutePenalty"
+                name="steepRoutePenalty"
+                type="number"
+                min="0"
+                max="100000"
+                required
+                defaultValue={settings.steepRoutePenalty}
+                className={inputClass}
+              />
+              <p className="text-xs text-slate-400 mt-1.5">
+                ใช้กับรถที่ติ๊ก “ห้ามขึ้นเส้นทางชันมาก” · แสดงให้ลูกค้าเห็นตอนจอง
               </p>
             </div>
 

@@ -71,6 +71,15 @@ export function rowsToInputs(rows: TripRow[]): TripPlanInput[] {
   return out;
 }
 
+/** สถานที่ชันมากที่เลือกไว้ (ใช้กับรถที่ห้ามขึ้น) */
+export function steepNamesIn(rows: TripRow[], places: TripPlaceView[]): string[] {
+  return rows
+    .filter((r) => r.mode === "place" && r.placeId)
+    .map((r) => places.find((p) => p.id === r.placeId))
+    .filter((p): p is TripPlaceView => Boolean(p?.steep))
+    .map((p) => p.name);
+}
+
 /** ข้อความปัญหาแรกที่เจอ หรือ null ถ้าครบ */
 export function tripRowsProblem(rows: TripRow[]): string | null {
   if (rows.length === 0) return "กรุณากรอกแผนการเดินทางอย่างน้อย 1 แห่ง";
@@ -98,12 +107,17 @@ export default function TripPlanEditor({
   rows,
   onChange,
   places,
+  noSteep = false,
+  steepPenalty = 1000,
   inputClass = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm",
   labelClass = "block text-xs font-medium text-slate-500 mb-1",
 }: {
   rows: TripRow[];
   onChange: (rows: TripRow[]) => void;
   places: TripPlaceView[];
+  /** รถคันนี้ห้ามขึ้นเส้นทางชันมาก */
+  noSteep?: boolean;
+  steepPenalty?: number;
   inputClass?: string;
   labelClass?: string;
 }) {
@@ -168,6 +182,16 @@ export default function TripPlanEditor({
             ))}
             <option value={OTHER_OPTION}>อื่นๆ — ระบุเอง</option>
           </select>
+
+          {(() => {
+            const chosen = r.mode === "place" ? places.find((p) => p.id === r.placeId) : null;
+            return noSteep && chosen?.steep ? (
+              <p className="mt-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">
+                ⛔ รถคันนี้ห้ามขึ้น {chosen.name} เพราะเป็นเส้นทางชันมาก — หากต้องการไป
+                กรุณาเลือกรถคันอื่น · หากนำรถไปเส้นทางนี้ มีค่าปรับ {steepPenalty.toLocaleString()} บาท
+              </p>
+            ) : null;
+          })()}
 
           {(() => {
             const tip =

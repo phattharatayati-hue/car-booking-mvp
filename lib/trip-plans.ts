@@ -19,6 +19,8 @@ export type TripPlaceView = {
   surcharge: number;
   /** คำแนะนำการขับสำหรับมือใหม่ — ว่างได้ */
   drivingTip?: string | null;
+  /** เส้นทางชันมาก — รถที่ห้ามขึ้นเลือกไม่ได้ */
+  steep?: boolean;
 };
 
 export type TripAreaRateView = {
@@ -124,6 +126,20 @@ export function resolveTripPlans(
     return { ok: false, error: "กรุณากรอกแผนการเดินทางอย่างน้อย 1 แห่ง" };
   }
   return { ok: true, plans };
+}
+
+/** สถานที่ชันมากที่ลูกค้าเลือก — ใช้กับรถที่ห้ามขึ้นเส้นทางชัน */
+export function steepPlacesIn(
+  plans: { placeId?: string | null }[],
+  places: TripPlaceView[]
+): TripPlaceView[] {
+  const ids = new Set(plans.map((p) => p.placeId).filter(Boolean));
+  return places.filter((p) => p.steep && ids.has(p.id));
+}
+
+/** ข้อความห้าม — ใช้ทั้งหน้าจองและเซิร์ฟเวอร์ ให้ตรงกัน */
+export function steepBlockMessage(names: string[], penalty: number): string {
+  return `รถคันนี้ห้ามขึ้น ${names.join(", ")} เพราะเป็นเส้นทางชันมาก หากต้องการไป กรุณาเลือกรถคันอื่น (หากนำรถไปเส้นทางนี้ มีค่าปรับ ${penalty.toLocaleString()} บาท)`;
 }
 
 /** ค่าบริการตามแผนเดินทาง — ใช้เรทสูงสุดครั้งเดียว */

@@ -25,6 +25,7 @@ export type CarForEdit = {
   engineCc: number | null;
   horsepower: number | null;
   fuelType: string | null;
+  noSteepRoutes: boolean;
   partnerId: string | null;
   bookingCount: number;
 };
@@ -90,6 +91,7 @@ export default function EditCarForm({
           engineCc: data.get("engineCc") || null,
           horsepower: data.get("horsepower") || null,
           fuelType: data.get("fuelType") || null,
+          noSteepRoutes: data.get("noSteepRoutes") === "on",
           partnerId: data.get("partnerId") || null,
           ...(photoUrl ? { photoUrl } : {}),
         }),
@@ -310,6 +312,19 @@ export default function EditCarForm({
             </div>
           </div>
         </div>
+
+        <label className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="noSteepRoutes"
+            defaultChecked={car.noSteepRoutes}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span className="text-sm text-red-900">
+            <b>ห้ามขึ้นเส้นทางชันมาก</b> — ลูกค้าเลือกสถานที่ที่ติ๊ก “ชันมาก” ในหน้าแผนการเดินทางไม่ได้
+            และหน้าจองจะแจ้งค่าปรับ (ตั้งค่าปรับที่หน้าตั้งค่าระบบ) · เหมาะกับรถเก๋งเครื่องเล็ก
+          </span>
+        </label>
 
         <p className="mt-4 text-xs text-slate-500">
           ถ้าเลือกเจ้าของรถ ระบบจะถือว่าเป็นรถพาร์ทเนอร์ —

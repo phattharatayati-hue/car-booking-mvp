@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
-import { resolveTripPlans, type TripPlanInput } from "@/lib/trip-plans";
+import {
+  resolveTripPlans,
+  steepPlacesIn,
+  steepBlockMessage,
+  type TripPlanInput,
+} from "@/lib/trip-plans";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +29,7 @@ export async function PUT(
 
     const booking = await prisma.booking.findUnique({
       where: { id },
-      select: { id: true, status: true, startDate: true },
+      select: { id: true, status: true, startDate: true, car: { select: { noSteepRoutes: true } } },
     });
     if (!booking) {
       return NextResponse.json({ error: "ไม่พบการจองนี้" }, { status: 404 });
@@ -42,6 +48,16 @@ export async function PUT(
     const resolved = resolveTripPlans(inputs, places, areaRates);
     if (!resolved.ok) {
       return NextResponse.json({ error: resolved.error }, { status: 400 });
+    }
+    if (booking.car.noSteepRoutes) {
+      const steep = steepPlacesIn(resolved.plans, places);
+      if (steep.length > 0) {
+        const penalty = (await getSettings()).steepRoutePenalty;
+        return NextResponse.json(
+          { error: steepBlockMessage(steep.map((p) => p.name), penalty) },
+          { status: 400 }
+        );
+      }
     }
 
     await prisma.$transaction([

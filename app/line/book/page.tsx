@@ -140,6 +140,7 @@ export default async function LineBookPage({
             pricePerDay: car.pricePerDay,
             photoUrl: car.photoUrl,
             isRequest: needsApproval(car),
+            noSteepRoutes: car.noSteepRoutes,
           }}
           availability={map.get(car.id) ?? {}}
           busySpans={busySpans}
@@ -147,6 +148,7 @@ export default async function LineBookPage({
           afterHoursRates={afterHoursRates}
           promotions={promotions}
           tripPlaces={tripPlaces}
+          steepRoutePenalty={settings.steepRoutePenalty}
           liffId={liffId}
           pickupPoints={pickupPoints}
           lateRule={lateRuleFromSettings(settings)}

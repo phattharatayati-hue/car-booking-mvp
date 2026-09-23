@@ -34,6 +34,8 @@ const PLACES: {
   district: string;
   note?: string;
   drivingTip?: string;
+  /** เส้นทางชันมาก — รถที่ห้ามขึ้น (เช่น Yaris Ativ) เลือกไม่ได้ */
+  steep?: boolean;
 }[] = [
   // เชียงใหม่
   { name: "ตัวเมือง / นิมมาน / ประตูท่าแพ", province: "เชียงใหม่", district: "เมืองเชียงใหม่" },
@@ -41,14 +43,18 @@ const PLACES: {
   { name: "เชียงใหม่ไนท์ซาฟารี", province: "เชียงใหม่", district: "หางดง" },
   { name: "แกรนด์แคนยอน หางดง", province: "เชียงใหม่", district: "หางดง" },
   { name: "บ่อสร้าง / ถนนสายหัตถกรรม", province: "เชียงใหม่", district: "สันกำแพง" },
-  { name: "ม่อนแจ่ม", province: "เชียงใหม่", district: "แม่ริม", note: "ทางชัน", drivingTip: STEEP },
+  { name: "ม่อนแจ่ม", province: "เชียงใหม่", district: "แม่ริม", note: "ทางชัน", drivingTip: STEEP, steep: true },
   { name: "ปางช้าง / ม่อนแจ่ม–แม่แตง", province: "เชียงใหม่", district: "แม่แตง" },
   { name: "แม่กำปอง", province: "เชียงใหม่", district: "แม่ออน", note: "ทางชัน", drivingTip: STEEP + " · ถนนในหมู่บ้านแคบ สวนกันต้องหยุดให้ทาง" },
   { name: "สะเมิง", province: "เชียงใหม่", district: "สะเมิง", note: "ทางชัน", drivingTip: STEEP },
   { name: "ดอยอินทนนท์", province: "เชียงใหม่", district: "จอมทอง", note: "ทางชัน ไกล", drivingTip: FAR_STEEP },
   { name: "เชียงดาว / ดอยหลวงเชียงดาว", province: "เชียงใหม่", district: "เชียงดาว" },
-  { name: "ดอยอ่างขาง", province: "เชียงใหม่", district: "ฝาง", note: "ทางชัน ไกล", drivingTip: FAR_STEEP + " · ช่วงก่อนถึงยอดชันมาก ใช้เกียร์ต่ำทั้งขึ้นและลง" },
-  { name: "แม่แจ่ม", province: "เชียงใหม่", district: "แม่แจ่ม", note: "ทางภูเขา ไกล", drivingTip: FAR_STEEP },
+  { name: "ดอยอ่างขาง", province: "เชียงใหม่", district: "ฝาง", note: "ทางชัน ไกล", drivingTip: FAR_STEEP + " · ช่วงก่อนถึงยอดชันมาก ใช้เกียร์ต่ำทั้งขึ้นและลง", steep: true },
+  { name: "แม่แจ่ม", province: "เชียงใหม่", district: "แม่แจ่ม", note: "ทางภูเขา ไกล", drivingTip: FAR_STEEP, steep: true },
+  { name: "ดอยผ้าห่มปก", province: "เชียงใหม่", district: "ฝาง", note: "ทางชันมาก ไกล", drivingTip: FAR_STEEP, steep: true },
+  { name: "อมก๋อย", province: "เชียงใหม่", district: "อมก๋อย", note: "ทางภูเขายาว ถนนบางช่วงไม่ดี", drivingTip: FAR_STEEP, steep: true },
+  { name: "เวียงแหง", province: "เชียงใหม่", district: "เวียงแหง", note: "ทางภูเขายาว", drivingTip: FAR_STEEP, steep: true },
+  { name: "กัลยาณิวัฒนา", province: "เชียงใหม่", district: "กัลยาณิวัฒนา", note: "ทางภูเขายาว ไกล", drivingTip: FAR_STEEP, steep: true },
   // ลำพูน
   { name: "วัดพระธาตุหริภุญชัย", province: "ลำพูน", district: "เมืองลำพูน" },
   { name: "อุทยานแห่งชาติแม่ปิง", province: "ลำพูน", district: "ลี้", note: "ไกล", drivingTip: "ทางไกลและเปลี่ยวบางช่วง เติมน้ำมันให้เต็มก่อนออก และควรกลับก่อนมืด" },
@@ -57,7 +63,7 @@ const PLACES: {
   { name: "เขื่อนกิ่วลม", province: "ลำปาง", district: "เมืองลำปาง" },
   { name: "วัดพระธาตุลำปางหลวง", province: "ลำปาง", district: "เกาะคา" },
   { name: "แจ้ซ้อน", province: "ลำปาง", district: "เมืองปาน", note: "ทางชัน", drivingTip: STEEP },
-  { name: "วัดพระธาตุปู่ผาแดง (วัดเฉลิมพระเกียรติฯ)", province: "ลำปาง", district: "แจ้ห่ม", note: "ทางชัน", drivingTip: "ต้องจอดรถด้านล่างแล้วต่อรถของวัดขึ้นไป · ทางมาเป็นเขา ขาลงใช้เกียร์ต่ำ" },
+  { name: "วัดพระธาตุปู่ผาแดง (วัดเฉลิมพระเกียรติฯ)", province: "ลำปาง", district: "แจ้ห่ม", note: "ทางชัน", drivingTip: "ต้องจอดรถด้านล่างแล้วต่อรถของวัดขึ้นไป · ทางมาเป็นเขา ขาลงใช้เกียร์ต่ำ", steep: true },
 ];
 
 async function main() {
@@ -68,8 +74,11 @@ async function main() {
     });
     if (exists) {
       // ของเดิมที่ยังไม่มีคำแนะนำ เติมให้ — ไม่ทับที่แอดมินเขียนเองแล้ว
-      if (!exists.drivingTip && p.drivingTip) {
-        await prisma.tripPlace.update({ where: { id: exists.id }, data: { drivingTip: p.drivingTip } });
+      const patch: { drivingTip?: string; steep?: boolean } = {};
+      if (!exists.drivingTip && p.drivingTip) patch.drivingTip = p.drivingTip;
+      if (!exists.steep && p.steep) patch.steep = true;
+      if (Object.keys(patch).length) {
+        await prisma.tripPlace.update({ where: { id: exists.id }, data: patch });
       }
       continue;
     }

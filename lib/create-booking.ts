@@ -16,6 +16,8 @@ import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
 import {
   resolveTripPlans,
   tripSurchargeOf,
+  steepPlacesIn,
+  steepBlockMessage,
   type TripPlanInput,
   type TripPlanResolved,
 } from "@/lib/trip-plans";
@@ -203,6 +205,15 @@ export async function createBooking(
       if (!skipRules) return { ok: false, status: 400, error: resolved.error };
     } else {
       tripPlans = resolved.plans;
+    }
+    // รถที่ห้ามขึ้นเส้นทางชัน — ลูกค้าจองไม่ได้ถ้าเลือกที่ชันมาก (แอดมินข้ามได้)
+    const steep = car.noSteepRoutes ? steepPlacesIn(tripPlans, places) : [];
+    if (steep.length > 0 && !skipRules) {
+      return {
+        ok: false,
+        status: 400,
+        error: steepBlockMessage(steep.map((p) => p.name), settings.steepRoutePenalty),
+      };
     }
   }
   const tripSurcharge = tripSurchargeOf(tripPlans);

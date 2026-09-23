@@ -69,6 +69,7 @@ export default async function EditCarPage({
           engineCc: car.engineCc ?? null,
           horsepower: car.horsepower ?? null,
           fuelType: car.fuelType ?? null,
+          noSteepRoutes: car.noSteepRoutes ?? false,
           partnerId: car.partnerId,
           bookingCount,
         }}
