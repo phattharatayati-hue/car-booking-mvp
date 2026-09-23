@@ -15,8 +15,6 @@ import {
   saveJobReading,
   driverHelpText,
 } from "@/lib/driver-jobs";
-import { getDepositSummary } from "@/lib/deposit-summary";
-import { getHighlightFees } from "@/lib/fees-server";
 import { consumeLinkCode } from "@/lib/line-link";
 import { formatBangkokDateTime } from "@/lib/settings";
 import {
@@ -28,7 +26,6 @@ import {
 import {
   flexBookingStatus,
   flexStatusEmpty,
-  flexFees,
   flexContact,
 } from "@/lib/line-flex";
 import {
@@ -237,20 +234,16 @@ async function handleEvent(event: LineEvent) {
     text.includes("เงินประกัน") ||
     lower === "fees"
   ) {
-    const fees = await getHighlightFees();
-
-    /* ส่งเป็นการ์ด Flex อย่างเดียว ไม่แนบรูปโปสเตอร์
-       เคยลองส่งรูปตามหลังแล้ว แต่ในแชทมันยาวและอ่านยากกว่าการ์ด
-       ลูกค้าที่อยากได้รูปกดปุ่มในการ์ดไปหน้า /fees แล้วบันทึกเอาได้ */
-    const deposit = await getDepositSummary();
-    await replyRaw(replyToken, [
-      flexFees({
-        lines: fees.map((f) => `${f.title} — ${f.amount}`),
-        depositText: deposit.text,
-        depositNote: deposit.refundLines,
-        url: `${site}/fees`,
-      }),
-    ]);
+    /* ส่งเป็นลิงก์ไปหน้าเว็บ /fees แทนการ์ดสรุป
+       หน้าเว็บมีครบทุกรายการ เงินประกันรายรุ่น และโปสเตอร์ให้บันทึก
+       แก้ข้อมูลในหลังบ้านแล้วลูกค้าเห็นของล่าสุดทันที ไม่ต้องแก้การ์ดตามอีกที่ */
+    await replyMessage(
+      replyToken,
+      [
+        "เงินประกันและค่าปรับ ดูรายละเอียดทั้งหมดได้ที่ลิงก์นี้ครับ 👇",
+        `${site}/fees`,
+      ].join("\n")
+    );
     return;
   }
 
