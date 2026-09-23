@@ -29,6 +29,7 @@ type PlaceRow = {
   district: string;
   surcharge: number;
   note: string | null;
+  drivingTip: string | null;
   sortOrder: number;
   isActive: boolean;
 };
@@ -68,13 +69,14 @@ async function addPlaceAction(formData: FormData) {
   const surcharge = intOr(formData.get("surcharge"), 0);
   const sortOrder = intOr(formData.get("sortOrder"), 0);
   const note = String(formData.get("note") ?? "").trim().slice(0, 300) || null;
+  const drivingTip = String(formData.get("drivingTip") ?? "").trim().slice(0, 500) || null;
 
   if (!name) redirect(`${PATH}?error=name`);
   if (!isValidDistrict(province, district)) redirect(`${PATH}?error=area`);
   if (surcharge < 0 || surcharge > 100_000) redirect(`${PATH}?error=amount`);
 
   const created = await prisma.tripPlace.create({
-    data: { name, province, district, surcharge, sortOrder, note },
+    data: { name, province, district, surcharge, sortOrder, note, drivingTip },
   });
   await audit({
     action: "master.trip_place_add",
@@ -98,15 +100,20 @@ async function updatePlaceAction(formData: FormData) {
   const surcharge = intOr(formData.get("surcharge"), before.surcharge);
   const sortOrder = intOr(formData.get("sortOrder"), before.sortOrder);
   const note = String(formData.get("note") ?? "").trim().slice(0, 300) || null;
+  const drivingTip = String(formData.get("drivingTip") ?? "").trim().slice(0, 500) || null;
   if (surcharge < 0 || surcharge > 100_000) redirect(`${PATH}?error=amount`);
 
-  await prisma.tripPlace.update({ where: { id }, data: { name, surcharge, sortOrder, note } });
+  await prisma.tripPlace.update({
+    where: { id },
+    data: { name, surcharge, sortOrder, note, drivingTip },
+  });
 
   const changes: string[] = [];
   if (before.name !== name) changes.push(`ชื่อ: ${before.name} → ${name}`);
   if (before.surcharge !== surcharge)
     changes.push(`ค่าบริการ: ${before.surcharge.toLocaleString()} → ${surcharge.toLocaleString()} บาท`);
   if (before.sortOrder !== sortOrder) changes.push(`ลำดับ: ${before.sortOrder} → ${sortOrder}`);
+  if ((before.drivingTip ?? "") !== (drivingTip ?? "")) changes.push("แก้คำแนะนำการขับ");
   await audit({
     action: "master.trip_place_update",
     summary: `แก้สถานที่ยอดนิยม ${name}`,
@@ -299,6 +306,19 @@ export default async function TripPlansAdminPage({
               เพิ่ม
             </ActionButton>
           </div>
+          <div className="sm:col-span-6">
+            <label className={labelClass} htmlFor="p-tip">
+              คำแนะนำการขับ (ลูกค้าเห็นตอนเลือกสถานที่ — เว้นว่างได้)
+            </label>
+            <textarea
+              id="p-tip"
+              name="drivingTip"
+              rows={2}
+              maxLength={500}
+              placeholder="เช่น ทางขึ้นชันและโค้งหักศอก ขาลงใช้เกียร์ต่ำ (L/B) ห้ามเหยียบเบรกค้าง"
+              className={inputClass}
+            />
+          </div>
         </form>
 
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -335,6 +355,17 @@ export default async function TripPlansAdminPage({
                       <ActionButton className={BTN.smGhost} pendingText="กำลังบันทึก…">
                         บันทึก
                       </ActionButton>
+                    </div>
+                    <div className="sm:col-span-12">
+                      <label className={labelClass}>คำแนะนำการขับ (ลูกค้าเห็น)</label>
+                      <textarea
+                        name="drivingTip"
+                        rows={2}
+                        maxLength={500}
+                        defaultValue={p.drivingTip ?? ""}
+                        placeholder="เว้นว่าง = ไม่แสดงคำแนะนำ"
+                        className={inputClass}
+                      />
                     </div>
                   </form>
                   <div className="mt-2 flex gap-2">

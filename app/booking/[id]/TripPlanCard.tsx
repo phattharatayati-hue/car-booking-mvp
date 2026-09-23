@@ -62,6 +62,14 @@ export default function TripPlanCard({
               {p.outsideArea && (
                 <span className="ml-1.5 text-xs text-amber-700">(นอกพื้นที่ — แอดมินจะติดต่อกลับ)</span>
               )}
+              {(() => {
+                const tip = p.placeId ? places.find((x) => x.id === p.placeId)?.drivingTip : null;
+                return tip ? (
+                  <span className="block mt-1 ml-4 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 whitespace-pre-line">
+                    คำแนะนำการขับ: {tip}
+                  </span>
+                ) : null;
+              })()}
             </li>
           ))}
         </ul>

@@ -17,6 +17,8 @@ export type TripPlaceView = {
   province: string;
   district: string;
   surcharge: number;
+  /** คำแนะนำการขับสำหรับมือใหม่ — ว่างได้ */
+  drivingTip?: string | null;
 };
 
 export type TripAreaRateView = {

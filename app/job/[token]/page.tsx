@@ -83,6 +83,15 @@ export default async function JobDocumentsPage({
 
   // เอกสารที่ผ่านการตรวจแล้วเท่านั้น — ที่ยังไม่ผ่านไม่ควรเอาไปเทียบหน้างาน
   const approved = job.booking.documents.filter((d) => d.status === "APPROVED");
+  // คำแนะนำการขับของสถานที่ที่ลูกค้าเลือก — คนส่งรถใช้เตือนลูกค้าตอนส่งมอบ
+  const tipIds = job.booking.tripPlans.map((t) => t.placeId).filter((x): x is string => !!x);
+  const tips = tipIds.length
+    ? await prisma.tripPlace.findMany({
+        where: { id: { in: tipIds }, drivingTip: { not: null } },
+        select: { id: true, drivingTip: true },
+      })
+    : [];
+  const tipOf = (id: string | null) => (id ? tips.find((t) => t.id === id)?.drivingTip : null);
 
   // การเปิดดูบัตรประชาชน/ใบขับขี่ของลูกค้าเป็นเรื่องอ่อนไหว จึงบันทึกไว้ทุกครั้ง
   await auditAs(
@@ -236,6 +245,11 @@ export default async function JobDocumentsPage({
                 <li key={t.id}>
                   {i + 1}. {tripPlanLabel(t)}
                   {t.outsideArea && <span className="ml-1 text-amber-700">(นอกพื้นที่)</span>}
+                  {tipOf(t.placeId) && (
+                    <span className="block ml-4 text-xs text-amber-800">
+                      เตือนลูกค้า: {tipOf(t.placeId)}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

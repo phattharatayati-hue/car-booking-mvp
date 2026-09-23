@@ -169,6 +169,16 @@ export default function TripPlanEditor({
             <option value={OTHER_OPTION}>อื่นๆ — ระบุเอง</option>
           </select>
 
+          {(() => {
+            const tip =
+              r.mode === "place" ? places.find((p) => p.id === r.placeId)?.drivingTip : null;
+            return tip ? (
+              <p className="mt-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed whitespace-pre-line">
+                <b>คำแนะนำการขับ:</b> {tip}
+              </p>
+            ) : null;
+          })()}
+
           {r.mode === "custom" && (
             <div className="grid sm:grid-cols-3 gap-2 mt-2">
               <div>

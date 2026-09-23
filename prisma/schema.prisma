@@ -242,6 +242,8 @@ model TripPlace {
   surcharge  Int      @default(0)
   /// หมายเหตุสำหรับแอดมิน เช่น "ทางชัน เช็คเบรก" — ลูกค้าไม่เห็น
   note       String?
+  /// คำแนะนำการขับที่ลูกค้าเห็นตอนเลือกสถานที่ เช่น "ขาลงใช้เกียร์ต่ำ"
+  drivingTip String?
   sortOrder  Int      @default(0)
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())

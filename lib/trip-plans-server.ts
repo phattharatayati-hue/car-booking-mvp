@@ -7,7 +7,14 @@ export async function getTripPlaces(): Promise<TripPlaceView[]> {
     const rows = await prisma.tripPlace.findMany({
       where: { isActive: true },
       orderBy: [{ province: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, province: true, district: true, surcharge: true },
+      select: {
+        id: true,
+        name: true,
+        province: true,
+        district: true,
+        surcharge: true,
+        drivingTip: true,
+      },
     });
     return rows as TripPlaceView[];
   } catch (err) {
