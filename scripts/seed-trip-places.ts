@@ -104,7 +104,7 @@ async function main() {
   /* ประเภทรถตั้งต้น — ตั้งเฉพาะคันที่ยังไม่ได้ระบุ ไม่ทับที่แอดมินตั้งเอง
      Yaris Ativ ติ๊ก "ห้ามขึ้นเส้นทางชันมาก" ด้วย */
   const TYPES: { match: string; bodyType: string; noSteep?: boolean }[] = [
-    { match: "Yaris Ativ", bodyType: "SEDAN", noSteep: true },
+    { match: "Ativ", bodyType: "SEDAN", noSteep: true },
     { match: "City", bodyType: "SEDAN" },
     { match: "Civic", bodyType: "SEDAN" },
     { match: "HR-V", bodyType: "SUV" },
@@ -115,8 +115,16 @@ async function main() {
   for (const t of TYPES) {
     const r = await prisma.car.updateMany({
       where: { name: { contains: t.match, mode: "insensitive" }, bodyType: null },
-      data: { bodyType: t.bodyType, ...(t.noSteep ? { noSteepRoutes: true } : {}) },
+      data: { bodyType: t.bodyType },
     });
+    // ห้ามขึ้นเส้นทางชัน — ตั้งแยก ให้คันที่ตั้งประเภทไว้แล้วก็ได้ด้วย
+    if (t.noSteep) {
+      const s = await prisma.car.updateMany({
+        where: { name: { contains: t.match, mode: "insensitive" }, noSteepRoutes: false },
+        data: { noSteepRoutes: true },
+      });
+      if (s.count) console.log(`ตั้งห้ามขึ้นเส้นทางชัน ${t.match} (${s.count} คัน)`);
+    }
     if (r.count) console.log(`ตั้งประเภท ${t.match} → ${t.bodyType} (${r.count} คัน)`);
   }
 }
