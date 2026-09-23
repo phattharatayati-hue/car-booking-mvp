@@ -15,6 +15,7 @@ export async function getTripPlaces(): Promise<TripPlaceView[]> {
         surcharge: true,
         drivingTip: true,
         steep: true,
+        noSedan: true,
       },
     });
     return rows as TripPlaceView[];

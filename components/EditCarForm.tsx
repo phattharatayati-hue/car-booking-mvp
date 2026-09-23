@@ -1,6 +1,6 @@
 "use client";
 
-import { FUEL_TYPES } from "@/lib/car-specs";
+import { FUEL_TYPES, BODY_TYPES } from "@/lib/car-specs";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -26,6 +26,7 @@ export type CarForEdit = {
   horsepower: number | null;
   fuelType: string | null;
   noSteepRoutes: boolean;
+  bodyType: string | null;
   partnerId: string | null;
   bookingCount: number;
 };
@@ -92,6 +93,7 @@ export default function EditCarForm({
           horsepower: data.get("horsepower") || null,
           fuelType: data.get("fuelType") || null,
           noSteepRoutes: data.get("noSteepRoutes") === "on",
+          bodyType: data.get("bodyType") || null,
           partnerId: data.get("partnerId") || null,
           ...(photoUrl ? { photoUrl } : {}),
         }),
@@ -311,6 +313,28 @@ export default function EditCarForm({
               </select>
             </div>
           </div>
+        </div>
+
+        <div className="mt-5">
+          <label className={labelClass} htmlFor="bodyType">
+            ประเภทรถ
+          </label>
+          <select
+            id="bodyType"
+            name="bodyType"
+            defaultValue={car.bodyType ?? ""}
+            className={inputClass}
+          >
+            <option value="">— ไม่ระบุ —</option>
+            {BODY_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1.5">
+            รถเก๋งจะเลือกสถานที่ที่ตั้ง “ห้ามรถเก๋ง” ไม่ได้ (เช่น ทางลูกรังที่ต้องใช้รถยกสูง)
+          </p>
         </div>
 
         <label className="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 cursor-pointer">

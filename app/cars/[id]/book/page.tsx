@@ -104,6 +104,7 @@ export default async function BookCarPage({
               tripPlaces={tripPlaces}
               tripAreaRates={tripAreaRates}
               noSteepRoutes={car.noSteepRoutes}
+              bodyType={car.bodyType}
               steepRoutePenalty={settings.steepRoutePenalty}
               isRequest={isRequest}
               availability={availability}

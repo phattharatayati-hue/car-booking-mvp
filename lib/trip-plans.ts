@@ -21,7 +21,32 @@ export type TripPlaceView = {
   drivingTip?: string | null;
   /** เส้นทางชันมาก — รถที่ห้ามขึ้นเลือกไม่ได้ */
   steep?: boolean;
+  /** ห้ามรถเก๋งทุกคัน */
+  noSedan?: boolean;
 };
+
+/** ข้อมูลรถที่ใช้ตัดสินข้อห้ามเส้นทาง */
+export type CarRouteRule = {
+  noSteepRoutes?: boolean | null;
+  bodyType?: string | null;
+};
+
+/**
+ * รถคันนี้ห้ามไปสถานที่นี้ไหม — กติกา 2 ระดับ
+ *   ชันมาก (steep)      → ห้ามเฉพาะรถที่ติ๊ก "ห้ามขึ้นเส้นทางชันมาก"
+ *   ห้ามเก๋ง (noSedan)  → ห้ามรถเก๋งทุกคัน และรถที่ติ๊กห้ามขึ้นเส้นทางชันด้วย
+ */
+export function placeBannedFor(place: TripPlaceView, car: CarRouteRule): boolean {
+  const strict = Boolean(car.noSteepRoutes);
+  const sedan = car.bodyType === "SEDAN";
+  if (place.steep && strict) return true;
+  if (place.noSedan && (sedan || strict)) return true;
+  return false;
+}
+
+export function bannedPlacesForCar(places: TripPlaceView[], car: CarRouteRule): TripPlaceView[] {
+  return places.filter((p) => placeBannedFor(p, car));
+}
 
 export type TripAreaRateView = {
   province: string;
@@ -128,18 +153,19 @@ export function resolveTripPlans(
   return { ok: true, plans };
 }
 
-/** สถานที่ชันมากที่ลูกค้าเลือก — ใช้กับรถที่ห้ามขึ้นเส้นทางชัน */
-export function steepPlacesIn(
+/** สถานที่ที่ลูกค้าเลือกแต่รถคันนี้ห้ามไป */
+export function bannedPlacesIn(
   plans: { placeId?: string | null }[],
-  places: TripPlaceView[]
+  places: TripPlaceView[],
+  car: CarRouteRule
 ): TripPlaceView[] {
   const ids = new Set(plans.map((p) => p.placeId).filter(Boolean));
-  return places.filter((p) => p.steep && ids.has(p.id));
+  return places.filter((p) => ids.has(p.id) && placeBannedFor(p, car));
 }
 
 /** ข้อความห้าม — ใช้ทั้งหน้าจองและเซิร์ฟเวอร์ ให้ตรงกัน */
 export function steepBlockMessage(names: string[], penalty: number): string {
-  return `รถคันนี้ห้ามขึ้น ${names.join(", ")} เพราะเป็นเส้นทางชันมาก หากต้องการไป กรุณาเลือกรถคันอื่น (หากนำรถไปเส้นทางนี้ มีค่าปรับ ${penalty.toLocaleString()} บาท)`;
+  return `รถคันนี้ห้ามไป ${names.join(", ")} เพราะเส้นทางไม่เหมาะกับรถรุ่นนี้ หากต้องการไป กรุณาเลือกรถคันอื่น (หากนำรถไปเส้นทางนี้ มีค่าปรับ ${penalty.toLocaleString()} บาท)`;
 }
 
 /** ค่าบริการตามแผนเดินทาง — ใช้เรทสูงสุดครั้งเดียว */

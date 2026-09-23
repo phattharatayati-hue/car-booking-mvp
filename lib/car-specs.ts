@@ -13,6 +13,13 @@ export const FUEL_TYPES = [
   "ไฟฟ้า (EV)",
 ] as const;
 
+export const BODY_TYPES = [
+  { value: "SEDAN", label: "เก๋ง" },
+  { value: "SUV", label: "SUV / รถยกสูง" },
+  { value: "MPV", label: "MPV / รถ 7 ที่นั่ง" },
+  { value: "PICKUP", label: "กระบะ" },
+] as const;
+
 export type CarSpecs = {
   engineCc?: number | null;
   horsepower?: number | null;

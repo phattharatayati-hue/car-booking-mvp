@@ -4,7 +4,7 @@ import TripPlanEditor, {
   emptyTripRow,
   rowsToInputs,
   tripRowsProblem,
-  steepNamesIn,
+  bannedNamesIn,
   type TripRow,
 } from "@/components/TripPlanEditor";
 import SteepRouteNotice from "@/components/SteepRouteNotice";
@@ -67,6 +67,7 @@ export default function BookingForm({
   tripPlaces = [],
   tripAreaRates = [],
   noSteepRoutes = false,
+  bodyType = null,
   steepRoutePenalty = 1000,
   isRequest = false,
   availability,
@@ -94,6 +95,7 @@ export default function BookingForm({
   tripPlaces?: TripPlaceView[];
   tripAreaRates?: TripAreaRateView[];
   noSteepRoutes?: boolean;
+  bodyType?: string | null;
   steepRoutePenalty?: number;
   /* เติมให้อัตโนมัติเมื่อลูกค้าเข้าสู่ระบบไว้แล้ว — ยังแก้ไขได้ทุกช่อง */
   defaultName?: string;
@@ -116,6 +118,7 @@ export default function BookingForm({
      เดิมค่าเริ่มต้นคือ 00:00 ลูกค้าจึงกดจองผ่านไปได้ทั้งที่ยังไม่ได้เลือกเวลา
      แล้วใบจองกลายเป็นนัดเที่ยงคืนโดยไม่มีใครตั้งใจ */
   const [tripRows, setTripRows] = useState<TripRow[]>(() => [emptyTripRow()]);
+  const routeRule = { noSteepRoutes, bodyType };
   const [pickupPlace, setPickupPlace] = useState("");
   const [returnPlace, setReturnPlace] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -235,7 +238,7 @@ export default function BookingForm({
       setSubmitting(false);
       return;
     }
-    const steepNames = noSteepRoutes ? steepNamesIn(tripRows, tripPlaces) : [];
+    const steepNames = bannedNamesIn(tripRows, tripPlaces, routeRule);
     if (steepNames.length > 0) {
       setError(steepBlockMessage(steepNames, steepRoutePenalty));
       setSubmitting(false);
@@ -556,16 +559,14 @@ export default function BookingForm({
           บอกเราคร่าว ๆ ว่าจะขับไปที่ไหนบ้าง เลือกได้หลายที่ ไม่ต้องระบุวัน ·
           ให้บริการเชียงใหม่ ลำพูน และลำปาง
         </p>
-        {noSteepRoutes && (
-          <div className="mb-3">
-            <SteepRouteNotice places={tripPlaces} penalty={steepRoutePenalty} />
-          </div>
-        )}
+        <div className="mb-3 empty:hidden">
+          <SteepRouteNotice places={tripPlaces} car={routeRule} penalty={steepRoutePenalty} />
+        </div>
         <TripPlanEditor
           rows={tripRows}
           onChange={setTripRows}
           places={tripPlaces}
-          noSteep={noSteepRoutes}
+          carRule={routeRule}
           steepPenalty={steepRoutePenalty}
           inputClass={inputClass}
         />

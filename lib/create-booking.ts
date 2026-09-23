@@ -16,7 +16,7 @@ import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
 import {
   resolveTripPlans,
   tripSurchargeOf,
-  steepPlacesIn,
+  bannedPlacesIn,
   steepBlockMessage,
   type TripPlanInput,
   type TripPlanResolved,
@@ -206,8 +206,8 @@ export async function createBooking(
     } else {
       tripPlans = resolved.plans;
     }
-    // รถที่ห้ามขึ้นเส้นทางชัน — ลูกค้าจองไม่ได้ถ้าเลือกที่ชันมาก (แอดมินข้ามได้)
-    const steep = car.noSteepRoutes ? steepPlacesIn(tripPlans, places) : [];
+    // สถานที่ที่รถคันนี้ห้ามไป (ชันมาก / ห้ามเก๋ง) — ลูกค้าจองไม่ได้ (แอดมินข้ามได้)
+    const steep = bannedPlacesIn(tripPlans, places, car);
     if (steep.length > 0 && !skipRules) {
       return {
         ok: false,

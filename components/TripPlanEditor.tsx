@@ -7,7 +7,13 @@ import {
   SERVICE_PROVINCES,
   isServiceProvince,
 } from "@/lib/th-areas";
-import { MAX_TRIP_PLANS, type TripPlaceView, type TripPlanInput } from "@/lib/trip-plans";
+import {
+  MAX_TRIP_PLANS,
+  placeBannedFor,
+  type CarRouteRule,
+  type TripPlaceView,
+  type TripPlanInput,
+} from "@/lib/trip-plans";
 
 /** แถวในฟอร์ม — mode บอกว่าเลือกจากรายการ หรือกรอกเอง */
 export type TripRow = {
@@ -71,12 +77,16 @@ export function rowsToInputs(rows: TripRow[]): TripPlanInput[] {
   return out;
 }
 
-/** สถานที่ชันมากที่เลือกไว้ (ใช้กับรถที่ห้ามขึ้น) */
-export function steepNamesIn(rows: TripRow[], places: TripPlaceView[]): string[] {
+/** สถานที่ที่เลือกไว้แต่รถคันนี้ห้ามไป */
+export function bannedNamesIn(
+  rows: TripRow[],
+  places: TripPlaceView[],
+  car: CarRouteRule
+): string[] {
   return rows
     .filter((r) => r.mode === "place" && r.placeId)
     .map((r) => places.find((p) => p.id === r.placeId))
-    .filter((p): p is TripPlaceView => Boolean(p?.steep))
+    .filter((p): p is TripPlaceView => Boolean(p && placeBannedFor(p, car)))
     .map((p) => p.name);
 }
 
@@ -107,7 +117,7 @@ export default function TripPlanEditor({
   rows,
   onChange,
   places,
-  noSteep = false,
+  carRule = {},
   steepPenalty = 1000,
   inputClass = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm",
   labelClass = "block text-xs font-medium text-slate-500 mb-1",
@@ -115,8 +125,8 @@ export default function TripPlanEditor({
   rows: TripRow[];
   onChange: (rows: TripRow[]) => void;
   places: TripPlaceView[];
-  /** รถคันนี้ห้ามขึ้นเส้นทางชันมาก */
-  noSteep?: boolean;
+  /** ข้อมูลรถ ใช้ตัดสินว่าสถานที่ไหนห้ามไป */
+  carRule?: CarRouteRule;
   steepPenalty?: number;
   inputClass?: string;
   labelClass?: string;
@@ -185,9 +195,10 @@ export default function TripPlanEditor({
 
           {(() => {
             const chosen = r.mode === "place" ? places.find((p) => p.id === r.placeId) : null;
-            return noSteep && chosen?.steep ? (
+            return chosen && placeBannedFor(chosen, carRule) ? (
               <p className="mt-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">
-                ⛔ รถคันนี้ห้ามขึ้น {chosen.name} เพราะเป็นเส้นทางชันมาก — หากต้องการไป
+                ⛔ รถคันนี้ห้ามไป {chosen.name}{" "}
+                {chosen.noSedan ? "เพราะต้องใช้รถยกสูง" : "เพราะเป็นเส้นทางชันมาก"} — หากต้องการไป
                 กรุณาเลือกรถคันอื่น · หากนำรถไปเส้นทางนี้ มีค่าปรับ {steepPenalty.toLocaleString()} บาท
               </p>
             ) : null;

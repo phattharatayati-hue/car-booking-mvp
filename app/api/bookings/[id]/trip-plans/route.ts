@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
 import {
   resolveTripPlans,
-  steepPlacesIn,
+  bannedPlacesIn,
   steepBlockMessage,
   type TripPlanInput,
 } from "@/lib/trip-plans";
@@ -29,7 +29,7 @@ export async function PUT(
 
     const booking = await prisma.booking.findUnique({
       where: { id },
-      select: { id: true, status: true, startDate: true, car: { select: { noSteepRoutes: true } } },
+      select: { id: true, status: true, startDate: true, car: { select: { noSteepRoutes: true, bodyType: true } } },
     });
     if (!booking) {
       return NextResponse.json({ error: "ไม่พบการจองนี้" }, { status: 404 });
@@ -49,8 +49,8 @@ export async function PUT(
     if (!resolved.ok) {
       return NextResponse.json({ error: resolved.error }, { status: 400 });
     }
-    if (booking.car.noSteepRoutes) {
-      const steep = steepPlacesIn(resolved.plans, places);
+    {
+      const steep = bannedPlacesIn(resolved.plans, places, booking.car);
       if (steep.length > 0) {
         const penalty = (await getSettings()).steepRoutePenalty;
         return NextResponse.json(

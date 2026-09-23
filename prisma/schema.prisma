@@ -95,6 +95,8 @@ model Car {
   /// สเปคที่แสดงให้ลูกค้า — ว่างได้ทุกช่อง
   /// ห้ามนำรถคันนี้ขึ้นเส้นทางชันมาก (TripPlace.steep) — เช่นรถเก๋งเครื่องเล็ก
   noSteepRoutes   Boolean @default(false)
+  /// ประเภทรถ: SEDAN | SUV | MPV | PICKUP — ใช้กับสถานที่ที่ห้ามรถเก๋ง
+  bodyType        String?
   engineCc        Int?
   horsepower      Int?
   fuelType        String?
@@ -248,6 +250,8 @@ model TripPlace {
   drivingTip String?
   /// เส้นทางชันมาก — รถที่ติ๊ก noSteepRoutes เลือกที่นี่ไม่ได้
   steep      Boolean  @default(false)
+  /// ห้ามรถเก๋งทุกคัน (เช่น ทางลูกรังต้องใช้รถยกสูง) — รวมรถที่ติ๊ก noSteepRoutes ด้วย
+  noSedan    Boolean  @default(false)
   sortOrder  Int      @default(0)
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())

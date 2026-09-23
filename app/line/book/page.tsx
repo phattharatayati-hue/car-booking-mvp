@@ -141,6 +141,7 @@ export default async function LineBookPage({
             photoUrl: car.photoUrl,
             isRequest: needsApproval(car),
             noSteepRoutes: car.noSteepRoutes,
+            bodyType: car.bodyType,
           }}
           availability={map.get(car.id) ?? {}}
           busySpans={busySpans}

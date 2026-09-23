@@ -36,6 +36,8 @@ const PLACES: {
   drivingTip?: string;
   /** เส้นทางชันมาก — รถที่ห้ามขึ้น (เช่น Yaris Ativ) เลือกไม่ได้ */
   steep?: boolean;
+  /** ห้ามรถเก๋งทุกคัน */
+  noSedan?: boolean;
 }[] = [
   // เชียงใหม่
   { name: "ตัวเมือง / นิมมาน / ประตูท่าแพ", province: "เชียงใหม่", district: "เมืองเชียงใหม่" },
@@ -48,6 +50,15 @@ const PLACES: {
   { name: "แม่กำปอง", province: "เชียงใหม่", district: "แม่ออน", note: "ทางชัน", drivingTip: STEEP + " · ถนนในหมู่บ้านแคบ สวนกันต้องหยุดให้ทาง" },
   { name: "สะเมิง", province: "เชียงใหม่", district: "สะเมิง", note: "ทางชัน", drivingTip: STEEP },
   { name: "ดอยอินทนนท์", province: "เชียงใหม่", district: "จอมทอง", note: "ทางชัน ไกล", drivingTip: FAR_STEEP },
+  {
+    name: "สันป่าเกี๊ยะ",
+    province: "เชียงใหม่",
+    district: "เชียงดาว",
+    note: "ทางลูกรัง ต้องใช้รถยกสูง",
+    drivingTip:
+      "ทางเข้าเป็นลูกรัง ขรุขระและชันบางช่วง ต้องใช้รถยกสูง (SUV) · หน้าฝนลื่นมาก ขับช้าและใช้เกียร์ต่ำ · เผื่อเวลาเดินทางและกลับก่อนมืด",
+    noSedan: true,
+  },
   { name: "เชียงดาว / ดอยหลวงเชียงดาว", province: "เชียงใหม่", district: "เชียงดาว" },
   { name: "ดอยอ่างขาง", province: "เชียงใหม่", district: "ฝาง", note: "ทางชัน ไกล", drivingTip: FAR_STEEP + " · ช่วงก่อนถึงยอดชันมาก ใช้เกียร์ต่ำทั้งขึ้นและลง", steep: true },
   { name: "แม่แจ่ม", province: "เชียงใหม่", district: "แม่แจ่ม", note: "ทางภูเขา ไกล", drivingTip: FAR_STEEP, steep: true },
@@ -74,9 +85,10 @@ async function main() {
     });
     if (exists) {
       // ของเดิมที่ยังไม่มีคำแนะนำ เติมให้ — ไม่ทับที่แอดมินเขียนเองแล้ว
-      const patch: { drivingTip?: string; steep?: boolean } = {};
+      const patch: { drivingTip?: string; steep?: boolean; noSedan?: boolean } = {};
       if (!exists.drivingTip && p.drivingTip) patch.drivingTip = p.drivingTip;
       if (!exists.steep && p.steep) patch.steep = true;
+      if (!exists.noSedan && p.noSedan) patch.noSedan = true;
       if (Object.keys(patch).length) {
         await prisma.tripPlace.update({ where: { id: exists.id }, data: patch });
       }
@@ -88,6 +100,25 @@ async function main() {
     added++;
   }
   console.log(`เพิ่มสถานที่ ${added} แห่ง (มีอยู่แล้ว ${PLACES.length - added} แห่ง)`);
+
+  /* ประเภทรถตั้งต้น — ตั้งเฉพาะคันที่ยังไม่ได้ระบุ ไม่ทับที่แอดมินตั้งเอง
+     Yaris Ativ ติ๊ก "ห้ามขึ้นเส้นทางชันมาก" ด้วย */
+  const TYPES: { match: string; bodyType: string; noSteep?: boolean }[] = [
+    { match: "Yaris Ativ", bodyType: "SEDAN", noSteep: true },
+    { match: "City", bodyType: "SEDAN" },
+    { match: "Civic", bodyType: "SEDAN" },
+    { match: "HR-V", bodyType: "SUV" },
+    { match: "Corolla Cross", bodyType: "SUV" },
+    { match: "Fortuner", bodyType: "SUV" },
+    { match: "Veloz", bodyType: "MPV" },
+  ];
+  for (const t of TYPES) {
+    const r = await prisma.car.updateMany({
+      where: { name: { contains: t.match, mode: "insensitive" }, bodyType: null },
+      data: { bodyType: t.bodyType, ...(t.noSteep ? { noSteepRoutes: true } : {}) },
+    });
+    if (r.count) console.log(`ตั้งประเภท ${t.match} → ${t.bodyType} (${r.count} คัน)`);
+  }
 }
 
 main()

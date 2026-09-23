@@ -31,6 +31,7 @@ type PlaceRow = {
   note: string | null;
   drivingTip: string | null;
   steep: boolean;
+  noSedan: boolean;
   sortOrder: number;
   isActive: boolean;
 };
@@ -72,13 +73,14 @@ async function addPlaceAction(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim().slice(0, 300) || null;
   const drivingTip = String(formData.get("drivingTip") ?? "").trim().slice(0, 500) || null;
   const steep = formData.get("steep") === "on";
+  const noSedan = formData.get("noSedan") === "on";
 
   if (!name) redirect(`${PATH}?error=name`);
   if (!isValidDistrict(province, district)) redirect(`${PATH}?error=area`);
   if (surcharge < 0 || surcharge > 100_000) redirect(`${PATH}?error=amount`);
 
   const created = await prisma.tripPlace.create({
-    data: { name, province, district, surcharge, sortOrder, note, drivingTip, steep },
+    data: { name, province, district, surcharge, sortOrder, note, drivingTip, steep, noSedan },
   });
   await audit({
     action: "master.trip_place_add",
@@ -104,11 +106,12 @@ async function updatePlaceAction(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim().slice(0, 300) || null;
   const drivingTip = String(formData.get("drivingTip") ?? "").trim().slice(0, 500) || null;
   const steep = formData.get("steep") === "on";
+  const noSedan = formData.get("noSedan") === "on";
   if (surcharge < 0 || surcharge > 100_000) redirect(`${PATH}?error=amount`);
 
   await prisma.tripPlace.update({
     where: { id },
-    data: { name, surcharge, sortOrder, note, drivingTip, steep },
+    data: { name, surcharge, sortOrder, note, drivingTip, steep, noSedan },
   });
 
   const changes: string[] = [];
@@ -118,6 +121,7 @@ async function updatePlaceAction(formData: FormData) {
   if (before.sortOrder !== sortOrder) changes.push(`ลำดับ: ${before.sortOrder} → ${sortOrder}`);
   if ((before.drivingTip ?? "") !== (drivingTip ?? "")) changes.push("แก้คำแนะนำการขับ");
   if (before.steep !== steep) changes.push(steep ? "ตั้งเป็นเส้นทางชันมาก" : "ยกเลิกเส้นทางชันมาก");
+  if (before.noSedan !== noSedan) changes.push(noSedan ? "ตั้งห้ามรถเก๋ง" : "ยกเลิกห้ามรถเก๋ง");
   await audit({
     action: "master.trip_place_update",
     summary: `แก้สถานที่ยอดนิยม ${name}`,
@@ -323,9 +327,13 @@ export default async function TripPlansAdminPage({
               className={inputClass}
             />
           </div>
-          <label className="sm:col-span-6 flex items-center gap-2 text-sm text-red-800">
+          <label className="sm:col-span-3 flex items-center gap-2 text-sm text-red-800">
             <input type="checkbox" name="steep" className="h-4 w-4" />
-            เส้นทางชันมาก — รถที่ตั้ง “ห้ามขึ้นเส้นทางชันมาก” เลือกที่นี่ไม่ได้
+            ชันมาก — ห้ามรถที่ติ๊ก “ห้ามขึ้นเส้นทางชันมาก”
+          </label>
+          <label className="sm:col-span-3 flex items-center gap-2 text-sm text-red-800">
+            <input type="checkbox" name="noSedan" className="h-4 w-4" />
+            ห้ามรถเก๋งทุกคัน (ต้องใช้รถยกสูง)
           </label>
         </form>
 
@@ -344,6 +352,7 @@ export default async function TripPlansAdminPage({
                       <label className={labelClass}>
                         {p.province} · {p.district}
                         {p.steep && <span className="ml-1 text-red-600">· ชันมาก</span>}
+                        {p.noSedan && <span className="ml-1 text-red-600">· ห้ามเก๋ง</span>}
                         {!p.isActive && <span className="ml-1 text-slate-400">(ปิดใช้งาน)</span>}
                       </label>
                       <input name="name" defaultValue={p.name} className={inputClass} />
@@ -376,9 +385,13 @@ export default async function TripPlansAdminPage({
                         className={inputClass}
                       />
                     </div>
-                    <label className="sm:col-span-12 flex items-center gap-2 text-sm text-red-800">
+                    <label className="sm:col-span-6 flex items-center gap-2 text-sm text-red-800">
                       <input type="checkbox" name="steep" defaultChecked={p.steep} className="h-4 w-4" />
-                      เส้นทางชันมาก (รถที่ห้ามขึ้นเลือกไม่ได้)
+                      ชันมาก (ห้ามรถที่ติ๊กห้ามขึ้นเส้นทางชัน)
+                    </label>
+                    <label className="sm:col-span-6 flex items-center gap-2 text-sm text-red-800">
+                      <input type="checkbox" name="noSedan" defaultChecked={p.noSedan} className="h-4 w-4" />
+                      ห้ามรถเก๋งทุกคัน
                     </label>
                   </form>
                   <div className="mt-2 flex gap-2">

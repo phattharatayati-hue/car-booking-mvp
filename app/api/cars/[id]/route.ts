@@ -48,6 +48,12 @@ export async function PATCH(
       fuelType: optionalText(body.fuelType),
       noSteepRoutes:
         typeof body.noSteepRoutes === "boolean" ? body.noSteepRoutes : undefined,
+      bodyType:
+        body.bodyType === undefined
+          ? undefined
+          : ["SEDAN", "SUV", "MPV", "PICKUP"].includes(body.bodyType)
+            ? body.bodyType
+            : null,
       partnerId: body.partnerId === undefined ? undefined : body.partnerId || null,
       // ผูกเจ้าของรถ = รถพาร์ทเนอร์เสมอ กันข้อมูลขัดกัน
       source:

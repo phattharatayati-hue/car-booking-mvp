@@ -4,7 +4,7 @@ import TripPlanEditor, {
   emptyTripRow,
   rowsToInputs,
   tripRowsProblem,
-  steepNamesIn,
+  bannedNamesIn,
   type TripRow,
 } from "@/components/TripPlanEditor";
 import SteepRouteNotice from "@/components/SteepRouteNotice";
@@ -74,6 +74,7 @@ export type LiffCar = {
   photoUrl: string | null;
   isRequest: boolean;
   noSteepRoutes?: boolean;
+  bodyType?: string | null;
 };
 
 type Result = {
@@ -134,6 +135,7 @@ export default function LiffBooking({
   const [returnPlace, setReturnPlace] = useState("");
   const [needPhone, setNeedPhone] = useState(false);
   const [tripRows, setTripRows] = useState<TripRow[]>(() => [emptyTripRow()]);
+  const routeRule = { noSteepRoutes: car.noSteepRoutes, bodyType: car.bodyType };
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -287,7 +289,7 @@ export default function LiffBooking({
       setSubmitting(false);
       return;
     }
-    const steepNames = car.noSteepRoutes ? steepNamesIn(tripRows, tripPlaces) : [];
+    const steepNames = bannedNamesIn(tripRows, tripPlaces, routeRule);
     if (steepNames.length > 0) {
       setError(steepBlockMessage(steepNames, steepRoutePenalty));
       setSubmitting(false);
@@ -717,16 +719,14 @@ export default function LiffBooking({
         <p className="text-xs text-slate-500 mb-3">
           จะขับไปที่ไหนบ้าง เลือกได้หลายที่ · ให้บริการเชียงใหม่ ลำพูน ลำปาง
         </p>
-        {car.noSteepRoutes && (
-          <div className="mb-3">
-            <SteepRouteNotice places={tripPlaces} penalty={steepRoutePenalty} />
-          </div>
-        )}
+        <div className="mb-3 empty:hidden">
+          <SteepRouteNotice places={tripPlaces} car={routeRule} penalty={steepRoutePenalty} />
+        </div>
         <TripPlanEditor
           rows={tripRows}
           onChange={setTripRows}
           places={tripPlaces}
-          noSteep={car.noSteepRoutes}
+          carRule={routeRule}
           steepPenalty={steepRoutePenalty}
         />
       </div>
