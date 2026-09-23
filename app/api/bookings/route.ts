@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     returnPlace: body.returnPlace,
     customerId,
     channel: "WEB",
+    tripPlans: Array.isArray(body.tripPlans) ? body.tripPlans : [],
   });
 
   if (!result.ok) {

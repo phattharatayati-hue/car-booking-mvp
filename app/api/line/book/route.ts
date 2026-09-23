@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { idToken, carId, startDate, endDate, startTime, endTime, phone, pickupPlace, returnPlace } =
       body;
+    const tripPlans = Array.isArray(body.tripPlans) ? body.tripPlans : [];
 
     if (!idToken) {
       return NextResponse.json({ error: "ไม่พบข้อมูลยืนยันตัวตน" }, { status: 401 });
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       phone: finalPhone,
       lineUserId,
       channel: "LIFF",
+      tripPlans,
       pickupPlace,
       returnPlace,
     });

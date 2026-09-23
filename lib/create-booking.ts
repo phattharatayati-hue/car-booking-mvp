@@ -12,6 +12,13 @@ import { isTooSoon, leadTimeMessage } from "@/lib/booking-rules";
 import { sweepUnpaidHolds, holdUntilFrom } from "@/lib/unpaid-hold";
 import { getCarRates } from "@/lib/car-rates-server";
 import { getActivePromotions } from "@/lib/promotions-server";
+import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
+import {
+  resolveTripPlans,
+  tripSurchargeOf,
+  type TripPlanInput,
+  type TripPlanResolved,
+} from "@/lib/trip-plans";
 import { bookingFeeOf } from "@/lib/car-money";
 import {
   bangkokDateStrOf,
@@ -46,6 +53,8 @@ export type CreateBookingInput = {
   skipCustomerRules?: boolean;
   /** ยอดรวมที่ตกลงกันจริง — ใส่มาแล้วใช้ทับยอดที่ระบบคิด */
   priceOverride?: number | null;
+  /** แผนการเดินทาง — บังคับสำหรับลูกค้าที่จองเอง แอดมินไม่บังคับ */
+  tripPlans?: TripPlanInput[];
   /** ช่องทางที่จอง — ดู lib/booking-channel.ts */
   channel?: "WEB" | "LIFF" | "LINE_CHAT" | "ADMIN";
   /** บันทึกภายใน เขียนลง adminNote ตั้งแต่สร้าง */
@@ -183,10 +192,25 @@ export async function createBooking(
     };
   }
   /* ยอดที่ตกลงกันจริงชนะยอดที่ระบบคิดเสมอ — ใบจากหน้าร้านมักมีราคาพิเศษที่ตกลงในแชท */
+  /* แผนการเดินทาง — ลูกค้าที่จองเองต้องกรอก ใบที่แอดมินกรอกไม่บังคับ (กรอกทีหลังได้)
+     เรทคิดใหม่จากหลังบ้านเสมอ ไม่เชื่อตัวเลขจากฝั่งเว็บ */
+  let tripPlans: TripPlanResolved[] = [];
+  const hasTripInput = Array.isArray(input.tripPlans) && input.tripPlans.length > 0;
+  if (!skipRules || hasTripInput) {
+    const [places, areaRates] = await Promise.all([getTripPlaces(), getTripAreaRates()]);
+    const resolved = resolveTripPlans(input.tripPlans ?? [], places, areaRates);
+    if (!resolved.ok) {
+      if (!skipRules) return { ok: false, status: 400, error: resolved.error };
+    } else {
+      tripPlans = resolved.plans;
+    }
+  }
+  const tripSurcharge = tripSurchargeOf(tripPlans);
+
   const totalPrice =
     input.priceOverride != null && input.priceOverride >= 0
       ? Math.floor(input.priceOverride)
-      : quote.total;
+      : quote.total + tripSurcharge;
 
   const phone = String(input.phone).replace(/[\s-]/g, "");
   /* เบอร์โทรบังคับและต้องโทรได้จริง — ลูกค้าที่ไม่ผูก LINE ติดต่อได้ทางเดียวคือโทร
@@ -268,6 +292,11 @@ export async function createBooking(
       adminNote: input.adminNote?.trim() || null,
       discountAmount: input.priceOverride != null ? 0 : quote.discount,
       discountLabel: input.priceOverride != null ? null : quote.promotionName,
+      tripSurcharge: input.priceOverride != null ? 0 : tripSurcharge,
+      tripOutsideArea: tripPlans.some((p) => p.outsideArea),
+      tripPlans: {
+        create: tripPlans.map((p, i) => ({ ...p, sortOrder: i })),
+      },
       channel: input.channel ?? (input.createdByAdminUserId ? "ADMIN" : "WEB"),
       silent: Boolean(input.silent),
       createdByAdminUserId: input.createdByAdminUserId ?? null,

@@ -187,6 +187,10 @@ model Booking {
   discountAmount       Int      @default(0)
   /// ชื่อโปรฯ ที่ใช้ ณ ตอนนั้น
   discountLabel        String?
+  /// ค่าบริการตามแผนเดินทาง (บาท) ที่รวมอยู่ใน totalPrice แล้ว
+  tripSurcharge        Int      @default(0)
+  /// มีแพลนนอกเชียงใหม่-ลำพูน-ลำปาง — แอดมินต้องติดต่อตกลง
+  tripOutsideArea      Boolean  @default(false)
   /// กันคิวรถให้ถึงเวลานี้ ถ้ายังไม่อัปสลิประบบจะยกเลิกให้ (null = ไม่ยกเลิกเอง)
   /// ตั้งตอนเข้าสถานะ PENDING_DEPOSIT ไม่ใช่ตอนสร้างใบ เพราะรถพาร์ทเนอร์ต้องรอเจ้าของตอบก่อน
   holdUntil    DateTime?
@@ -204,6 +208,7 @@ model Booking {
   receipts    Receipt[]
   documents   BookingDocument[]
   assignments BookingAssignment[]
+  tripPlans   BookingTripPlan[]
 }
 
 /// เอกสารที่ลูกค้าอัปโหลดก่อนรับรถ — เก็บแบบ private ดูผ่าน /api/file เท่านั้น
@@ -225,6 +230,51 @@ model BookingDocument {
 
   /// อัปโหลดใหม่ทับของเดิมได้ แต่เก็บชนิดละหนึ่งไฟล์ต่อการจอง
   @@unique([bookingId, kind])
+}
+
+/// สถานที่ท่องเที่ยวยอดนิยมให้ลูกค้าเลือกในแผนเดินทาง — แอดมินจัดการเอง
+model TripPlace {
+  id         String   @id @default(cuid())
+  name       String
+  province   String
+  district   String
+  /// ค่าบริการเพิ่มเมื่อลูกค้าไปที่นี่ (บาทต่อการจอง) — 0 = ไม่มี
+  surcharge  Int      @default(0)
+  /// หมายเหตุสำหรับแอดมิน เช่น "ทางชัน เช็คเบรก" — ลูกค้าไม่เห็น
+  note       String?
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// เรทค่าบริการตามพื้นที่ — district ว่าง = ทั้งจังหวัด
+model TripAreaRate {
+  id         String   @id @default(cuid())
+  province   String
+  district   String?
+  surcharge  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([province, district])
+}
+
+/// แผนเดินทางของใบจอง — เก็บเรท ณ วันที่จองติดไว้ แก้เรททีหลังไม่กระทบใบเก่า
+model BookingTripPlan {
+  id          String   @id @default(cuid())
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId   String
+  placeId     String?
+  province    String
+  district    String
+  placeName   String
+  outsideArea Boolean  @default(false)
+  surcharge   Int      @default(0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId])
 }
 
 /// ส่วนลดตามช่วงวัน — ยึดวันรับรถ ลดเป็นบาทต่อวัน เข้าได้ทีละโปรฯ

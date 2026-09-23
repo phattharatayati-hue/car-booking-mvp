@@ -4,6 +4,7 @@ import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexSlipReceived, flexSlipUploadedAdmin } from "@/lib/line-flex";
 import { DOCUMENT_LABEL, unresolvedDocuments } from "@/lib/documents";
 import { getSettings } from "@/lib/settings";
+import { tripPlanLabel } from "@/lib/trip-plans";
 
 export async function POST(
   request: Request,
@@ -22,7 +23,13 @@ export async function POST(
 
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { deposit: true, car: true, customer: true, documents: true },
+    include: {
+      deposit: true,
+      car: true,
+      customer: true,
+      documents: true,
+      tripPlans: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (!booking) {
     return NextResponse.json({ error: "ไม่พบรายการจอง" }, { status: 404 });
@@ -99,6 +106,7 @@ export async function POST(
       const carDeposit = booking.car.securityDeposit;
       await pushRaw(booking.customer.lineUserId, [
         flexSlipReceived({
+          tripPlans: booking.tripPlans.map((t) => tripPlanLabel(t)),
           specialDeposit:
             carDeposit != null && carDeposit !== defaultDeposit ? carDeposit : null,
           bookingId: booking.id,

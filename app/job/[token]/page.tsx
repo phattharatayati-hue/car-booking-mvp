@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { tripPlanLabel } from "@/lib/trip-plans";
 import { prisma } from "@/lib/prisma";
 import { auditAs } from "@/lib/audit";
 import { jobViewOpen } from "@/lib/driver-jobs";
@@ -53,6 +54,7 @@ export default async function JobDocumentsPage({
           car: true,
           customer: true,
           documents: { orderBy: { kind: "asc" } },
+          tripPlans: { orderBy: { sortOrder: "asc" } },
           receipts: { where: { voidedAt: null }, orderBy: { issuedAt: "desc" } },
         },
       },
@@ -224,6 +226,23 @@ export default async function JobDocumentsPage({
             </div>
           </section>
         )}
+
+        {/* แผนเดินทาง — ให้คนส่งรถแนะนำเส้นทางและเช็ครถให้เหมาะ */}
+        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3.5 text-sm">
+          <p className="font-semibold text-slate-900 mb-1">แผนเดินทางของลูกค้า</p>
+          {job.booking.tripPlans.length > 0 ? (
+            <ul className="flex flex-col gap-0.5 text-slate-700">
+              {job.booking.tripPlans.map((t, i) => (
+                <li key={t.id}>
+                  {i + 1}. {tripPlanLabel(t)}
+                  {t.outsideArea && <span className="ml-1 text-amber-700">(นอกพื้นที่)</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-slate-500">ลูกค้ายังไม่ได้กรอก</p>
+          )}
+        </div>
 
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-900 leading-relaxed">
           <p className="font-semibold">ใช้เทียบกับตัวจริงเท่านั้น</p>

@@ -1,5 +1,7 @@
 "use client";
 
+import TripPlanEditor, { emptyTripRow, rowsToInputs, tripRowsProblem, type TripRow } from "@/components/TripPlanEditor";
+import type { TripPlaceView } from "@/lib/trip-plans";
 import { bestPromotion, type PromotionView } from "@/lib/promotions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -82,6 +84,7 @@ export default function LiffBooking({
   liffId,
   pickupPoints,
   promotions = [],
+  tripPlaces = [],
   lateRule = DEFAULT_LATE_RULE,
   minLeadHours = DEFAULT_LEAD_HOURS,
 }: {
@@ -97,6 +100,7 @@ export default function LiffBooking({
   minLeadHours?: number;
   pickupPoints: PickupOption[];
   promotions?: PromotionView[];
+  tripPlaces?: TripPlaceView[];
 }) {
   const [ready, setReady] = useState(false);
   const [idToken, setIdToken] = useState<string | null>(null);
@@ -119,6 +123,7 @@ export default function LiffBooking({
   const [pickupPlace, setPickupPlace] = useState("");
   const [returnPlace, setReturnPlace] = useState("");
   const [needPhone, setNeedPhone] = useState(false);
+  const [tripRows, setTripRows] = useState<TripRow[]>(() => [emptyTripRow()]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +271,12 @@ export default function LiffBooking({
       setSubmitting(false);
       return;
     }
+    const tripProblem = tripRowsProblem(tripRows);
+    if (tripProblem) {
+      setError(tripProblem);
+      setSubmitting(false);
+      return;
+    }
     if (startDate === endDate && endTime <= startTime) {
       setError("เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ กรุณาเลือกเวลาคืนใหม่");
       setSubmitting(false);
@@ -298,6 +309,7 @@ export default function LiffBooking({
           phone: phone || undefined,
           pickupPlace,
           returnPlace,
+          tripPlans: rowsToInputs(tripRows),
           requestId,
         }),
       });
@@ -683,6 +695,14 @@ export default function LiffBooking({
           เช่าวันเดียว เวลาคืนรถต้องหลังเวลารับรถ — เลือกเวลาคืนให้ช้ากว่า {startTime} น.
         </div>
       )}
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <p className="text-sm font-medium text-slate-700">แผนการเดินทาง *</p>
+        <p className="text-xs text-slate-500 mb-3">
+          จะขับไปที่ไหนบ้าง เลือกได้หลายที่ · ให้บริการเชียงใหม่ ลำพูน ลำปาง
+        </p>
+        <TripPlanEditor rows={tripRows} onChange={setTripRows} places={tripPlaces} />
+      </div>
 
       {overlaps && (
         <div className="text-sm bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3">

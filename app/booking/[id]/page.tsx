@@ -8,6 +8,8 @@ import { lineAddFriendUrl } from "@/lib/line-public";
 import PublicShell from "@/components/PublicShell";
 import SlipUpload from "./SlipUpload";
 import DocumentUpload from "./DocumentUpload";
+import TripPlanCard from "./TripPlanCard";
+import { getTripPlaces } from "@/lib/trip-plans-server";
 import PlacePicker from "./PlacePicker";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { formatBangkokDateTime, getSettings } from "@/lib/settings";
@@ -28,12 +30,19 @@ export default async function BookingStatusPage({
   const { id } = await params;
   const booking = await prisma.booking.findUnique({
     where: { id },
-    include: { car: true, customer: true, deposit: true, documents: true },
+    include: {
+      car: true,
+      customer: true,
+      deposit: true,
+      documents: true,
+      tripPlans: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   if (!booking) notFound();
 
   const settings = await getSettings();
+  const tripPlaces = await getTripPlaces();
   const pickupPoints = await getPickupPoints();
 
   /* หน้านี้เปิดได้ด้วยรหัสการจอง (cuid เดาไม่ได้) เพราะลิงก์ถูกส่งให้ลูกค้าทางแชท
@@ -328,6 +337,14 @@ export default async function BookingStatusPage({
             />
           </div>
         )}
+
+        {/* แผนเดินทาง — แก้ได้จนถึงเวลารับรถ (API กันซ้ำอีกชั้น) */}
+        <TripPlanCard
+          bookingId={booking.id}
+          plans={booking.tripPlans}
+          places={tripPlaces}
+          editable={isOpen && booking.startDate.getTime() > Date.now()}
+        />
 
         {/* id="docs" และ id="slip" — ปลายทางของปุ่มในข้อความ LINE
             scroll-mt เว้นที่ให้หัวเว็บที่ลอยอยู่ ไม่งั้นหัวข้อถูกบัง

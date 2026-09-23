@@ -1,5 +1,17 @@
 "use client";
 
+import TripPlanEditor, {
+  emptyTripRow,
+  rowsToInputs,
+  tripRowsProblem,
+  type TripRow,
+} from "@/components/TripPlanEditor";
+import {
+  resolveTripPlans,
+  tripSurchargeOf,
+  type TripPlaceView,
+  type TripAreaRateView,
+} from "@/lib/trip-plans";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AvailabilityCalendar, { DayStatus } from "@/components/AvailabilityCalendar";
@@ -49,6 +61,8 @@ export default function BookingForm({
   busySpans = [],
   carRates = [],
   promotions = [],
+  tripPlaces = [],
+  tripAreaRates = [],
   isRequest = false,
   availability,
   pickupPoints,
@@ -72,6 +86,8 @@ export default function BookingForm({
   minLeadHours?: number;
   availability: Record<string, DayStatus>;
   pickupPoints: PickupOption[];
+  tripPlaces?: TripPlaceView[];
+  tripAreaRates?: TripAreaRateView[];
   /* เติมให้อัตโนมัติเมื่อลูกค้าเข้าสู่ระบบไว้แล้ว — ยังแก้ไขได้ทุกช่อง */
   defaultName?: string;
   defaultPhone?: string;
@@ -92,6 +108,7 @@ export default function BookingForm({
   /* เริ่มเป็นค่าว่าง ไม่ใช่ตัวเลือกแรกของรายการ
      เดิมค่าเริ่มต้นคือ 00:00 ลูกค้าจึงกดจองผ่านไปได้ทั้งที่ยังไม่ได้เลือกเวลา
      แล้วใบจองกลายเป็นนัดเที่ยงคืนโดยไม่มีใครตั้งใจ */
+  const [tripRows, setTripRows] = useState<TripRow[]>(() => [emptyTripRow()]);
   const [pickupPlace, setPickupPlace] = useState("");
   const [returnPlace, setReturnPlace] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -162,7 +179,12 @@ export default function BookingForm({
     days > 0 && startDate ? bestPromotion(promotions, startDate, days, rentTotal) : null;
   const discount = promoHit?.amount ?? 0;
 
-  const total = Math.max(0, rentTotal + afterHoursTotal + lateFee - discount);
+  /* ค่าบริการตามแผนเดินทาง — ตอนนี้ทุกเรทเป็น 0 จึงยังไม่ขึ้นบรรทัด
+     คิดแบบเดียวกับเซิร์ฟเวอร์ (lib/trip-plans.ts) แต่ยอดจริงเซิร์ฟเวอร์คิดใหม่อีกรอบ */
+  const tripResolved = resolveTripPlans(rowsToInputs(tripRows), tripPlaces, tripAreaRates);
+  const tripSurcharge = tripResolved.ok ? tripSurchargeOf(tripResolved.plans) : 0;
+
+  const total = Math.max(0, rentTotal + afterHoursTotal + lateFee - discount) + tripSurcharge;
 
   // ช่วงที่แอดมินปิดรับจอง
   const blocked = blockingRates(startDate, endDate, carRates);
@@ -196,6 +218,13 @@ export default function BookingForm({
 
     if (pickupPoints.length > 0 && (!pickupPlace || !returnPlace)) {
       setError("กรุณาเลือกจุดรับรถและจุดคืนรถ");
+      setSubmitting(false);
+      return;
+    }
+
+    const tripProblem = tripRowsProblem(tripRows);
+    if (tripProblem) {
+      setError(tripProblem);
       setSubmitting(false);
       return;
     }
@@ -245,6 +274,7 @@ export default function BookingForm({
           email: formData.get("email"),
           pickupPlace: formData.get("pickupPlace"),
           returnPlace: formData.get("returnPlace"),
+          tripPlans: rowsToInputs(tripRows),
         }),
       });
 
@@ -472,6 +502,11 @@ export default function BookingForm({
                   + คืนรถนอกเวลา {returnFee.fee.toLocaleString()} ฿
                 </span>
               )}
+              {tripSurcharge > 0 && (
+                <span className="block text-xs text-amber-700 mt-0.5">
+                  + ค่าบริการตามแผนเดินทาง {tripSurcharge.toLocaleString()} ฿
+                </span>
+              )}
               {promoHit && discount > 0 && (
                 <span className="block text-xs font-medium text-emerald-700 mt-0.5">
                   − {promoHit.promo.name} ลดวันละ{" "}
@@ -498,6 +533,22 @@ export default function BookingForm({
             </div>
           </div>
         )}
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-900 mb-1">
+          แผนการเดินทาง <span className="text-red-600">*</span>
+        </h2>
+        <p className="text-xs text-slate-500 mb-3">
+          บอกเราคร่าว ๆ ว่าจะขับไปที่ไหนบ้าง เลือกได้หลายที่ ไม่ต้องระบุวัน ·
+          ให้บริการเชียงใหม่ ลำพูน และลำปาง
+        </p>
+        <TripPlanEditor
+          rows={tripRows}
+          onChange={setTripRows}
+          places={tripPlaces}
+          inputClass={inputClass}
+        />
       </section>
 
       <section>

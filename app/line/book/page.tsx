@@ -9,6 +9,7 @@ import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr, getSettings, lateRuleFromSettings, timeOptions } from "@/lib/settings";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { getActivePromotions } from "@/lib/promotions-server";
+import { getTripPlaces } from "@/lib/trip-plans-server";
 import ServiceNote from "@/components/ServiceNote";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { needsApproval } from "@/lib/booking-status";
@@ -61,6 +62,7 @@ export default async function LineBookPage({
   const times = timeOptions();
   const afterHoursRates = await getAfterHoursRates();
   const promotions = await getActivePromotions();
+  const tripPlaces = await getTripPlaces();
   const liffId = process.env.NEXT_PUBLIC_LIFF_BOOKING_ID ?? process.env.NEXT_PUBLIC_LIFF_ID ?? "";
 
   // ยังไม่เลือกรถ — แสดงรายการให้เลือกก่อน
@@ -144,6 +146,7 @@ export default async function LineBookPage({
           timeOptions={times}
           afterHoursRates={afterHoursRates}
           promotions={promotions}
+          tripPlaces={tripPlaces}
           liffId={liffId}
           pickupPoints={pickupPoints}
           lateRule={lateRuleFromSettings(settings)}

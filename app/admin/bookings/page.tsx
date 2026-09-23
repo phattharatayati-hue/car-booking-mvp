@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic";
 
+import TripPlanForm from "@/components/TripPlanForm";
+import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
+import { resolveTripPlans, tripPlanLabel, type TripPlanInput } from "@/lib/trip-plans";
 import { channelOf, CHANNEL_LABEL, CHANNEL_CLASS } from "@/lib/booking-channel";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
@@ -68,6 +71,17 @@ type BookingRow = {
   channel?: string | null;
   createdByAdminUserId?: string | null;
   createdAt: Date;
+  tripOutsideArea?: boolean;
+  tripSurcharge?: number;
+  tripPlans?: {
+    id: string;
+    placeId: string | null;
+    province: string;
+    district: string;
+    placeName: string;
+    outsideArea: boolean;
+    surcharge: number;
+  }[];
   deposit: {
     amount: number;
     slipImageUrl: string;
@@ -487,6 +501,45 @@ async function editBookingAction(formData: FormData) {
     detail: changes.length ? changes.join(" · ") : "ไม่มีค่าใดเปลี่ยน",
   });
 
+  revalidatePath("/admin/bookings");
+}
+
+/**
+ * แอดมินแก้แผนเดินทางแทนลูกค้า — แทนที่ทั้งชุด
+ * ไม่เปลี่ยนยอดรวมให้เอง ถ้าเรทเปลี่ยนต้องแก้ยอดในฟอร์มแก้ข้อมูลการจอง
+ */
+async function saveTripPlansAction(formData: FormData) {
+  "use server";
+  await requireStaff();
+  const bookingId = String(formData.get("bookingId") ?? "");
+  let inputs: TripPlanInput[] = [];
+  try {
+    inputs = JSON.parse(String(formData.get("tripPlans") ?? "[]"));
+  } catch {
+    inputs = [];
+  }
+  const [places, areaRates] = await Promise.all([getTripPlaces(), getTripAreaRates()]);
+  const resolved = resolveTripPlans(inputs, places, areaRates);
+  if (!resolved.ok) throw new Error(resolved.error);
+
+  await prisma.$transaction([
+    prisma.bookingTripPlan.deleteMany({ where: { bookingId } }),
+    prisma.bookingTripPlan.createMany({
+      data: resolved.plans.map((p, i) => ({ ...p, bookingId, sortOrder: i })),
+    }),
+    prisma.booking.update({
+      where: { id: bookingId },
+      data: { tripOutsideArea: resolved.plans.some((p) => p.outsideArea) },
+    }),
+  ]);
+
+  await audit({
+    action: "booking.trip_plans_admin_edit",
+    summary: `แก้แผนเดินทาง ${bookingId.slice(0, 8).toUpperCase()}`,
+    entity: "booking",
+    entityId: bookingId,
+    detail: resolved.plans.map((p) => tripPlanLabel(p)).join(" · "),
+  });
   revalidatePath("/admin/bookings");
 }
 
@@ -938,6 +991,7 @@ export default async function AdminBookingsPage({
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const current = Math.min(pageNo, pageCount);
 
+  const tripPlaces = await getTripPlaces();
   const bookings = await prisma.booking.findMany({
     where,
     orderBy: byUrgency ? { startDate: "asc" } : { createdAt: "desc" },
@@ -948,6 +1002,7 @@ export default async function AdminBookingsPage({
       customer: true,
       deposit: true,
       documents: true,
+      tripPlans: { orderBy: { sortOrder: "asc" } },
       receipts: { orderBy: { issuedAt: "desc" } },
       assignments: {
         include: {
@@ -1364,6 +1419,27 @@ export default async function AdminBookingsPage({
                       จุดรับ-ส่ง: {b.pickupPlace ?? "—"} → {b.returnPlace ?? "—"}
                     </p>
                   )}
+                  {/* แผนเดินทางที่ลูกค้ากรอก — นอกพื้นที่ต้องติดต่อตกลงกับลูกค้า */}
+                  <div className="text-sm text-slate-500 mt-0.5">
+                    {b.tripPlans && b.tripPlans.length > 0 ? (
+                      <>
+                        แผนเดินทาง ({b.tripPlans.length}):{" "}
+                        {b.tripPlans.map((t) => tripPlanLabel(t)).join(" / ")}
+                        {b.tripOutsideArea && (
+                          <span className="ml-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                            นอกพื้นที่ — ติดต่อลูกค้า
+                          </span>
+                        )}
+                        {(b.tripSurcharge ?? 0) > 0 && (
+                          <span className="ml-1.5 text-xs text-amber-700">
+                            (ค่าบริการ {b.tripSurcharge!.toLocaleString()} ฿)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-400">ยังไม่มีแผนเดินทาง</span>
+                    )}
+                  </div>
                   {b.note && (
                     <p className="text-sm text-slate-500 mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
                       หมายเหตุ: {b.note}
@@ -1508,6 +1584,17 @@ export default async function AdminBookingsPage({
                   </summary>
 
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-5">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-2">
+                        แผนเดินทาง (แก้แทนลูกค้า — ยอดรวมไม่เปลี่ยนเอง)
+                      </p>
+                      <TripPlanForm
+                        bookingId={b.id}
+                        plans={b.tripPlans ?? []}
+                        places={tripPlaces}
+                        action={saveTripPlansAction}
+                      />
+                    </div>
                     {/* แก้สิ่งที่ลูกค้ากรอกมา — วัน-เวลา จุดรับ-ส่ง ชื่อ เบอร์ ยอดรวม */}
                     <form action={editBookingAction} className="space-y-3">
                       <input type="hidden" name="bookingId" value={b.id} />

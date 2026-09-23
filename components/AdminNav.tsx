@@ -146,6 +146,20 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/trip-plans",
+    group: "fleet",
+    label: "แผนการเดินทาง",
+    icon: (
+      <path
+        d="M12 21s-6-5.3-6-10a6 6 0 1112 0c0 4.7-6 10-6 10zm0-8a2 2 0 100-4 2 2 0 000 4z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
     href: "/admin/storage",
     group: "system",
     label: "พื้นที่เก็บไฟล์",

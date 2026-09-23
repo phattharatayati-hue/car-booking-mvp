@@ -834,6 +834,8 @@ export function flexSlipReceived(d: {
   bookingUrl: string;
   /** เงินประกันของรถคันนี้ — ใส่เฉพาะคันที่ตั้งแยกจากค่ากลาง */
   specialDeposit?: number | null;
+  /** แผนเดินทางที่กรอกไว้ เช่น "เชียงใหม่ · จอมทอง · ดอยอินทนนท์" */
+  tripPlans?: string[];
 }) {
   const needDocs = d.missing.length > 0;
   return card({
@@ -846,6 +848,19 @@ export function flexSlipReceived(d: {
       { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
       ...(d.specialDeposit
         ? [kv("เงินประกันรถคันนี้", `${d.specialDeposit.toLocaleString()} บาท (ชำระวันรับรถ)`)]
+        : []),
+      ...(d.tripPlans && d.tripPlans.length > 0
+        ? [
+            {
+              type: "text",
+              text: `แผนเดินทาง: ${d.tripPlans.slice(0, 4).join(" / ")}${
+                d.tripPlans.length > 4 ? ` และอีก ${d.tripPlans.length - 4} แห่ง` : ""
+              }`,
+              size: "xs",
+              color: MUTED,
+              wrap: true,
+            },
+          ]
         : []),
       {
         type: "text",
