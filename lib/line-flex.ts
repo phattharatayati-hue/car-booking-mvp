@@ -713,11 +713,75 @@ export function flexReadyForPickup(d: {
 }
 
 /** เตือนก่อนถึงกำหนดคืนรถ */
+/**
+ * ขอให้ลูกค้ายืนยันว่าจะมารับรถตามนัด — ส่งก่อนเวลารับรถ (ค่าเริ่มต้น 1 วัน)
+ * ปุ่มยืนยันเป็น postback กลับมาที่ webhook (action=confirm_pickup)
+ */
+export function flexPickupReminder(d: {
+  bookingId: string;
+  carLabel: string;
+  start: Date;
+  pickupPlace?: string | null;
+  bookingUrl: string;
+}) {
+  const bubble = card({
+    altText: `ยืนยันการรับรถ ${code(d.bookingId)} — ${fmtDate(d.start)}`,
+    title: "ยืนยันการรับรถ",
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    body: [
+      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      kv("วันเวลารับรถ", fmtDate(d.start)),
+      kv("จุดรับรถ", d.pickupPlace || "ตามที่ตกลงกับแอดมิน"),
+      line,
+      {
+        type: "text",
+        text: "กรุณากดยืนยันว่าจะมารับรถตามวันเวลาและสถานที่นี้ ร้านจะได้เตรียมรถให้พร้อมครับ",
+        size: "sm",
+        color: INK,
+        wrap: true,
+      },
+      noteBox([
+        "ถ้าต้องการเปลี่ยนเวลา หรือเปลี่ยนจุดรับรถ กดปุ่ม \"ขอเปลี่ยนนัด\" แล้วแอดมินจะติดต่อกลับ",
+        "เตรียมบัตรประชาชนและใบขับขี่ตัวจริงมาวันรับรถด้วยครับ",
+      ]),
+    ],
+    buttons: [
+      {
+        type: "button",
+        style: "primary",
+        color: GREEN,
+        height: "sm",
+        action: {
+          type: "postback",
+          label: "ยืนยันมารับรถตามนัด",
+          data: `action=confirm_pickup&id=${d.bookingId}`,
+          displayText: "ยืนยันมารับรถตามนัด",
+        },
+      },
+      {
+        type: "button",
+        style: "secondary",
+        height: "sm",
+        action: {
+          type: "postback",
+          label: "ขอเปลี่ยนนัด",
+          data: `action=change_pickup&id=${d.bookingId}`,
+          displayText: "ขอเปลี่ยนนัดรับรถ",
+        },
+      },
+      btn("ดูการจอง", d.bookingUrl),
+    ],
+  });
+  return bubble;
+}
+
 export function flexReturnReminder(d: {
   bookingId: string;
   carLabel: string;
   plate: string;
   end: Date;
+  /** จุดคืนรถที่นัดไว้ */
+  returnPlace?: string | null;
   headline: string;
   securityDeposit: number;
   feesUrl: string;
@@ -732,7 +796,16 @@ export function flexReturnReminder(d: {
       { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
       kv("ทะเบียน", d.plate),
       kv("กำหนดคืนรถ", fmtDate(d.end)),
+      kv("จุดคืนรถ", d.returnPlace || "ตามที่ตกลงกับแอดมิน"),
       kv("รหัสจอง", code(d.bookingId)),
+      {
+        type: "text",
+        text: "กรุณาคืนรถตามเวลาและสถานที่ที่นัดไว้ คืนช้ากว่านัดมีค่าบริการคืนรถล่าช้าตามอัตราของร้าน",
+        size: "sm",
+        weight: "bold",
+        color: WARN,
+        wrap: true,
+      },
       line,
       sectionTitle(`เช็คก่อนคืนรถ เพื่อได้เงินประกันคืนเต็ม ${d.securityDeposit.toLocaleString()} บาท`),
       bullets([

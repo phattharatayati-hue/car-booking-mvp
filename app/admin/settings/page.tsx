@@ -24,6 +24,8 @@ async function saveSettingsAction(formData: FormData) {
   await requireDev();
 
   const on = formData.get("returnReminderOn") === "on";
+  const pickupOn = formData.get("pickupReminderOn") === "on";
+  const pickupHours = Number(formData.get("pickupReminderHoursBefore"));
   const leadHours = Number(formData.get("returnReminderLeadHours"));
   const leadMinutes = Number(formData.get("returnReminderLeadMinutes"));
   const serviceNote = String(formData.get("serviceNote") ?? "").trim();
@@ -58,6 +60,9 @@ async function saveSettingsAction(formData: FormData) {
   const minutesBefore = leadHours * 60 + leadMinutes;
   if (minutesBefore < REMINDER_MIN_MINUTES || minutesBefore > REMINDER_MAX_MINUTES) {
     redirect("/admin/settings?error=leadRange");
+  }
+  if (!Number.isInteger(pickupHours) || pickupHours < 1 || pickupHours > 168) {
+    redirect("/admin/settings?error=pickupHours");
   }
   if (serviceNote.length > 500) {
     redirect("/admin/settings?error=note");
@@ -143,6 +148,8 @@ async function saveSettingsAction(formData: FormData) {
 
   const data = {
     returnReminderOn: on,
+    pickupReminderOn: pickupOn,
+    pickupReminderHoursBefore: pickupHours,
     returnReminderMinutesBefore: minutesBefore,
     bookingFee,
     minLeadHours,
@@ -176,6 +183,12 @@ async function saveSettingsAction(formData: FormData) {
   // เก็บเฉพาะช่องที่ค่าเปลี่ยนจริง จะได้อ่านย้อนหลังง่าย
   const changes: string[] = [];
   if (before) {
+    if ((before.pickupReminderOn ?? true) !== pickupOn) {
+      changes.push(`เตือนยืนยันรับรถ: ${pickupOn ? "เปิด" : "ปิด"}`);
+    }
+    if ((before.pickupReminderHoursBefore ?? 24) !== pickupHours) {
+      changes.push(`เตือนยืนยันรับรถล่วงหน้า: ${before.pickupReminderHoursBefore ?? 24} → ${pickupHours} ชม.`);
+    }
     if (before.returnReminderOn !== on) {
       changes.push(`แจ้งเตือนคืนรถ: ${before.returnReminderOn ? "เปิด" : "ปิด"} → ${on ? "เปิด" : "ปิด"}`);
     }
@@ -267,6 +280,7 @@ const ERRORS: Record<string, string> = {
   lead24: "เวลาจองล่วงหน้าต้องเป็นจำนวนเต็ม 0-720 ชั่วโมง (0 = ไม่บังคับ)",
   turnaround: "ช่วงเว้นเตรียมรถต้องเป็นจำนวนเต็ม 0-1440 นาที (0 = ไม่เว้น)",
   steep: "ค่าปรับขึ้นเส้นทางชันต้องเป็นจำนวนเต็ม 0 ขึ้นไป",
+  pickupHours: "เวลาเตือนยืนยันรับรถต้องเป็น 1-168 ชั่วโมง",
   company: "ข้อมูลบริษัทไม่ครบ หรือยาวเกินกำหนด",
   signer: "ไม่พบบัญชีผู้ลงนามที่เลือก",
   signerNoSig:
@@ -819,6 +833,43 @@ export default async function SettingsPage({
             placeholder="เช่น รับรถได้เฉพาะในเขตอำเภอเมืองเชียงใหม่"
             className={`${inputClass} resize-y leading-relaxed`}
           />
+        </div>
+
+        <div className="pt-5 border-t border-slate-100">
+          <h2 className="font-semibold text-slate-900">แจ้งเตือนให้ยืนยันการรับรถ</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            ส่งทาง LINE ก่อนเวลารับรถ ให้ลูกค้ากด “ยืนยันมารับรถตามนัด” หรือ “ขอเปลี่ยนนัด”
+            · แอดมินได้แจ้งเตือนเมื่อลูกค้ากด และเห็นสถานะในหน้ารายการจอง
+          </p>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="pickupReminderOn"
+            defaultChecked={settings.pickupReminderOn}
+            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
+          />
+          <span className="text-sm font-medium text-slate-700">เปิดใช้งาน</span>
+        </label>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass} htmlFor="pickupReminderHoursBefore">
+              เตือนก่อนเวลารับรถ (ชั่วโมง)
+            </label>
+            <input
+              id="pickupReminderHoursBefore"
+              name="pickupReminderHoursBefore"
+              type="number"
+              min={1}
+              max={168}
+              required
+              defaultValue={settings.pickupReminderHoursBefore}
+              className={inputClass}
+            />
+            <p className="text-xs text-slate-400 mt-1.5">24 = ก่อน 1 วัน</p>
+          </div>
         </div>
 
         <div className="pt-5 border-t border-slate-100">

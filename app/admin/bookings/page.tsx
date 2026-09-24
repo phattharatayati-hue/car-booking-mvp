@@ -72,6 +72,8 @@ type BookingRow = {
   createdByAdminUserId?: string | null;
   createdAt: Date;
   tripOutsideArea?: boolean;
+  pickupReminderSentAt?: Date | null;
+  pickupConfirmedAt?: Date | null;
   tripSurcharge?: number;
   tripPlans?: {
     id: string;
@@ -1414,6 +1416,20 @@ export default async function AdminBookingsPage({
                   <p className="text-xs text-slate-400 mt-0.5">
                     จองเข้ามา {formatBangkokDateTime(b.createdAt)}
                   </p>
+                  {/* สถานะยืนยันมารับรถ — จากข้อความเตือนก่อนวันรับรถ */}
+                  {b.status === "CONFIRMED" && (b.pickupConfirmedAt || b.pickupReminderSentAt) && (
+                    <p className="text-xs mt-0.5">
+                      {b.pickupConfirmedAt ? (
+                        <span className="text-emerald-700 font-medium">
+                          ✓ ลูกค้ายืนยันมารับรถแล้ว ({formatBangkokDateTime(b.pickupConfirmedAt)})
+                        </span>
+                      ) : (
+                        <span className="text-amber-700 font-medium">
+                          ส่งเตือนแล้ว ลูกค้ายังไม่ยืนยันมารับรถ — ควรโทรเช็ค
+                        </span>
+                      )}
+                    </p>
+                  )}
                   {(b.pickupPlace || b.returnPlace) && (
                     <p className="text-sm text-slate-500 mt-0.5">
                       จุดรับ-ส่ง: {b.pickupPlace ?? "—"} → {b.returnPlace ?? "—"}

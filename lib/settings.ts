@@ -5,6 +5,10 @@ export const TZ = "Asia/Bangkok";
 
 export type AppSettings = {
   returnReminderOn: boolean;
+  /** เตือนลูกค้าให้ยืนยันมารับรถ */
+  pickupReminderOn: boolean;
+  /** เตือนก่อนเวลารับรถกี่ชั่วโมง */
+  pickupReminderHoursBefore: number;
   /** เตือนล่วงหน้ากี่นาที ก่อนเวลานัดคืนรถของการจองนั้น */
   returnReminderMinutesBefore: number;
   bookingFee: number;
@@ -44,6 +48,8 @@ export type AppSettings = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   returnReminderOn: true,
+  pickupReminderOn: true,
+  pickupReminderHoursBefore: 24,
   returnReminderMinutesBefore: 120,
   bookingFee: 500,
   minLeadHours: 24,
@@ -79,6 +85,9 @@ export async function getSettings(): Promise<AppSettings> {
     });
     return {
       returnReminderOn: row.returnReminderOn,
+      pickupReminderOn: row.pickupReminderOn ?? DEFAULT_SETTINGS.pickupReminderOn,
+      pickupReminderHoursBefore:
+        row.pickupReminderHoursBefore ?? DEFAULT_SETTINGS.pickupReminderHoursBefore,
       returnReminderMinutesBefore: row.returnReminderMinutesBefore,
       bookingFee: row.bookingFee,
       minLeadHours: row.minLeadHours,

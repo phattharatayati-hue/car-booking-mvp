@@ -201,6 +201,10 @@ model Booking {
   /// ส่งข้อความ "รับคืนรถเรียบร้อย + ขอเลขบัญชีคืนเงินประกัน" ไปแล้วเมื่อไหร่ — ส่งครั้งเดียว
   returnNotifiedAt DateTime?
   returnReminderSentAt DateTime?  // กันส่งเตือนคืนรถซ้ำ
+  /// ส่งข้อความขอยืนยันมารับรถ (ก่อนวันรับ) ไปแล้วเมื่อไหร่ — ส่งครั้งเดียว
+  pickupReminderSentAt DateTime?
+  /// ลูกค้ากดยืนยันว่าจะมารับรถตามนัดเมื่อไหร่
+  pickupConfirmedAt    DateTime?
   /// แจ้งลูกค้าว่ายืนยันสลิปแล้วแต่เอกสารยังไม่ครบ — ส่งได้ครั้งเดียว
   depositNotifiedAt    DateTime?
   /// แจ้งลูกค้าว่าพร้อมรับรถ (สลิปผ่าน + เอกสารครบ) — ส่งได้ครั้งเดียว
@@ -310,6 +314,10 @@ model Promotion {
 model Settings {
   id                  String   @id @default("default")
   returnReminderOn    Boolean  @default(true)
+  /// เตือนลูกค้าให้ยืนยันมารับรถ ก่อนเวลารับรถ
+  pickupReminderOn    Boolean  @default(true)
+  /// เตือนก่อนเวลารับรถกี่ชั่วโมง (ค่าเริ่มต้น 24 = 1 วัน)
+  pickupReminderHoursBefore Int @default(24)
   /// เตือนล่วงหน้ากี่นาที ก่อน "เวลานัดคืนรถ" ของการจองนั้น (ค่าเริ่มต้น 120 = 2 ชั่วโมง)
   returnReminderMinutesBefore Int @default(120)
   /// ค่าจองที่ลูกค้าโอนล่วงหน้าเพื่อกันวัน (บาท)

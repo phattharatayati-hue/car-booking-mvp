@@ -7,6 +7,7 @@ import {
   replyRaw,
   getProfileName,
   notifyAdminRaw,
+  notifyAdmin,
   siteUrl,
 } from "@/lib/line";
 import {
@@ -519,6 +520,75 @@ export async function handleCustomerImage(
   }
 }
 
+/**
+ * ลูกค้าตอบข้อความเตือนก่อนรับรถ — ยืนยัน หรือขอเปลี่ยนนัด
+ * ต้องเป็นเจ้าของใบจองเท่านั้น (เทียบ lineUserId) กันคนอื่นกดจากข้อความที่ถูกส่งต่อ
+ */
+async function handlePickupReply(
+  replyToken: string,
+  lineUserId: string,
+  bookingId: string,
+  confirm: boolean
+) {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: { car: true, customer: true },
+  });
+  if (!booking || booking.customer.lineUserId !== lineUserId) {
+    await replyMessage(replyToken, "ไม่พบการจองนี้ในบัญชีของคุณครับ");
+    return;
+  }
+  if (booking.status !== "CONFIRMED") {
+    await replyMessage(replyToken, "การจองนี้ไม่อยู่ในสถานะที่ยืนยันได้แล้วครับ กรุณาติดต่อแอดมิน");
+    return;
+  }
+
+  const code = booking.id.slice(0, 8).toUpperCase();
+  const carLabel = `${booking.car.brand} ${booking.car.name}`;
+  const when = formatBangkokDateTime(booking.startDate);
+
+  if (confirm) {
+    if (!booking.pickupConfirmedAt) {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { pickupConfirmedAt: new Date() },
+      });
+    }
+    await replyMessage(
+      replyToken,
+      [
+        "✅ ขอบคุณครับ ร้านได้รับการยืนยันแล้ว",
+        "",
+        `รถ: ${carLabel}`,
+        `รับรถ: ${when}`,
+        `จุดรับรถ: ${booking.pickupPlace ?? "ตามที่ตกลงกับแอดมิน"}`,
+        "",
+        "อย่าลืมเตรียมบัตรประชาชนและใบขับขี่ตัวจริงมาด้วยครับ",
+      ].join("\n")
+    );
+    try {
+      await notifyAdmin(
+        `✅ ลูกค้ายืนยันมารับรถแล้ว\n${code} · ${carLabel}\n${booking.customer.fullName} · รับ ${when}`
+      );
+    } catch (err) {
+      console.error("notify admin (pickup confirm) failed:", err);
+    }
+    return;
+  }
+
+  await replyMessage(
+    replyToken,
+    "รับทราบครับ แอดมินจะติดต่อกลับเพื่อเปลี่ยนนัดรับรถโดยเร็ว\nพิมพ์รายละเอียดวันเวลาหรือจุดรับรถที่ต้องการไว้ในแชทนี้ได้เลยครับ"
+  );
+  try {
+    await notifyAdmin(
+      `⚠️ ลูกค้าขอเปลี่ยนนัดรับรถ\n${code} · ${carLabel}\n${booking.customer.fullName} · ${booking.customer.phone}\nนัดเดิม ${when}\n${siteUrl()}/admin/bookings`
+    );
+  } catch (err) {
+    console.error("notify admin (pickup change) failed:", err);
+  }
+}
+
 /** จัดการ postback ทั้งหมดจากปุ่มในแชท */
 export async function handlePostback(
   replyToken: string,
@@ -530,6 +600,13 @@ export async function handlePostback(
   const action = params.get("action");
 
   switch (action) {
+    case "confirm_pickup":
+    case "change_pickup": {
+      const id = params.get("id") ?? "";
+      await handlePickupReply(replyToken, lineUserId, id, action === "confirm_pickup");
+      return;
+    }
+
     case "start_booking":
       await startBooking(replyToken, lineUserId);
       return;
