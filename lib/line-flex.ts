@@ -775,6 +775,66 @@ export function flexPickupReminder(d: {
   return bubble;
 }
 
+/**
+ * แจ้งลูกค้าเมื่อแอดมินแก้ใบจอง (เวลา จุดรับ-คืน ยอดเงิน)
+ * แสดงยอดใหม่ทั้งหมด พร้อมยอดเดิมถ้ามีการปรับราคา
+ */
+export function flexBookingUpdated(d: {
+  bookingId: string;
+  carLabel: string;
+  start: Date;
+  end: Date;
+  pickupPlace?: string | null;
+  returnPlace?: string | null;
+  total: number;
+  /** ยอดเดิมก่อนแก้ — ใส่เมื่อราคาเปลี่ยน */
+  previousTotal?: number | null;
+  bookingFeePaid: number;
+  securityDeposit: number;
+  message?: string | null;
+  bookingUrl: string;
+}) {
+  const remain = Math.max(0, d.total - d.bookingFeePaid);
+  const body: any[] = [
+    { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+    kv("รับรถ", fmtDate(d.start)),
+    kv("จุดรับรถ", d.pickupPlace || "ตามที่ตกลงกับแอดมิน"),
+    kv("คืนรถ", fmtDate(d.end)),
+    kv("จุดคืนรถ", d.returnPlace || "ตามที่ตกลงกับแอดมิน"),
+    line,
+  ];
+  if (d.previousTotal != null && d.previousTotal !== d.total) {
+    body.push(kv("ยอดเดิม", `${d.previousTotal.toLocaleString()} บาท`));
+    const diff = d.total - d.previousTotal;
+    body.push({
+      type: "text",
+      text: diff < 0
+        ? `ร้านปรับลดให้ ${Math.abs(diff).toLocaleString()} บาท`
+        : `ปรับเพิ่ม ${diff.toLocaleString()} บาท`,
+      size: "sm",
+      weight: "bold",
+      color: diff < 0 ? OK : WARN,
+      align: "end",
+      wrap: true,
+    });
+  }
+  body.push(kv("ยอดค่าเช่ารวม", `${d.total.toLocaleString()} บาท`));
+  if (d.bookingFeePaid > 0) {
+    body.push(kv("หักค่าจองที่โอนแล้ว", `-${d.bookingFeePaid.toLocaleString()} บาท`));
+  }
+  body.push(amountBox("ชำระวันรับรถ", remain, `ยังไม่รวมเงินประกัน ${d.securityDeposit.toLocaleString()} บาท (ได้คืนตอนคืนรถ)`));
+  if (d.message && d.message.trim()) {
+    body.push(noteBox([d.message.trim()]));
+  }
+  return card({
+    altText: `อัปเดตการจอง ${code(d.bookingId)}`,
+    title: "อัปเดตการจอง",
+    subtitle: `รหัสจอง ${code(d.bookingId)}`,
+    body,
+    buttons: [btn("ดูการจอง", d.bookingUrl)],
+  });
+}
+
 export function flexReturnReminder(d: {
   bookingId: string;
   carLabel: string;

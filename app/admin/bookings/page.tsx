@@ -44,9 +44,13 @@ import { syncAssignment, clearBookingAssignments } from "@/lib/calendar-sync";
 import { notifyJob } from "@/lib/driver-jobs";
 import { SWAP_REASONS } from "@/lib/car-swap";
 import SwapPriceHint from "@/components/SwapPriceHint";
-import { quoteBooking } from "@/lib/pricing";
+import { quoteBooking, durationLabel } from "@/lib/pricing";
 import { getAfterHoursRates } from "@/lib/after-hours-server";
 import { lateRuleFromSettings } from "@/lib/settings";
+import { pushRaw } from "@/lib/line";
+import { flexBookingUpdated } from "@/lib/line-flex";
+import { moneyOf } from "@/lib/car-money";
+import { getCarRatesMap } from "@/lib/car-rates-server";
 
 type BookingRow = {
   id: string;
@@ -65,6 +69,9 @@ type BookingRow = {
     name: string;
     licensePlate: string;
     costPerDay: number | null;
+    pricePerDay?: number;
+    bookingFee?: number | null;
+    securityDeposit?: number | null;
     partner: { name: string; phone: string; lineId: string | null } | null;
   };
   customer: { fullName: string; phone: string; lineUserId?: string | null };
@@ -75,6 +82,8 @@ type BookingRow = {
   pickupReminderSentAt?: Date | null;
   pickupConfirmedAt?: Date | null;
   tripSurcharge?: number;
+  discountAmount?: number;
+  discountLabel?: string | null;
   tripPlans?: {
     id: string;
     placeId: string | null;
@@ -414,7 +423,7 @@ async function editBookingAction(formData: FormData) {
   const bookingId = String(formData.get("bookingId") ?? "");
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    include: { customer: true },
+    include: { customer: true, car: true, deposit: true },
   });
   if (!booking) redirect("/admin/bookings?error=notfound");
 
@@ -502,6 +511,39 @@ async function editBookingAction(formData: FormData) {
     entityId: bookingId,
     detail: changes.length ? changes.join(" · ") : "ไม่มีค่าใดเปลี่ยน",
   });
+
+  /* ปุ่ม "บันทึกและแจ้งลูกค้า" — ส่งการ์ดสรุปใบจองใหม่ให้ลูกค้าทาง LINE
+     ใช้ตอนเลื่อนเวลา/เปลี่ยนจุด หรือปรับลดราคาให้ลูกค้า */
+  if (String(formData.get("notify") ?? "") === "1") {
+    const lineUserId = booking.customer.lineUserId;
+    if (!lineUserId) redirect("/admin/bookings?error=edit_noline");
+    const settings = await getSettings();
+    const money = moneyOf(booking.car, settings);
+    const paid = booking.deposit?.status === "CONFIRMED" ? booking.deposit.amount : 0;
+    await pushRaw(lineUserId, [
+      flexBookingUpdated({
+        bookingId: booking.id,
+        carLabel: `${booking.car.brand} ${booking.car.name}`,
+        start,
+        end,
+        pickupPlace,
+        returnPlace,
+        total: totalPrice,
+        previousTotal: booking.totalPrice !== totalPrice ? booking.totalPrice : null,
+        bookingFeePaid: paid,
+        securityDeposit: money.securityDeposit,
+        message: String(formData.get("customerMessage") ?? "").slice(0, 300),
+        bookingUrl: `${siteUrl()}/booking/${booking.id}`,
+      }),
+    ]);
+    await audit({
+      action: "booking.admin_notify",
+      summary: `แจ้งลูกค้าเรื่องแก้ใบจอง ${bookingId.slice(0, 8).toUpperCase()}`,
+      entity: "booking",
+      entityId: bookingId,
+      detail: changes.length ? changes.join(" · ") : "ส่งสรุปใบจองซ้ำ",
+    });
+  }
 
   revalidatePath("/admin/bookings");
 }
@@ -907,6 +949,7 @@ const FLASH: Record<string, { text: string; tone: "ok" | "error" }> = {
   edit_input: { text: "วันหรือเวลาไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง", tone: "error" },
   edit_range: { text: "เวลาคืนรถต้องหลังเวลารับรถ", tone: "error" },
   edit_busy: { text: "แก้ไม่ได้ เพราะช่วงเวลาใหม่ชนกับใบจองอื่นของรถคันนี้", tone: "error" },
+  edit_noline: { text: "บันทึกแล้ว แต่ส่ง LINE ไม่ได้ เพราะลูกค้ายังไม่ได้ผูก LINE — โทรแจ้งแทน", tone: "error" },
 };
 
 export default async function AdminBookingsPage({
@@ -1036,7 +1079,43 @@ export default async function AdminBookingsPage({
   type BusyRow = { id: string; carId: string; startDate: Date; endDate: Date };
 
   const afterHoursRates = swapRange ? await getAfterHoursRates() : [];
-  const lateRule = lateRuleFromSettings(await getSettings());
+  const pageSettings = await getSettings();
+  const lateRule = lateRuleFromSettings(pageSettings);
+  const priceRates = afterHoursRates.length ? afterHoursRates : await getAfterHoursRates();
+  const carRatesMap = await getCarRatesMap([...new Set(bookings.map((b) => b.carId))]);
+
+  /** แตกยอดรวมของใบจอง — ค่าเช่าแต่ละช่วง ค่านอกเวลา ส่วนลด ค่าแผนเดินทาง
+      แล้วหักค่าจองที่โอนแล้ว ให้แอดมินเห็นว่ายอดมาจากไหน และเหลือเก็บวันรับรถเท่าไร */
+  function priceBreakdown(b: BookingRow) {
+    const q = quoteBooking({
+      start: b.startDate,
+      end: b.endDate,
+      pricePerDay: b.car.pricePerDay ?? 0,
+      rates: priceRates,
+      carRates: carRatesMap.get(b.carId) ?? [],
+      lateRule,
+    });
+    const lines = q.lines.filter((l) => l.kind !== "discount");
+    const discount = b.discountAmount ?? 0;
+    if (discount > 0) {
+      lines.push({ kind: "discount", label: b.discountLabel || "ส่วนลด", amount: -discount });
+    }
+    const trip = b.tripSurcharge ?? 0;
+    if (trip > 0) lines.push({ kind: "rent", label: "ค่าแผนเดินทาง", amount: trip });
+    const system = lines.reduce((s, l) => s + l.amount, 0);
+    const money = moneyOf({ bookingFee: b.car.bookingFee ?? null, securityDeposit: b.car.securityDeposit ?? null }, pageSettings);
+    const paid = b.deposit?.status === "CONFIRMED" ? b.deposit.amount : 0;
+    return {
+      days: q.days,
+      duration: q.duration,
+      lines,
+      system,
+      adjust: b.totalPrice - system,
+      paid,
+      remain: Math.max(0, b.totalPrice - paid),
+      securityDeposit: money.securityDeposit,
+    };
+  }
 
   const [fleet, busy]: [SwapCar[], BusyRow[]] = swapRange
     ? await Promise.all([
@@ -1600,21 +1679,62 @@ export default async function AdminBookingsPage({
                   </summary>
 
                   <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-5">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 mb-2">
-                        แผนเดินทาง (แก้แทนลูกค้า — ยอดรวมไม่เปลี่ยนเอง)
-                      </p>
-                      <TripPlanForm
-                        bookingId={b.id}
-                        plans={b.tripPlans ?? []}
-                        places={tripPlaces}
-                        action={saveTripPlansAction}
-                      />
-                    </div>
-                    {/* แก้สิ่งที่ลูกค้ากรอกมา — วัน-เวลา จุดรับ-ส่ง ชื่อ เบอร์ ยอดรวม */}
+{/* แก้สิ่งที่ลูกค้ากรอกมา — วัน-เวลา จุดรับ-ส่ง ชื่อ เบอร์ ยอดรวม */}
                     <form action={editBookingAction} className="space-y-3">
                       <input type="hidden" name="bookingId" value={b.id} />
                       <p className="text-xs font-medium text-slate-500">ข้อมูลที่ลูกค้าจองมา</p>
+                      {(() => {
+                        const pb = priceBreakdown(b);
+                        const fmt = (n: number) => `${n < 0 ? "-" : ""}${Math.abs(n).toLocaleString()}`;
+                        return (
+                          <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm space-y-1">
+                            <p className="text-xs font-medium text-slate-500 mb-1">
+                              ที่มาของยอด · เช่า {durationLabel(pb.duration)}
+                            </p>
+                            {pb.lines.map((l, i) => (
+                              <div key={i} className="flex justify-between gap-3">
+                                <span className="text-slate-600">{l.label}</span>
+                                <span className={l.amount < 0 ? "text-emerald-600" : "text-slate-800"}>
+                                  {fmt(l.amount)}
+                                </span>
+                              </div>
+                            ))}
+                            {pb.adjust !== 0 && (
+                              <div className="flex justify-between gap-3">
+                                <span className="text-amber-600">
+                                  ปรับยอดโดยแอดมิน (ระบบคิดได้ {pb.system.toLocaleString()})
+                                </span>
+                                <span className={pb.adjust < 0 ? "text-emerald-600" : "text-amber-600"}>
+                                  {pb.adjust > 0 ? "+" : ""}{fmt(pb.adjust)}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex justify-between gap-3 border-t border-slate-100 pt-1 font-semibold">
+                              <span>ยอดค่าเช่ารวม</span>
+                              <span>{b.totalPrice.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between gap-3 text-slate-600">
+                              <span>หักค่าจองที่โอนแล้ว{pb.paid === 0 ? " (ยังไม่ยืนยันสลิป)" : ""}</span>
+                              <span>-{pb.paid.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between gap-3 font-semibold text-emerald-700">
+                              <span>เก็บวันรับรถ (ค่าเช่าที่เหลือ)</span>
+                              <span>{pb.remain.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between gap-3 text-slate-600">
+                              <span>+ เงินประกัน (ไม่รวมในยอด คืนตอนคืนรถ)</span>
+                              <span>{pb.securityDeposit.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between gap-3 font-semibold">
+                              <span>รวมเก็บวันรับรถ</span>
+                              <span>{(pb.remain + pb.securityDeposit).toLocaleString()}</span>
+                            </div>
+                            <p className="text-xs text-slate-400 pt-1">
+                              ตัวเลขนี้คำนวณจากยอดที่บันทึกไว้ ถ้าแก้วันเวลาหรือยอด ให้กดบันทึกก่อนแล้วดูใหม่
+                            </p>
+                          </div>
+                        );
+                      })()}
                       <div className="grid sm:grid-cols-4 gap-2">
                         <label className="text-xs text-slate-500">
                           วันรับรถ
@@ -1695,7 +1815,7 @@ export default async function AdminBookingsPage({
                           />
                         </label>
                         <label className="text-xs text-slate-500">
-                          ยอดรวม (บาท)
+                          ยอดค่าเช่ารวม (บาท · ไม่รวมประกัน)
                           <input
                             type="number"
                             name="totalPrice"
@@ -1705,6 +1825,15 @@ export default async function AdminBookingsPage({
                           />
                         </label>
                       </div>
+                      <label className="block text-xs text-slate-500">
+                        ข้อความถึงลูกค้า (ส่งไปกับการ์ด LINE ถ้ากด &quot;บันทึกและแจ้งลูกค้า&quot;)
+                        <input
+                          name="customerMessage"
+                          maxLength={300}
+                          placeholder="เช่น ร้านลดให้ 500 บาทเพราะเลื่อนเวลารับรถ"
+                          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm"
+                        />
+                      </label>
                       <div className="flex flex-wrap items-center gap-2">
                         <ActionButton
                           className={BTN.smGhost}
@@ -1713,13 +1842,33 @@ export default async function AdminBookingsPage({
                         >
                           บันทึกการแก้ไข
                         </ActionButton>
+                        <ActionButton
+                          className={BTN.smGhost}
+                          name="notify"
+                          value="1"
+                          pendingText="กำลังส่ง…"
+                          confirm={"บันทึกแล้วส่งการ์ดสรุปใบจอง (เวลา จุดรับ-คืน ยอดใหม่) ให้ลูกค้าทาง LINE?"}
+                        >
+                          บันทึกและแจ้งลูกค้าทาง LINE
+                        </ActionButton>
                         <span className="text-xs text-slate-400">
                           แก้ชื่อหรือเบอร์จะมีผลกับใบจองอื่นของลูกค้าคนเดียวกันด้วย
                         </span>
                       </div>
                     </form>
 
-                    <form action={saveNoteAction} className="space-y-2">
+                    <div className="pt-4 border-t border-slate-200">
+                      <p className="text-xs font-medium text-slate-500 mb-2">
+                        แผนเดินทาง (แก้แทนลูกค้า — ยอดรวมไม่เปลี่ยนเอง)
+                      </p>
+                      <TripPlanForm
+                        bookingId={b.id}
+                        plans={b.tripPlans ?? []}
+                        places={tripPlaces}
+                        action={saveTripPlansAction}
+                      />
+                    </div>
+                                        <form action={saveNoteAction} className="space-y-2">
                       <input type="hidden" name="bookingId" value={b.id} />
                       <label
                         className="block text-xs font-medium text-slate-500"
