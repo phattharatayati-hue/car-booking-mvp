@@ -109,6 +109,8 @@ export function authorizeUrl(s: LineState): string {
     state: s.state,
     scope: "openid profile",
     nonce: s.nonce,
+    /* ให้หน้าเข้าสู่ระบบของ LINE ถามแอดเพื่อน OA ไปพร้อมกัน (ต้องผูก Login channel กับ OA ใน LINE Developers ก่อน) */
+    bot_prompt: "aggressive",
   });
   return `${AUTH_URL}?${q.toString()}`;
 }

@@ -15,6 +15,7 @@ import { getAvailability, getBusySpans } from "@/lib/availability";
 import { bangkokDateStr } from "@/lib/settings";
 import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
+import { isLineFriend, LINE_ADD_FRIEND_URL } from "@/lib/line-friend";
 import { getCarRates } from "@/lib/car-rates-server";
 import { getActivePromotions } from "@/lib/promotions-server";
 import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
@@ -52,10 +53,11 @@ export default async function BookCarPage({
   const [tripPlaces, tripAreaRates] = await Promise.all([getTripPlaces(), getTripAreaRates()]);
   const todayPrice = priceForDay(fromStr, car.pricePerDay, carRates);
 
-  /* ลูกค้าที่เข้าสู่ระบบไว้แล้ว — เติมชื่อ เบอร์ อีเมลให้อัตโนมัติ
-     ไม่บังคับให้เข้าสู่ระบบก่อนจอง เพราะการขวางด้วยหน้า login
-     ทำให้คนจองครั้งแรกหายไปมาก ปุ่มจึงเป็นทางลัด ไม่ใช่ประตู */
+  /* บริษัทกำหนด: ต้องเข้าสู่ระบบด้วย LINE และแอดเพื่อน OA ก่อนจึงจะเห็นฟอร์มจอง
+     เพราะยืนยันการจอง นัดรับรถ และคืนเงินประกัน แจ้งทาง LINE ทั้งหมด */
   const me = await getSessionCustomer();
+  const friend = me?.lineUserId ? await isLineFriend(me.lineUserId) : null;
+  const canBook = !!me?.lineUserId && friend !== false;
 
   return (
     <PublicShell>
@@ -79,21 +81,40 @@ export default async function BookCarPage({
             </p>
             <ServiceNote note={settings.serviceNote} className="mb-6" />
 
-            {me ? (
-              <p className="mb-6 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                จองในนามบัญชี LINE ของคุณ ({me.fullName}) — การจองนี้จะไปอยู่ในหน้า
-                ประวัติการจองให้อัตโนมัติ
-              </p>
-            ) : (
-              <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm text-slate-600 mb-3">
-                  เข้าสู่ระบบด้วย LINE เพื่อให้การจองนี้เก็บไว้ในประวัติของคุณ
-                  และรับแจ้งเตือนสถานะทางแชท — หรือจองต่อโดยไม่เข้าสู่ระบบก็ได้
+            {!me?.lineUserId ? (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                <p className="font-semibold text-emerald-900 mb-1">ขั้นตอนที่ 1 · เข้าสู่ระบบด้วย LINE</p>
+                <p className="text-sm text-emerald-900/80 mb-4 leading-relaxed">
+                  ต้องเข้าสู่ระบบด้วย LINE และเพิ่มเพื่อน LINE ของร้านก่อนจอง
+                  ร้านจะแจ้งยืนยันการจอง นัดรับรถ และคืนเงินประกันทาง LINE ·
+                  กดครั้งเดียว ไม่ต้องสมัครสมาชิก
                 </p>
-                <LineLoginButton next={`/cars/${car.id}/book`} />
+                <LineLoginButton next={`/cars/${car.id}/book`} label="เข้าสู่ระบบด้วย LINE เพื่อจอง" />
               </div>
+            ) : friend === false ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <p className="font-semibold text-amber-900 mb-1">ขั้นตอนที่ 2 · เพิ่มเพื่อน LINE ของร้าน</p>
+                <p className="text-sm text-amber-900/80 mb-4 leading-relaxed">
+                  บัญชี LINE ของคุณ ({me.fullName}) ยังไม่ได้เพิ่มเพื่อนกับร้าน
+                  เพิ่มเพื่อนแล้วกลับมาที่หน้านี้ แล้วกด “เพิ่มเพื่อนแล้ว จองต่อ”
+                </p>
+                <div className="flex flex-col gap-2">
+                  <a href={LINE_ADD_FRIEND_URL} target="_blank" rel="noreferrer"
+                    className="btn w-full rounded-xl bg-[#06C755] hover:bg-[#05b34c] text-white font-semibold py-3 px-5">
+                    เพิ่มเพื่อน LINE ของร้าน
+                  </a>
+                  <a href={`/cars/${car.id}/book`}
+                    className="btn w-full rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold py-3 px-5">
+                    เพิ่มเพื่อนแล้ว จองต่อ
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <p className="mb-6 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                จองในนามบัญชี LINE ของคุณ ({me.fullName}) — ร้านจะแจ้งสถานะการจองทาง LINE
+              </p>
             )}
-            <BookingForm
+            {canBook && <BookingForm
               carId={car.id}
               pricePerDay={car.pricePerDay}
               timeOptions={times}
@@ -114,7 +135,7 @@ export default async function BookCarPage({
               defaultName={me?.fullName ?? ""}
               defaultPhone={me?.phone ?? ""}
               defaultEmail={me?.email ?? ""}
-            />
+            />}
           </div>
 
           {/* สรุปรถ */}

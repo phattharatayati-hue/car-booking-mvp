@@ -4,6 +4,7 @@ import { createBooking } from "@/lib/create-booking";
 import { getProfileName } from "@/lib/line";
 import { toBangkokDate, getSettings } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
+import { isLineFriend, NEED_FRIEND_MSG } from "@/lib/line-friend";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,11 @@ export async function POST(request: Request) {
     const lineUserId = await verifyIdToken(idToken);
     if (!lineUserId) {
       return NextResponse.json({ error: "ยืนยันตัวตนกับ LINE ไม่สำเร็จ" }, { status: 401 });
+    }
+
+    // ต้องแอดเพื่อน OA ก่อน — ข้อความยืนยันและนัดรับรถส่งทาง LINE ทั้งหมด
+    if ((await isLineFriend(lineUserId)) === false) {
+      return NextResponse.json({ error: NEED_FRIEND_MSG, needFriend: true }, { status: 403 });
     }
 
     // ลูกค้าเก่าใช้เบอร์เดิมได้เลย ไม่ต้องกรอกซ้ำ

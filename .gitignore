@@ -42,3 +42,9 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# ไฟล์คลิปสอนใช้งาน/งานชั่วคราว (ไม่ขึ้น git)
+คลิปสอนใช้งาน/
+_clipwork/
+_clip-src.tgz
+_exp.mjs
