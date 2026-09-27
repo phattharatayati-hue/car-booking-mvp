@@ -1,5 +1,6 @@
 "use client";
 
+import LineDownPopup from "@/components/LineDownPopup";
 import TripPlanEditor, {
   emptyTripRow,
   rowsToInputs,
@@ -105,6 +106,7 @@ export default function BookingForm({
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineDown, setLineDown] = useState(false);
   /* วันแรกที่จองได้ตามกฎจองล่วงหน้า — คำนวณครั้งเดียวตอนเปิดหน้า
      ถ้าผู้ใช้เปิดหน้าค้างไว้ข้ามคืน ฝั่งเซิร์ฟเวอร์ยังตรวจซ้ำให้อยู่ดี */
   const minPickupDate = earliestPickupDateStr(minLeadHours);
@@ -297,6 +299,7 @@ export default function BookingForm({
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data?.bookingId) {
+        if (data?.lineDown) setLineDown(true);
         setError(data?.error ?? "เกิดข้อผิดพลาด กรุณาลองใหม่");
         setSubmitting(false);
         return;
@@ -311,6 +314,7 @@ export default function BookingForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <LineDownPopup open={lineDown} onClose={() => setLineDown(false)} />
       {error && (
         <div className="flex gap-3 text-sm bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl">
           <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 shrink-0 text-red-500">

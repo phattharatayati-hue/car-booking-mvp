@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createBooking } from "@/lib/create-booking";
 import { getSessionCustomerId } from "@/lib/customer-session";
 import { prisma } from "@/lib/prisma";
-import { isLineFriend, NEED_LINE_MSG, NEED_FRIEND_MSG } from "@/lib/line-friend";
+import { isLineFriend, NEED_LINE_MSG, NEED_FRIEND_MSG, LINE_DOWN_MSG } from "@/lib/line-friend";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -18,7 +18,11 @@ export async function POST(request: Request) {
   if (!me?.lineUserId) {
     return NextResponse.json({ error: NEED_LINE_MSG, needLine: true }, { status: 401 });
   }
-  if ((await isLineFriend(me.lineUserId)) === false) {
+  const friend = await isLineFriend(me.lineUserId);
+  if (friend === "down") {
+    return NextResponse.json({ error: LINE_DOWN_MSG, lineDown: true }, { status: 503 });
+  }
+  if (friend === false) {
     return NextResponse.json({ error: NEED_FRIEND_MSG, needFriend: true }, { status: 403 });
   }
 

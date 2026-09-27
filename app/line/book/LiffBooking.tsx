@@ -1,5 +1,6 @@
 "use client";
 
+import LineDownPopup from "@/components/LineDownPopup";
 import TripPlanEditor, {
   emptyTripRow,
   rowsToInputs,
@@ -139,6 +140,7 @@ export default function LiffBooking({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineDown, setLineDown] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
 
   // เลื่อนจอไปหาข้อความ error เอง — เดิมกล่อง error อยู่บนสุด กดปุ่มล่างสุดแล้วไม่เห็นว่าพลาดตรงไหน
@@ -336,6 +338,7 @@ export default function LiffBooking({
 
       if (!res.ok) {
         if (data?.needPhone) setNeedPhone(true);
+        if (data?.lineDown) setLineDown(true);
         setError(thaiError(data?.error, res.status));
         setSubmitting(false);
         return;
@@ -516,6 +519,7 @@ export default function LiffBooking({
         </div>
       </div>
 
+      <LineDownPopup open={lineDown} onClose={() => setLineDown(false)} />
       {error && (
         <div
           ref={errorRef}

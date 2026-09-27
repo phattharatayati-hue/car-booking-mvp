@@ -16,6 +16,7 @@ import { bangkokDateStr } from "@/lib/settings";
 import { getSessionCustomer } from "@/lib/customer-session";
 import LineLoginButton from "@/components/LineLoginButton";
 import { isLineFriend, LINE_ADD_FRIEND_URL } from "@/lib/line-friend";
+import LineDownPopup from "@/components/LineDownPopup";
 import { getCarRates } from "@/lib/car-rates-server";
 import { getActivePromotions } from "@/lib/promotions-server";
 import { getTripPlaces, getTripAreaRates } from "@/lib/trip-plans-server";
@@ -57,7 +58,7 @@ export default async function BookCarPage({
      เพราะยืนยันการจอง นัดรับรถ และคืนเงินประกัน แจ้งทาง LINE ทั้งหมด */
   const me = await getSessionCustomer();
   const friend = me?.lineUserId ? await isLineFriend(me.lineUserId) : null;
-  const canBook = !!me?.lineUserId && friend !== false;
+  const canBook = !!me?.lineUserId && friend !== false && friend !== "down";
 
   return (
     <PublicShell>
@@ -90,6 +91,18 @@ export default async function BookCarPage({
                   กดครั้งเดียว ไม่ต้องสมัครสมาชิก
                 </p>
                 <LineLoginButton next={`/cars/${car.id}/book`} label="เข้าสู่ระบบด้วย LINE เพื่อจอง" />
+              </div>
+            ) : friend === "down" ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <LineDownPopup defaultOpen />
+                <p className="font-semibold text-amber-900 mb-1">⚠️ LINE ขัดข้องชั่วคราว</p>
+                <p className="text-sm text-amber-900/80 mb-4 leading-relaxed">
+                  ขณะนี้ระบบเชื่อมต่อ LINE ไม่ได้ ทำให้ยังจองรถไม่ได้ กรุณารอสักครู่แล้วกลับมาจองใหม่
+                </p>
+                <a href={`/cars/${car.id}/book`}
+                  className="btn w-full rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold py-3 px-5">
+                  ลองใหม่อีกครั้ง
+                </a>
               </div>
             ) : friend === false ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">

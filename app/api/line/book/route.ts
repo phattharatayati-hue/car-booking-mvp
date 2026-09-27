@@ -4,7 +4,7 @@ import { createBooking } from "@/lib/create-booking";
 import { getProfileName } from "@/lib/line";
 import { toBangkokDate, getSettings } from "@/lib/settings";
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
-import { isLineFriend, NEED_FRIEND_MSG } from "@/lib/line-friend";
+import { isLineFriend, NEED_FRIEND_MSG, LINE_DOWN_MSG } from "@/lib/line-friend";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,11 @@ export async function POST(request: Request) {
     }
 
     // ต้องแอดเพื่อน OA ก่อน — ข้อความยืนยันและนัดรับรถส่งทาง LINE ทั้งหมด
-    if ((await isLineFriend(lineUserId)) === false) {
+    const friend = await isLineFriend(lineUserId);
+    if (friend === "down") {
+      return NextResponse.json({ error: LINE_DOWN_MSG, lineDown: true }, { status: 503 });
+    }
+    if (friend === false) {
       return NextResponse.json({ error: NEED_FRIEND_MSG, needFriend: true }, { status: 403 });
     }
 
