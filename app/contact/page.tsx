@@ -111,3 +111,10 @@ export default function ContactPage() {
     </PublicShell>
   );
 }
+
+export const metadata = {
+  title: "ติดต่อเรา",
+  description:
+    "ติดต่อ ภูพิงค์ คอร์เปอเรชั่น บริการเช่ารถเชียงใหม่ โทร 061-280-9588, 092-745-8074 หรือแชท LINE @623oohcz",
+  alternates: { canonical: "/contact" },
+};

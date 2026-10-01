@@ -7,7 +7,7 @@ import { SECURITY_DEPOSIT, FEE_TERMS } from "@/lib/fees";
 import { PHONES, OFFICE_HOURS, telHref } from "@/lib/contact";
 
 export const metadata = {
-  title: "ข้อกำหนดการใช้บริการ · PHUPING CORPORATION",
+  title: "ข้อกำหนดการใช้บริการ",
   description:
     "ข้อกำหนดและเงื่อนไขการเช่ารถของ ภูพิงค์ คอร์ปอเรชั่น — คุณสมบัติผู้เช่า การจอง การชำระเงิน และความรับผิดชอบ",
 };

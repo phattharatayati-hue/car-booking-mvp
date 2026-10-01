@@ -11,7 +11,7 @@ import { siteUrl } from "@/lib/line";
 import { PHONES, telHref } from "@/lib/contact";
 
 export const metadata = {
-  title: "เงินประกันและค่าปรับ · PHUPING CORPORATION",
+  title: "เงินประกันและค่าปรับ",
   description:
     "อัตราค่าปรับและค่าบริการเพิ่มเติมของรถเช่า ภูพิงค์ คอร์ปอเรชั่น — อ่านก่อนจองเพื่อความเข้าใจตรงกัน",
 };

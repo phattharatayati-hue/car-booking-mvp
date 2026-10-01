@@ -620,3 +620,10 @@ export default async function HowToBookPage() {
     </PublicShell>
   );
 }
+
+export const metadata = {
+  title: "วิธีจองรถ เงินประกัน และจุดรับส่งรถ",
+  description:
+    "ขั้นตอนเช่ารถเชียงใหม่กับ ภูพิงค์ คอร์เปอเรชั่น ตั้งแต่จองผ่านเว็บหรือ LINE โอนค่าจอง ส่งเอกสาร จนถึงรับรถที่สนามบินหรือในเมือง",
+  alternates: { canonical: "/how-to-book" },
+};

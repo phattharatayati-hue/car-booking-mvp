@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { siteUrl } from "@/lib/line";
+import SeoJsonLd from "@/components/SeoJsonLd";
 
 /**
  * ฟอนต์ทั้งหมดฝังมากับโปรเจกต์ (@fontsource) ไม่ดึงจาก Google Fonts ตอน build
@@ -23,10 +25,32 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource/ibm-plex-mono/600.css";
 
+const SITE = siteUrl();
+const DESC =
+  "เช่ารถเชียงใหม่กับ ภูพิงค์ คอร์เปอเรชั่น — รถใหม่ สะอาด ราคาชัดเจน จองออนไลน์ได้ 24 ชม. ผ่านเว็บหรือ LINE มีบริการส่งรถสนามบินเชียงใหม่และในตัวเมือง ไม่มีค่าใช้จ่ายแอบแฝง";
+
 export const metadata: Metadata = {
-  title: "PHUPING CORPORATION · เช่ารถเชียงใหม่ จองง่าย ได้รถชัวร์",
-  description:
-    "ภูพิงค์ คอร์ปอเรชั่น — บริการเช่ารถคุณภาพในเชียงใหม่ จองออนไลน์ได้ 24 ชม. รถสะอาด ราคาชัดเจน ไม่มีค่าใช้จ่ายแอบแฝง",
+  metadataBase: new URL(SITE),
+  title: {
+    default: "เช่ารถเชียงใหม่ จองง่าย ได้รถชัวร์ · PHUPING CORPORATION",
+    template: "%s · เช่ารถเชียงใหม่ PHUPING",
+  },
+  description: DESC,
+  keywords: [
+    "เช่ารถเชียงใหม่", "รถเช่าเชียงใหม่", "เช่ารถสนามบินเชียงใหม่", "รถเช่าสนามบินเชียงใหม่",
+    "เช่ารถรายวัน เชียงใหม่", "car rental chiang mai", "ภูพิงค์ คอร์เปอเรชั่น",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "th_TH",
+    url: SITE,
+    siteName: "PHUPING CORPORATION เช่ารถเชียงใหม่",
+    title: "เช่ารถเชียงใหม่ จองง่าย ได้รถชัวร์ · PHUPING CORPORATION",
+    description: DESC,
+    images: [{ url: "/hero-car.webp", alt: "เช่ารถเชียงใหม่ ภูพิงค์ คอร์เปอเรชั่น" }],
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -38,6 +62,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
+        <SeoJsonLd />
         {/*
           ตั้งโหมดสว่าง/มืดก่อนหน้าเว็บวาดครั้งแรก
           ไม่งั้นคนที่เลือกโหมดมืดไว้จะเห็นหน้าขาวแวบทุกครั้งที่เปลี่ยนหน้า

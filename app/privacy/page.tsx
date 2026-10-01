@@ -5,7 +5,7 @@ import PublicShell from "@/components/PublicShell";
 import { PHONES, OFFICE_HOURS, LOCATION, telHref } from "@/lib/contact";
 
 export const metadata = {
-  title: "นโยบายความเป็นส่วนตัว · PHUPING CORPORATION",
+  title: "นโยบายความเป็นส่วนตัว",
   description:
     "นโยบายความเป็นส่วนตัวของระบบจองรถ ภูพิงค์ คอร์ปอเรชั่น — เก็บข้อมูลอะไร ใช้ทำอะไร เก็บนานแค่ไหน",
 };

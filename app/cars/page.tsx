@@ -193,3 +193,10 @@ export default async function CarsPage({
     </PublicShell>
   );
 }
+
+export const metadata = {
+  title: "รถเช่าทั้งหมด ราคาต่อวัน",
+  description:
+    "รวมรถเช่าเชียงใหม่ทุกรุ่นของ ภูพิงค์ คอร์เปอเรชั่น พร้อมราคาต่อวันและวันที่ว่าง เลือกรถแล้วจองออนไลน์ได้ทันที",
+  alternates: { canonical: "/cars" },
+};
