@@ -14,6 +14,23 @@ import { pushRaw, siteUrl } from "@/lib/line";
 import { flexPickupReminder, flexReturnReminder } from "@/lib/line-flex";
 import { securityDepositOf } from "@/lib/car-money";
 import { formatMinutesBefore, type AppSettings } from "@/lib/settings";
+import { getRule, bkkDay, bkkAt } from "@/lib/notification-rules";
+
+/** ช่วงเวลานัดที่ "ถึงคิวส่ง" ตามกฎ — before: ภายใน X นาทีข้างหน้า · daily: วันเป้าหมาย หลังถึงเวลาที่ตั้ง */
+function dueWindow(
+  rule: { mode: string; beforeMinutes: number; dailyTime: string },
+  now: Date,
+  dayOffset: number
+): { from: Date; to: Date } | null {
+  if (rule.mode === "daily") {
+    const today = bkkDay(now);
+    if (now < bkkAt(today, rule.dailyTime)) return null;
+    const target = bkkDay(new Date(now.getTime() + dayOffset * 86400000));
+    const from = new Date(Math.max(now.getTime(), bkkAt(target, "00:00").getTime()));
+    return { from, to: new Date(bkkAt(target, "00:00").getTime() + 86400000) };
+  }
+  return { from: now, to: new Date(now.getTime() + rule.beforeMinutes * 60000) };
+}
 
 type Result = { found: number; sent: number; skipped: number };
 
@@ -35,17 +52,21 @@ type ReminderBooking = {
 
 /** เตือนก่อนรับรถ — ขอให้ลูกค้ากดยืนยัน */
 export async function sendPickupReminders(settings: AppSettings): Promise<Result> {
-  if (!settings.pickupReminderOn) return { found: 0, sent: 0, skipped: 0 };
+  void settings;
+  const rule = await getRule("customer_pickup_reminder");
+  if (!rule.enabled) return { found: 0, sent: 0, skipped: 0 };
 
   const now = new Date();
-  const until = new Date(now.getTime() + settings.pickupReminderHoursBefore * 3600000);
+  // รายวัน = ส่งวันก่อนวันรับรถ (เป้าหมายคือการจองที่รับรถ "พรุ่งนี้")
+  const win = dueWindow(rule, now, 1);
+  if (!win) return { found: 0, sent: 0, skipped: 0 };
 
   const bookings = (await prisma.booking.findMany({
     where: {
       status: "CONFIRMED",
       pickupReminderSentAt: null,
       pickupConfirmedAt: null,
-      startDate: { gt: now, lte: until },
+      startDate: { gt: win.from, lte: win.to },
     },
     include: { car: true, customer: true },
     orderBy: { startDate: "asc" },
@@ -86,11 +107,15 @@ export async function sendReturnReminders(
   settings: AppSettings,
   force = false
 ): Promise<Result & { leadMinutes: number }> {
-  const leadMinutes = settings.returnReminderMinutesBefore;
-  if (!settings.returnReminderOn) return { found: 0, sent: 0, skipped: 0, leadMinutes };
+  const rule = await getRule("customer_return_reminder");
+  const leadMinutes = rule.beforeMinutes;
+  if (!rule.enabled) return { found: 0, sent: 0, skipped: 0, leadMinutes };
 
   const now = new Date();
-  const until = new Date(now.getTime() + leadMinutes * 60000);
+  // รายวัน = ส่งเช้าวันที่ต้องคืนรถ
+  const win = dueWindow(rule, now, 0);
+  if (!win) return { found: 0, sent: 0, skipped: 0, leadMinutes };
+  const until = win.to;
   // ปกติไม่ส่งย้อนหลังให้คันที่เลยเวลานัดคืนไปแล้ว — ?force=1 เพื่อตามเก็บ
   const endDateFilter = force ? { lte: until } : { lte: until, gte: now };
 

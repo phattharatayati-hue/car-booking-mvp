@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { notifyOn } from "@/lib/notification-rules";
 import { pushRaw, siteUrl } from "@/lib/line";
 import { flexDepositConfirmed, flexReadyForPickup } from "@/lib/line-flex";
 import { getSettings } from "@/lib/settings";
@@ -26,6 +27,7 @@ export async function notifyBookingProgress(bookingId: string): Promise<void> {
       include: { car: true, customer: true, deposit: true, documents: true },
     });
     if (!b?.customer.lineUserId) return;
+    if (!(await notifyOn("customer_deposit_confirmed"))) return;
 
     const slipOk = b.deposit?.status === "CONFIRMED" || b.status === "CONFIRMED";
     if (!slipOk) return;

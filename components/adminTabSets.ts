@@ -9,6 +9,7 @@ export const FLEET_TABS: TabItem[] = [
 /** ราคาและเงื่อนไข — ตั้งครั้งเดียวแล้วแทบไม่แตะอีก จึงไม่ควรกินเมนูหลักสามช่อง */
 export const SETTINGS_TABS: TabItem[] = [
   { href: "/admin/settings", label: "ตั้งค่าระบบ" },
+  { href: "/admin/notifications", label: "การแจ้งเตือน LINE" },
   { href: "/admin/pickup-points", label: "จุดรับ-ส่งรถ" },
   { href: "/admin/after-hours", label: "ค่าบริการนอกเวลา" },
   { href: "/admin/fees", label: "ค่าปรับ" },

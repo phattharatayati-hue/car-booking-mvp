@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifyOn } from "@/lib/notification-rules";
 import { prisma } from "@/lib/prisma";
 import { isDocumentKind, missingDocuments, DOCUMENT_LABEL } from "@/lib/documents";
 import { notifyAdmin, siteUrl } from "@/lib/line";
@@ -124,7 +125,7 @@ export async function POST(
     const missing = missingDocuments(all);
 
     // แจ้งแอดมินครั้งเดียวตอนเอกสารเพิ่งครบ ไม่ใช่ทุกรูปที่เพิ่มทีหลัง
-    if (missing.length === 0 && !existing) {
+    if (missing.length === 0 && !existing && (await notifyOn("admin_documents_uploaded"))) {
       try {
         await notifyAdmin(
           [

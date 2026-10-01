@@ -1,4 +1,5 @@
 import { clashWhere, CLASH_TURNAROUND_NOTE } from "@/lib/turnaround";
+import { notifyOn } from "@/lib/notification-rules";
 import { prisma } from "@/lib/prisma";
 import { getSettings, lateRuleFromSettings, toBangkokDate } from "@/lib/settings";
 import { quoteBooking } from "@/lib/pricing";
@@ -325,7 +326,7 @@ export async function createBooking(
   /* แจ้งแอดมินเฉพาะใบที่ต้องให้คนตัดสินใจก่อน (รถพาร์ทเนอร์ที่ต้องเช็คกับเจ้าของ)
      ใบจองรถของเราเองจะเงียบไว้จนกว่าลูกค้าจะอัปสลิป — กันคนจองเล่นกินโควตาข้อความ
      แอดมินดูใบที่ยังไม่โอนได้ที่ /admin/bookings?status=awaiting และในสรุปรายวัน */
-  if (isRequest) {
+  if (isRequest && (await notifyOn("admin_new_request"))) {
     try {
       await notifyAdminRaw(
         flexNewBookingAdmin({

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { notifyOn } from "@/lib/notification-rules";
 import { pushRaw, siteUrl } from "@/lib/line";
 import { flexReturnComplete } from "@/lib/line-flex";
 import { getSettings } from "@/lib/settings";
@@ -48,6 +49,7 @@ export async function completeReturn(bookingId: string): Promise<void> {
 
     if (booking.returnNotifiedAt) return;
     if (!booking.customer.lineUserId) return;
+    if (!(await notifyOn("customer_return_complete"))) return;
 
     await pushRaw(booking.customer.lineUserId, [
       flexReturnComplete({

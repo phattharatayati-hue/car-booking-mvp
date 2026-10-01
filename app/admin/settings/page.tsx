@@ -836,98 +836,21 @@ export default async function SettingsPage({
         </div>
 
         <div className="pt-5 border-t border-slate-100">
-          <h2 className="font-semibold text-slate-900">แจ้งเตือนให้ยืนยันการรับรถ</h2>
+          <h2 className="font-semibold text-slate-900">การแจ้งเตือน LINE</h2>
           <p className="text-sm text-slate-500 mt-1">
-            ส่งทาง LINE ก่อนเวลารับรถ ให้ลูกค้ากด “ยืนยันมารับรถตามนัด” หรือ “ขอเปลี่ยนนัด”
-            · แอดมินได้แจ้งเตือนเมื่อลูกค้ากด และเห็นสถานะในหน้ารายการจอง
+            ย้ายไปตั้งค่าที่หน้า{" "}
+            <a href="/admin/notifications" className="text-emerald-700 font-medium underline">
+              การแจ้งเตือน LINE
+            </a>{" "}
+            แล้ว — เปิด/ปิด และตั้งเวลาได้ทุกแบบ
           </p>
+          {/* ค่าเดิมส่งกลับไปตามเดิม ฟอร์มนี้จะได้บันทึกผ่าน (ค่าจริงอ่านจากหน้าการแจ้งเตือน) */}
+          {settings.pickupReminderOn && <input type="hidden" name="pickupReminderOn" value="on" />}
+          <input type="hidden" name="pickupReminderHoursBefore" value={settings.pickupReminderHoursBefore} />
+          {settings.returnReminderOn && <input type="hidden" name="returnReminderOn" value="on" />}
+          <input type="hidden" name="returnReminderLeadHours" value={lead.hours} />
+          <input type="hidden" name="returnReminderLeadMinutes" value={lead.minutes} />
         </div>
-
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            name="pickupReminderOn"
-            defaultChecked={settings.pickupReminderOn}
-            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-          />
-          <span className="text-sm font-medium text-slate-700">เปิดใช้งาน</span>
-        </label>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="pickupReminderHoursBefore">
-              เตือนก่อนเวลารับรถ (ชั่วโมง)
-            </label>
-            <input
-              id="pickupReminderHoursBefore"
-              name="pickupReminderHoursBefore"
-              type="number"
-              min={1}
-              max={168}
-              required
-              defaultValue={settings.pickupReminderHoursBefore}
-              className={inputClass}
-            />
-            <p className="text-xs text-slate-400 mt-1.5">24 = ก่อน 1 วัน</p>
-          </div>
-        </div>
-
-        <div className="pt-5 border-t border-slate-100">
-          <h2 className="font-semibold text-slate-900">แจ้งเตือนก่อนคืนรถ</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            นับจาก<strong>เวลานัดคืนรถของการจองนั้น</strong> ถอยหลังตามที่ตั้งไว้
-            ส่งทาง LINE ให้ลูกค้าที่ผูกบัญชีไว้ เฉพาะการจองที่ยืนยันแล้ว และส่งครั้งเดียวต่อการจอง
-          </p>
-        </div>
-
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            name="returnReminderOn"
-            defaultChecked={settings.returnReminderOn}
-            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500/30"
-          />
-          <span className="text-sm font-medium text-slate-700">เปิดใช้งานการแจ้งเตือน</span>
-        </label>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass} htmlFor="returnReminderLeadHours">
-              เตือนล่วงหน้า (ชั่วโมง)
-            </label>
-            <input
-              id="returnReminderLeadHours"
-              name="returnReminderLeadHours"
-              type="number"
-              min={0}
-              max={168}
-              required
-              defaultValue={lead.hours}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor="returnReminderLeadMinutes">
-              และอีก (นาที)
-            </label>
-            <input
-              id="returnReminderLeadMinutes"
-              name="returnReminderLeadMinutes"
-              type="number"
-              min={0}
-              max={59}
-              required
-              defaultValue={lead.minutes}
-              className={inputClass}
-            />
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-500 -mt-2">
-          ตอนนี้ตั้งไว้ <strong>{formatMinutesBefore(settings.returnReminderMinutesBefore)}</strong>{" "}
-          ก่อนเวลานัดคืนรถของการจองแต่ละรายการ · ตั้งได้ตั้งแต่ 5 นาที ถึง 7 วัน
-        </p>
 
         <button
           type="submit"
@@ -937,23 +860,7 @@ export default async function SettingsPage({
         </button>
       </form>
 
-      <div className="mt-5 bg-amber-50 border border-amber-200 rounded-2xl p-5">
-        <h2 className="font-semibold text-amber-900 text-sm mb-2">
-          ความแม่นของเวลาเตือน ขึ้นกับความถี่ของ cron
-        </h2>
-        <p className="text-sm text-amber-900/90 leading-relaxed">
-          ระบบจะเตือนได้ตรงเวลาก็ต่อเมื่อมี cron ยิงเข้ามาถี่ (แนะนำทุก 15 นาที)
-          แต่ Vercel แพลน Hobby รันงานตามเวลาได้<strong>วันละครั้งเท่านั้น</strong> (ตอนนี้ราว 09:00 น.)
-          ฉะนั้นบนแพลนนี้จะเตือนได้เฉพาะรถที่ครบกำหนดคืนใกล้รอบนั้นพอดี
-        </p>
-        <p className="text-sm text-amber-900/90 leading-relaxed mt-2">
-          วิธีทำให้แม่น เลือกอย่างใดอย่างหนึ่ง — อัปเป็น <strong>Vercel Pro</strong> แล้วแก้{" "}
-          <code className="text-xs">vercel.json</code> เป็น <code className="text-xs">*/15 * * * *</code>{" "}
-          หรือใช้ cron ภายนอกฟรี (เช่น cron-job.org) ตั้งยิงมาที่{" "}
-          <code className="text-xs">/api/cron/reminders</code> ทุก 15 นาที
-          พร้อมส่ง header <code className="text-xs">Authorization: Bearer &lt;CRON_SECRET&gt;</code>
-        </p>
-      </div>
+      
 
       <div className="mt-5 bg-white rounded-2xl border border-slate-200 p-5">
         <h2 className="font-semibold text-slate-900 text-sm mb-1">สถานะปัจจุบัน</h2>

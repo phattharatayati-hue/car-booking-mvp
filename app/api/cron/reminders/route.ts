@@ -7,6 +7,7 @@ import { sendPickupReminders, sendReturnReminders } from "@/lib/customer-reminde
 import { ACTIVE_BOOKING_STATUSES } from "@/lib/booking-status";
 import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
 import { sweepUnpaidHolds } from "@/lib/unpaid-hold";
+import { getRule, dailyDue, markRun } from "@/lib/notification-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,12 @@ export const dynamic = "force-dynamic";
  * ส่งเข้าแอดมินทุกคนที่ผูก LINE ไว้ (notifyAdmin)
  */
 async function nudgeUnassigned(): Promise<{ found: number; notified: boolean }> {
+  const rule = await getRule("admin_unassigned_jobs");
+  if (!rule.enabled) return { found: 0, notified: false };
   const now = new Date();
-  const until = new Date(now.getTime() + 24 * 3600000);
+  // daily = สรุปวันละครั้งตามเวลา · before = เช็คทุกรอบ cron แต่ส่งเมื่อมีงานใหม่เข้าเกณฑ์เท่านั้น
+  if (rule.mode === "daily" && !dailyDue(rule, now)) return { found: 0, notified: false };
+  const until = new Date(now.getTime() + (rule.mode === "daily" ? 24 * 60 : rule.beforeMinutes) * 60000);
 
   const bookings = await prisma.booking.findMany({
     where: {
@@ -50,7 +55,15 @@ async function nudgeUnassigned(): Promise<{ found: number; notified: boolean }> 
     }
   }
 
+  if (rule.mode === "daily") await markRun(rule.key, now);
   if (missing.length === 0) return { found: 0, notified: false };
+  // แบบ before: กันทวงซ้ำทุก 15 นาที — ส่งเฉพาะเมื่อผ่านไปแล้วอย่างน้อย 3 ชม. จากรอบก่อน
+  if (rule.mode === "before") {
+    if (rule.lastRunAt && now.getTime() - rule.lastRunAt.getTime() < 3 * 3600000) {
+      return { found: missing.length, notified: false };
+    }
+    await markRun(rule.key, now);
+  }
 
   missing.sort((a, b) => a.at.getTime() - b.at.getTime());
 
@@ -84,6 +97,9 @@ async function digestUnpaid(holdMinutes: number): Promise<{
 }> {
   try {
     const swept = await sweepUnpaidHolds(holdMinutes);
+    const rule = await getRule("admin_unpaid_digest");
+    if (!dailyDue(rule)) return { swept, waiting: 0, notified: false };
+    await markRun(rule.key);
 
     const since = new Date(Date.now() - 24 * 3600000);
     const [waiting, cancelledToday] = await Promise.all([
@@ -144,9 +160,7 @@ export async function GET(request: Request) {
   const settings = await getSettings();
 
   // กวาดใบจองที่ไม่โอน แล้วสรุปให้แอดมิน — ไม่ขึ้นกับสวิตช์เตือนคืนรถเช่นกัน
-  const unpaid = settings.unpaidDigestOn
-    ? await digestUnpaid(settings.holdMinutes)
-    : { swept: await sweepUnpaidHolds(settings.holdMinutes), waiting: 0, notified: false };
+  const unpaid = await digestUnpaid(settings.holdMinutes);
 
   /* เตือนลูกค้า (ก่อนรับรถ / ก่อนคืนรถ) — ตัวหลักอยู่ที่ /api/cron/customer-reminders
      ที่ควรยิงทุก 15 นาที แต่เรียกซ้ำตรงนี้ด้วย เผื่อยังไม่ได้ตั้ง cron ภายนอก

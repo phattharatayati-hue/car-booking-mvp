@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { notifyOn } from "@/lib/notification-rules";
 import { unresolvedDocuments } from "@/lib/documents";
 import { clashWhere } from "@/lib/turnaround";
 import { bookingFeeOf } from "@/lib/car-money";
@@ -425,7 +426,7 @@ async function finalizeBooking(replyToken: string, lineUserId: string, phone: st
     ]);
   }
 
-  try {
+  if (await notifyOn("admin_new_request")) try {
     await notifyAdminRaw(
       flexNewBookingAdmin({
         bookingId: booking.id,
@@ -566,7 +567,7 @@ async function handlePickupReply(
         "อย่าลืมเตรียมบัตรประชาชนและใบขับขี่ตัวจริงมาด้วยครับ",
       ].join("\n")
     );
-    try {
+    if (await notifyOn("admin_pickup_reply")) try {
       await notifyAdmin(
         `✅ ลูกค้ายืนยันมารับรถแล้ว\n${code} · ${carLabel}\n${booking.customer.fullName} · รับ ${when}`
       );
@@ -580,7 +581,7 @@ async function handlePickupReply(
     replyToken,
     "รับทราบครับ แอดมินจะติดต่อกลับเพื่อเปลี่ยนนัดรับรถโดยเร็ว\nพิมพ์รายละเอียดวันเวลาหรือจุดรับรถที่ต้องการไว้ในแชทนี้ได้เลยครับ"
   );
-  try {
+  if (await notifyOn("admin_pickup_reply")) try {
     await notifyAdmin(
       `⚠️ ลูกค้าขอเปลี่ยนนัดรับรถ\n${code} · ${carLabel}\n${booking.customer.fullName} · ${booking.customer.phone}\nนัดเดิม ${when}\n${siteUrl()}/admin/bookings`
     );

@@ -661,3 +661,15 @@ model ReceiptCounter {
   year    Int @id
   lastSeq Int @default(0)
 }
+
+/// ตั้งค่าการแจ้งเตือน LINE แต่ละแบบ (หน้า /admin/notifications)
+/// key ตรงกับ lib/notification-catalog.ts · ไม่มีแถว = ใช้ค่าเริ่มต้นใน catalog
+model NotificationRule {
+  key           String    @id
+  enabled       Boolean   @default(true)
+  mode          String    @default("instant") // instant | before | daily
+  beforeMinutes Int?
+  dailyTime     String?   // "HH:MM" เวลาไทย
+  lastRunAt     DateTime? // ใช้กับแบบสรุปรายวัน กันส่งซ้ำในวันเดียวกัน
+  updatedAt     DateTime  @updatedAt
+}

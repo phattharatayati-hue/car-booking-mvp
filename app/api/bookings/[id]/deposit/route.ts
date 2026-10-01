@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifyOn } from "@/lib/notification-rules";
 import { prisma } from "@/lib/prisma";
 import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexSlipReceived, flexSlipUploadedAdmin } from "@/lib/line-flex";
@@ -84,7 +85,7 @@ export async function POST(
     },
   });
 
-  try {
+  if (await notifyOn("admin_slip_uploaded")) try {
     await notifyAdminRaw(
       flexSlipUploadedAdmin({
         bookingId: booking.id,
@@ -100,7 +101,7 @@ export async function POST(
 
   /* ส่งต่อให้ลูกค้าอัปโหลดเอกสารทันที ไม่ต้องรอแอดมินตรวจสลิป
      ลูกค้าที่จองโดยไม่ผูก LINE จะไม่ได้ข้อความนี้ แต่หน้าเว็บเปิดช่องเอกสารให้ต่ออยู่แล้ว */
-  if (booking.customer.lineUserId) {
+  if (booking.customer.lineUserId && (await notifyOn("customer_slip_received"))) {
     try {
       const defaultDeposit = (await getSettings()).securityDeposit;
       const carDeposit = booking.car.securityDeposit;
