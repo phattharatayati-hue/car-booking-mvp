@@ -270,5 +270,5 @@ export function siteUrl() {
   if (fromEnv) return fromEnv.replace(/\/$/, "");
   const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   if (vercel) return `https://${vercel}`;
-  return "https://car-booking-mvp.vercel.app";
+  return "https://phupingcorporation.vercel.app";
 }

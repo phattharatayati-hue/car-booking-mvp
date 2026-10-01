@@ -165,7 +165,7 @@ async function handleEvent(event: LineEvent) {
 
   const text = (event.message.text ?? "").trim();
   const lower = text.toLowerCase();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://car-booking-mvp.vercel.app";
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "https://phupingcorporation.vercel.app";
 
   // รหัสผูกบัญชีแอดมิน 6 หลัก
   if (/^\d{6}$/.test(text)) {

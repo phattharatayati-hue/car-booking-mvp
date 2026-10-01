@@ -19,7 +19,7 @@ import fs from "fs";
 import path from "path";
 
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const FALLBACK_SITE = "https://car-booking-mvp.vercel.app";
+const FALLBACK_SITE = "https://phupingcorporation.vercel.app";
 
 /* ปุ่มในเมนูเป็นลิงก์ที่ลูกค้ากดจากมือถือ — ถ้าเผลอรันโดยที่ .env.local ตั้ง
    NEXT_PUBLIC_SITE_URL เป็น localhost เมนูจะถูกตั้งด้วยลิงก์ที่กดแล้วไม่มีอะไรเกิดขึ้น
