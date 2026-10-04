@@ -285,3 +285,35 @@ export function jobClosedText(d: {
     ...(d.kind === "PICKUP" ? ["", "สถานะการจองเปลี่ยนเป็น “เสร็จสิ้น” แล้ว"] : []),
   ].join("\n");
 }
+
+/**
+ * สรุปงานแบบตัวหนังสือ — ชุดเดียวกับการ์ดรับทราบงาน (flexJobAck) ทุกบรรทัด
+ * ใช้ใส่ในโน้ตของ Google Calendar คนส่งรถจะเห็นข้อมูลเดียวกันทั้งใน LINE และปฏิทิน
+ */
+export function jobSummaryLines(d: Omit<JobAckInput, "kind" | "meetAt" | "mapPlace">): string[] {
+  const placeText = (when: Date, place: string | null) =>
+    place ? `${shortWhen(when)} · ${place}` : shortWhen(when);
+
+  const money: string[] = [];
+  if (d.rent && d.rent.segments.length) {
+    d.rent.segments.forEach((seg, i) => {
+      money.push(`${i === 0 ? "ค่าเช่าต่อวัน" : "+"} ${rentLineText(seg)}`);
+    });
+    const other = d.totalPrice - d.rent.rentTotal;
+    if (other > 0) money.push(`ค่าบริการอื่น ${other.toLocaleString()}`);
+    if (other < 0) money.push(`ส่วนลด -${Math.abs(other).toLocaleString()}`);
+  } else {
+    money.push(`ค่าเช่า ${d.totalPrice.toLocaleString()}`);
+  }
+  money.push(`ประกัน ${d.deposit.toLocaleString()}`);
+  money.push(`รวม ${(d.totalPrice + d.deposit).toLocaleString()} บาท`);
+
+  return [
+    `${d.carLabel} (${d.customerPhone})`,
+    `รับ ${placeText(d.start, d.pickupPlace)}`,
+    `คืน ${placeText(d.end, d.returnPlace)}`,
+    ...(d.rent ? [`รวม ${d.rent.days} วัน`] : []),
+    "",
+    ...money,
+  ];
+}

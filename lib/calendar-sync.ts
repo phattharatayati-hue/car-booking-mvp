@@ -1,7 +1,10 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/line";
-import { formatBangkokDateTime } from "@/lib/settings";
+import { formatBangkokDateTime, getSettings } from "@/lib/settings";
+import { securityDepositOf } from "@/lib/car-money";
+import { rentBreakdown } from "@/lib/rent-breakdown";
+import { jobSummaryLines } from "@/lib/driver-cards";
 import { HANDOFF_LABEL, eventWindow, type HandoffKind } from "@/lib/assignments";
 import { markCalendarDisconnected } from "@/lib/google-health";
 import {
@@ -61,18 +64,25 @@ export async function syncAssignment(assignmentId: string): Promise<void> {
       summary: `${HANDOFF_LABEL[kind]} · ${car.brand} ${car.name} (${car.licensePlate})`,
       location: a.place ?? undefined,
       description: [
-        `รถ: ${car.brand} ${car.name} (${car.licensePlate})`,
-        `รับรถ: ${formatBangkokDateTime(a.booking.startDate)}${
-          a.booking.pickupPlace ? ` · ${a.booking.pickupPlace}` : ""
-        }`,
-        `คืนรถ: ${formatBangkokDateTime(a.booking.endDate)}${
-          a.booking.returnPlace ? ` · ${a.booking.returnPlace}` : ""
-        }`,
-        `เวลานัดงานนี้: ${formatBangkokDateTime(a.meetAt)}`,
+        // ส่วนบนเหมือนการ์ดรับทราบงานใน LINE ทุกบรรทัด
+        ...jobSummaryLines({
+          carLabel: `${car.brand} ${car.name}`,
+          plate: car.licensePlate,
+          customerName: a.booking.customer.fullName,
+          customerPhone: a.booking.customer.phone,
+          start: a.booking.startDate,
+          end: a.booking.endDate,
+          pickupPlace: a.booking.pickupPlace,
+          returnPlace: a.booking.returnPlace,
+          rent: await rentBreakdown(a.booking),
+          totalPrice: a.booking.totalPrice,
+          deposit: securityDepositOf(car, await getSettings()),
+        }),
         "",
+        `ทะเบียน: ${car.licensePlate}`,
         `ลูกค้า: ${a.booking.customer.fullName}`,
-        `เบอร์: ${a.booking.customer.phone}`,
         `รหัสจอง: ${a.bookingId.slice(0, 8).toUpperCase()}`,
+        `เวลานัดงานนี้: ${formatBangkokDateTime(a.meetAt)}`,
         ...(a.note ? [`หมายเหตุ: ${a.note}`] : []),
         "",
         /* ลิงก์หน้างาน (ไม่ใช่หลังบ้าน) — คนส่งรถเปิดดูเอกสารได้โดยไม่ต้องล็อกอิน
