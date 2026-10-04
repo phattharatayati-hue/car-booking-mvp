@@ -5,24 +5,18 @@ import { pushMessage, pushRaw, siteUrl } from "@/lib/line";
 import { getSettings, formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 import { getPickupPoints } from "@/lib/pickup-points-server";
 import { bookingFeeOf, securityDepositOf } from "@/lib/car-money";
-import { HANDOFF_LABEL, TRAVEL_BUFFER_MIN, type HandoffKind } from "@/lib/assignments";
+import { HANDOFF_LABEL, type HandoffKind } from "@/lib/assignments";
+import { rentBreakdown } from "@/lib/rent-breakdown";
 import {
-  card,
-  kv,
-  amountBox,
-  noteBox,
-  bullets,
-  sectionTitle,
-  btnGold,
-  btn,
-  line,
-} from "@/lib/line-flex";
-import { rentBreakdown, rentLineText } from "@/lib/rent-breakdown";
-
-/** ลิงก์ค้นหาจุดนัดใน Google Maps */
-function mapsLink(place: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
-}
+  flexJobCard,
+  flexJobAck,
+  jobClosedText,
+  jobCancelledText,
+  JOB_HEADLINE,
+  leaveAt,
+  mapsLink,
+} from "@/lib/driver-cards";
+import { driverHelp } from "@/lib/line-help";
 
 /**
  * บรรทัดจุดนัดในข้อความหาคนรับงาน
@@ -47,10 +41,6 @@ async function placeLines(place: string | null): Promise<string[]> {
 }
 
 /** เวลาที่ควรออกเดินทาง = เวลานัด ลบเวลาเผื่อเดินทาง */
-function leaveAt(meetAt: Date): Date {
-  return new Date(meetAt.getTime() - TRAVEL_BUFFER_MIN * 60000);
-}
-
 const jobInclude = {
   admin: true,
   booking: { include: { car: true, customer: true, deposit: true } },
@@ -137,105 +127,34 @@ async function viewTokenFor(job: Job): Promise<string> {
 
 /* สีของการ์ดงานยกมาจากชุดเดียวกับข้อความลูกค้า (lib/line-flex.ts)
    จะได้เป็นระบบเดียวกันทั้ง OA ไม่ใช่โทนน้ำเงินแยกอีกชุดเหมือนเดิม */
-const GREEN = "#1E5841";
 
 /** การ์ดงานพร้อมปุ่มปิดงาน — ใช้โครงการ์ดกลางจาก lib/line-flex.ts */
 async function jobFlex(job: Job, headline?: string) {
-  const kind = job.kind as HandoffKind;
-  const money = await moneyDue(job);
   const car = job.booking.car;
-  const alt = await jobText(job);
-  const token = await viewTokenFor(job);
+  const [money, alt, token] = await Promise.all([
+    moneyDue(job),
+    jobText(job),
+    viewTokenFor(job),
+  ]);
 
-  /* สีแถบหัวบอกชนิดของข่าว
-       ไม่มี headline = งานปกติ (เขียว)
-       🔁 = แก้ไขรายละเอียด (ทอง/เตือน)
-       อื่นๆ = ถอนงาน (แดง) */
-  const tone: "green" | "warn" | "danger" = !headline
-    ? "green"
-    : headline.startsWith("🔁")
-      ? "warn"
-      : "danger";
-
-  const ackButton = job.ackedAt
-    ? {
-        type: "box",
-        layout: "vertical",
-        paddingAll: "8px",
-        contents: [
-          {
-            type: "text",
-            text: `✓ รับทราบแล้ว ${formatBangkokTime(job.ackedAt)} น.`,
-            size: "sm",
-            color: "#067A4C",
-            weight: "bold",
-            align: "center",
-          },
-        ],
-      }
-    : {
-        type: "button",
-        style: "primary",
-        color: GREEN,
-        height: "sm",
-        action: {
-          type: "postback",
-          label: "รับทราบ",
-          data: `action=job_ack&id=${job.id}`,
-          displayText: "รับทราบ",
-        },
-      };
-
-  return card({
+  return flexJobCard({
+    jobId: job.id,
+    kind: job.kind as HandoffKind,
+    meetAt: job.meetAt,
+    carLabel: `${car.brand} ${car.name}`,
+    plate: car.licensePlate,
+    customerName: job.booking.customer.fullName,
+    customerPhone: job.booking.customer.phone,
+    place: job.place,
+    note: job.note,
+    money,
+    headline,
+    ackedAt: job.ackedAt,
+    jobUrl: `${siteUrl()}/job/${token}`,
     altText: alt,
-    title: HANDOFF_LABEL[kind],
-    subtitle: `${formatBangkokDateTime(job.meetAt)} · ออกเดินทาง ${formatBangkokTime(
-      leaveAt(job.meetAt)
-    )} น.`,
-    tone,
-    body: [
-      ...(headline ? [noteBox([headline], tone === "danger" ? "warn" : "cream")] : []),
-      kv("รถ", `${car.brand} ${car.name}`),
-      kv("ทะเบียน", car.licensePlate),
-      kv("ลูกค้า", job.booking.customer.fullName),
-      kv("โทร", job.booking.customer.phone),
-      ...(job.place ? [kv("จุดนัด", job.place)] : []),
-      ...(money
-        ? [
-            line,
-            amountBox(
-              "เก็บเงินหน้างาน",
-              money.total,
-              `ค่าเช่าคงเหลือ ${money.rental.toLocaleString()} + เงินประกัน ${money.deposit.toLocaleString()} บาท`
-            ),
-          ]
-        : []),
-      ...(job.note ? [noteBox([`หมายเหตุ: ${job.note}`])] : []),
-      line,
-      sectionTitle("ต้องทำหน้างาน"),
-      bullets([
-        "ขอดูบัตรประชาชนและใบขับขี่ตัวจริง",
-        "ถ่ายรูปรอบคันก่อนส่งมอบ",
-        "จดเลขไมล์และระดับน้ำมัน",
-        "ส่งรูปและปิดงานที่ปุ่มด้านล่าง",
-      ]),
-    ],
-    /* ปุ่มเดียวพาไปหน้างาน — ดูเอกสาร ส่งรูป จดเลขไมล์ ปิดงาน อยู่ที่นั่นทั้งหมด
-       เดิมให้ส่งรูปเข้าแชทแล้วระบบต้องเดาว่าเป็นของงานไหน ซึ่งเดาผิดได้จริง
-       ลิงก์นี้ผูกกับงานชิ้นเดียว จึงไม่มีทางเข้าผิดใบ */
-    buttons: [
-      btnGold("เปิดหน้างาน (เอกสาร · ส่งรูป · ปิดงาน)", `${siteUrl()}/job/${token}`),
-      ackButton,
-    ],
   });
 }
 
-/**
- * แจ้งคนรับงานทาง LINE
- *   new       มอบหมายครั้งแรก
- *   updated   แก้เวลา/จุดนัด/หมายเหตุ
- *   cancelled ถอนออกจากงาน
- */
 export type NotifyResult = "sent" | "no-line" | "not-found" | "error";
 
 export async function notifyJob(
@@ -255,22 +174,22 @@ export async function notifyJob(
     if (mode === "cancelled") {
       await pushMessage(
         job.admin.lineUserId,
-        [
-          "❌ งานนี้ถูกยกเลิก ไม่ต้องไปแล้วครับ",
-          "",
-          `${HANDOFF_LABEL[job.kind as HandoffKind]} ${formatBangkokDateTime(job.meetAt)}`,
-          `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
-          `รหัสจอง: ${job.bookingId.slice(0, 8).toUpperCase()}`,
-        ].join("\n")
+        jobCancelledText({
+          kind: job.kind as HandoffKind,
+          meetAt: job.meetAt,
+          carLabel: `${job.booking.car.brand} ${job.booking.car.name}`,
+          plate: job.booking.car.licensePlate,
+          bookingId: job.bookingId,
+        })
       );
       return "sent";
     }
 
     const headline =
       mode === "updated"
-        ? "⚠️ งานนี้มีการเปลี่ยนแปลง"
+        ? JOB_HEADLINE.updated
         : mode === "resend"
-          ? "🔁 ส่งซ้ำ — รายละเอียดเหมือนเดิม"
+          ? JOB_HEADLINE.resend
           : undefined;
     await pushRaw(job.admin.lineUserId, [await jobFlex(job, headline)]);
 
@@ -318,22 +237,6 @@ export async function myJobsFlex(lineUserId: string) {
 }
 
 /** คนรับงานกดปุ่ม "รับทราบ" — ออฟฟิศจะเห็นว่างานถึงมือแล้ว */
-/** วันเวลาแบบสั้น "5 ธ.ค. 06:30" — การ์ดสรุปงานไม่ต้องมีปี อ่านเร็วกว่า */
-function shortWhen(d: Date): string {
-  const date = new Intl.DateTimeFormat("th-TH", {
-    timeZone: "Asia/Bangkok",
-    day: "numeric",
-    month: "short",
-  }).format(new Date(d));
-  return `${date} ${formatBangkokTime(d)}`;
-}
-
-/** เบอร์โทรเหลือแต่ตัวเลข ใช้ทำลิงก์ tel: ให้กดโทรออกได้ */
-function telUri(phone: string): string | null {
-  const digits = phone.replace(/[^\d+]/g, "");
-  return digits.length >= 9 ? `tel:${digits}` : null;
-}
-
 /**
  * คนรับงานกด "รับทราบ" — ตอบกลับเป็นการ์ดสรุปงานครบในใบเดียว
  *
@@ -363,70 +266,37 @@ export async function ackJob(
     data: { ackedAt: new Date() },
   });
 
-  const kind = job.kind as HandoffKind;
+  /* อัปเดตรายละเอียดในปฏิทินให้เป็นชุดล่าสุดตอนคนส่งรถกดรับงาน
+     (event ที่สร้างไว้ก่อนแก้หน้าตาจะได้รายละเอียดใหม่ด้วย)
+     ต้อง await — บน Vercel ถ้าไม่รอ ฟังก์ชันอาจจบก่อนซิงก์เสร็จ
+     syncAssignment ไม่ throw อยู่แล้ว ปฏิทินล่มก็ยังตอบ LINE ได้ */
+  const { syncAssignment } = await import("@/lib/calendar-sync");
+  await syncAssignment(job.id);
+
   const b = job.booking;
   const car = b.car;
-  const [settings, rent] = await Promise.all([getSettings(), rentBreakdown(b)]);
-  const deposit = securityDepositOf(car, settings);
+  const [settings, rent, placeInfo] = await Promise.all([
+    getSettings(),
+    rentBreakdown(b),
+    placeLines(job.place),
+  ]);
 
-  const placeText = (when: Date, place: string | null) =>
-    place ? `${shortWhen(when)} · ${place}` : shortWhen(when);
-
-  /* ค่าเช่า "1,000 × 2 = 2,000" ต่อช่วงราคา — จองคร่อมหลายช่วงขึ้นหลายบรรทัด
-     ถ้ายอดจองไม่เท่าค่าเช่าล้วน (มีค่าส่งรถ ค่านอกเวลา แผนเดินทาง หรือส่วนลด)
-     ใส่ส่วนต่างเป็นบรรทัดแยก ยอดรวมท้ายการ์ดจะได้บวกกันลงตัวทุกครั้ง */
-  const money: unknown[] = [];
-  if (rent && rent.segments.length) {
-    rent.segments.forEach((seg, i) => {
-      money.push(kv(i === 0 ? "ค่าเช่าต่อวัน" : "+", rentLineText(seg)));
-    });
-    const other = b.totalPrice - rent.rentTotal;
-    if (other > 0) money.push(kv("ค่าบริการอื่น", other.toLocaleString()));
-    if (other < 0) money.push(kv("ส่วนลด", `-${Math.abs(other).toLocaleString()}`));
-  } else {
-    money.push(kv("ค่าเช่า", b.totalPrice.toLocaleString()));
-  }
-  money.push(kv("ประกัน", deposit.toLocaleString()));
-  money.push(kv("รวม", `${(b.totalPrice + deposit).toLocaleString()} บาท`));
-
-  const tel = telUri(b.customer.phone);
-  const buttons: unknown[] = [];
-  if (tel) buttons.push(btn("โทรหาลูกค้า", tel));
-  // จุดนัดที่ไม่ใช่จุดประจำ — ใส่ปุ่มแผนที่ (จุดประจำทุกคนไปเป็นอยู่แล้ว)
-  const placeInfo = await placeLines(job.place);
-  if (job.place && placeInfo.length > 1) buttons.push(btnGold("เปิดแผนที่", mapsLink(job.place)));
-
-  return card({
-    altText: `รับทราบงาน${HANDOFF_LABEL[kind]} — ${car.brand} ${car.name} ${shortWhen(job.meetAt)}`,
-    title: `✅ รับทราบงาน${HANDOFF_LABEL[kind]}แล้ว`,
-    subtitle: `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น. · นัด ${shortWhen(job.meetAt)}`,
-    tone: kind === "PICKUP" ? "danger" : "ok",
-    body: [
-      {
-        type: "text",
-        text: `${car.brand} ${car.name} (${car.licensePlate})`,
-        weight: "bold",
-        size: "md",
-        wrap: true,
-      },
-      kv("ลูกค้า", b.customer.fullName),
-      kv("โทร", b.customer.phone),
-      line,
-      kv("รับ", placeText(b.startDate, b.pickupPlace)),
-      kv("คืน", placeText(b.endDate, b.returnPlace)),
-      ...(rent ? [kv("รวม", `${rent.days} วัน`)] : []),
-      line,
-      ...money,
-      line,
-      {
-        type: "text",
-        text: "เมื่อทำงานเสร็จ กดปุ่มปิดงานที่การ์ดงานได้เลยครับ",
-        size: "xs",
-        color: "#8B8577",
-        wrap: true,
-      },
-    ],
-    buttons,
+  return flexJobAck({
+    kind: job.kind as HandoffKind,
+    meetAt: job.meetAt,
+    carLabel: `${car.brand} ${car.name}`,
+    plate: car.licensePlate,
+    customerName: b.customer.fullName,
+    customerPhone: b.customer.phone,
+    start: b.startDate,
+    end: b.endDate,
+    pickupPlace: b.pickupPlace,
+    returnPlace: b.returnPlace,
+    rent,
+    totalPrice: b.totalPrice,
+    deposit: securityDepositOf(car, settings),
+    // placeLines ใส่ลิงก์แผนที่เฉพาะจุดที่ไม่ใช่จุดประจำ — ใช้ตัวเดียวกันตัดสินปุ่มแผนที่
+    mapPlace: job.place && placeInfo.length > 1 ? job.place : null,
   });
 }
 
@@ -460,17 +330,12 @@ export async function closeJob(
     });
   }
 
-  return [
-    `✅ ปิดงาน${HANDOFF_LABEL[job.kind as HandoffKind]}เรียบร้อย`,
-    "",
-    `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
-    `รหัสจอง: ${job.bookingId.slice(0, 8).toUpperCase()}`,
-    "",
-    "ส่งรูปสภาพรถได้ที่หน้างาน (ปุ่มในการ์ดงาน) ระบบจะเก็บแนบไว้กับงานนี้ให้",
-    ...(job.kind === "PICKUP"
-      ? ["", "สถานะการจองเปลี่ยนเป็น “เสร็จสิ้น” แล้ว"]
-      : []),
-  ].join("\n");
+  return jobClosedText({
+    kind: job.kind as HandoffKind,
+    carLabel: `${job.booking.car.brand} ${job.booking.car.name}`,
+    plate: job.booking.car.licensePlate,
+    bookingId: job.bookingId,
+  });
 }
 
 /** งานของคนนี้ที่กำลังอยู่ในช่วงทำ — ใช้ผูกรูปและเลขไมล์ที่ส่งเข้ามาในแชท */
@@ -551,16 +416,5 @@ export async function driverHelpText(lineUserId: string): Promise<string | null>
   const admin = await prisma.adminUser.findFirst({ where: { lineUserId } });
   if (!admin || admin.role !== "DRIVER") return null;
 
-  return [
-    `สวัสดีคุณ ${admin.name} ครับ 🚗`,
-    "",
-    "คำสั่งที่ใช้ได้ในแชทนี้",
-    "• งานของฉัน — ดูคิวงานรับ-ส่งรถ 2 วันนี้",
-    "• กดปุ่ม “รับทราบ” ที่การ์ดงาน เพื่อบอกออฟฟิศว่าเห็นงานแล้ว",
-    "• ไมล์ 45120 — บันทึกเลขไมล์ของงานล่าสุด",
-    "• น้ำมัน เต็มถัง — บันทึกระดับน้ำมัน",
-    "• ส่งรูปเข้าแชท — เก็บเป็นรูปสภาพรถของงานนั้น",
-    "",
-    "เมื่อส่งหรือรับรถคืนเรียบร้อย กดปุ่มปิดงานที่การ์ดงานได้เลยครับ",
-  ].join("\n");
+  return driverHelp(admin.name);
 }

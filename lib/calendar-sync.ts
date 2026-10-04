@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/line";
 import { formatBangkokDateTime } from "@/lib/settings";
@@ -12,6 +13,17 @@ import {
   isAuthExpired,
   type CalendarEventInput,
 } from "@/lib/google-calendar";
+
+/** โทเคนหน้างาน — ใช้ตัวเดิมถ้ามีแล้ว (ลิงก์ใน LINE กับในปฏิทินจะได้เป็นลิงก์เดียวกัน) */
+async function jobViewToken(assignmentId: string, existing: string | null): Promise<string> {
+  if (existing) return existing;
+  const token = crypto.randomBytes(24).toString("base64url");
+  await prisma.bookingAssignment.update({
+    where: { id: assignmentId },
+    data: { viewToken: token },
+  });
+  return token;
+}
 
 /**
  * ซิงก์งานมอบหมายหนึ่งงาน ขึ้นปฏิทิน "งานรับส่งรถ" ของคนที่รับงาน
@@ -49,13 +61,26 @@ export async function syncAssignment(assignmentId: string): Promise<void> {
       summary: `${HANDOFF_LABEL[kind]} · ${car.brand} ${car.name} (${car.licensePlate})`,
       location: a.place ?? undefined,
       description: [
-        `เวลานัดลูกค้า: ${formatBangkokDateTime(a.meetAt)}`,
+        `รถ: ${car.brand} ${car.name} (${car.licensePlate})`,
+        `รับรถ: ${formatBangkokDateTime(a.booking.startDate)}${
+          a.booking.pickupPlace ? ` · ${a.booking.pickupPlace}` : ""
+        }`,
+        `คืนรถ: ${formatBangkokDateTime(a.booking.endDate)}${
+          a.booking.returnPlace ? ` · ${a.booking.returnPlace}` : ""
+        }`,
+        `เวลานัดงานนี้: ${formatBangkokDateTime(a.meetAt)}`,
+        "",
         `ลูกค้า: ${a.booking.customer.fullName}`,
         `เบอร์: ${a.booking.customer.phone}`,
-        ...(a.note ? [`หมายเหตุ: ${a.note}`] : []),
         `รหัสจอง: ${a.bookingId.slice(0, 8).toUpperCase()}`,
+        ...(a.note ? [`หมายเหตุ: ${a.note}`] : []),
         "",
-        `${siteUrl()}/admin/bookings`,
+        /* ลิงก์หน้างาน (ไม่ใช่หลังบ้าน) — คนส่งรถเปิดดูเอกสารได้โดยไม่ต้องล็อกอิน
+           ผูกกับงานชิ้นเดียว ถอนงานแล้วลิงก์ตาย และปิดเองเมื่อพ้นเวลานัดไป 1 วัน */
+        "เอกสารการจอง:",
+        `${siteUrl()}/job/${await jobViewToken(a.id, a.viewToken)}`,
+        "",
+        "บจก. ภูพิงค์คอร์ปอเรชั่น",
       ].join("\n"),
       start,
       end,

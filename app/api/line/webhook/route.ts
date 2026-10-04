@@ -20,9 +20,8 @@ import { formatBangkokDateTime } from "@/lib/settings";
 import {
   PHONES,
   OFFICE_HOURS,
-  FACEBOOK_REVIEW_URL,
-  forLineBrowser,
 } from "@/lib/contact";
+import { HELP_TEXT, feesReplyText } from "@/lib/line-help";
 import {
   flexBookingStatus,
   flexStatusEmpty,
@@ -58,19 +57,7 @@ const STATUS_TH: Record<string, string> = {
   COMPLETED: "เสร็จสิ้น",
 };
 
-const HELP_TEXT = [
-  "สวัสดีครับ 🚗 ระบบจองรถเช่า",
-  "",
-  "พิมพ์คำสั่งเหล่านี้ได้เลย:",
-  "• จองรถ — เลือกรถและจองในแชทนี้",
-  "• เช็คสถานะ — ติดตามการจอง",
-  "• ติดต่อ — เบอร์โทรและเวลาทำการ",
-  "",
-  "หรือกดปุ่มจากเมนูด้านล่างได้เลยครับ",
-  "",
-  "อ่านรีวิวจากลูกค้าที่ใช้บริการจริง:",
-  forLineBrowser(FACEBOOK_REVIEW_URL),
-].join("\n");
+// ข้อความต้อนรับอยู่ที่ lib/line-help.ts — หน้าตัวอย่างข้อความในหลังบ้านใช้ชุดเดียวกัน
 
 /** คำที่คนรับ-ส่งรถใช้เรียกดูคิวงานของตัวเอง */
 function isMyJobsKeyword(text: string, lower: string): boolean {
@@ -240,13 +227,7 @@ async function handleEvent(event: LineEvent) {
     /* ส่งเป็นลิงก์ไปหน้าเว็บ /fees แทนการ์ดสรุป
        หน้าเว็บมีครบทุกรายการ เงินประกันรายรุ่น และโปสเตอร์ให้บันทึก
        แก้ข้อมูลในหลังบ้านแล้วลูกค้าเห็นของล่าสุดทันที ไม่ต้องแก้การ์ดตามอีกที่ */
-    await replyMessage(
-      replyToken,
-      [
-        "เงินประกันและค่าปรับ ดูรายละเอียดทั้งหมดได้ที่ลิงก์นี้ครับ 👇",
-        `${site}/fees`,
-      ].join("\n")
-    );
+    await replyMessage(replyToken, feesReplyText(site));
     return;
   }
 

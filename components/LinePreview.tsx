@@ -140,12 +140,19 @@ function Message({ m }: { m: any }) {
   return null;
 }
 
-export default function LinePreview({ messages }: { messages: any[] }) {
+export default function LinePreview({
+  messages,
+  full = false,
+}: {
+  messages: any[];
+  /** true = แสดงเต็มความสูง ไม่มีแถบเลื่อน (ใช้ในหน้ารวมตัวอย่าง) */
+  full?: boolean;
+}) {
   if (!messages.length) return null;
   return (
     <div
       style={{ background: "#8CABD8", borderRadius: 16, padding: 12, fontFamily: "inherit" }}
-      className="max-h-[560px] overflow-y-auto"
+      className={full ? undefined : "max-h-[560px] overflow-y-auto"}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
         {messages.map((m, i) => (

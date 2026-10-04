@@ -16,6 +16,13 @@ import AdminDocUpload from "@/components/AdminDocUpload";
 import { pushMessage, siteUrl } from "@/lib/line";
 import { notifyBookingProgress } from "@/lib/booking-notify";
 import {
+  documentRejectedText,
+  slipRejectedText,
+  requestApprovedText,
+  requestRejectedText,
+  carSwappedText,
+} from "@/lib/customer-texts";
+import {
   formatBangkokDateTime,
   getSettings,
   bangkokDateStr,
@@ -364,15 +371,11 @@ async function rejectDocumentAction(formData: FormData) {
 
   await notifyCustomer(
     doc.bookingId,
-    [
-      "⚠️ เอกสารไม่ผ่านการตรวจสอบ",
-      "",
-      `เอกสาร: ${DOCUMENT_LABEL[doc.kind as DocumentKind]}`,
-      `เหตุผล: ${doc.rejectReason}`,
-      "",
-      "กรุณาถ่ายใหม่แล้วอัปโหลดอีกครั้งครับ",
-      `${siteUrl()}/booking/${doc.bookingId}`,
-    ].join("\n")
+    documentRejectedText({
+      documentLabel: DOCUMENT_LABEL[doc.kind as DocumentKind],
+      reason: doc.rejectReason ?? "",
+      bookingUrl: `${siteUrl()}/booking/${doc.bookingId}`,
+    })
   );
 
   revalidatePath("/admin/bookings");
@@ -604,14 +607,7 @@ async function rejectDepositAction(formData: FormData) {
 
   await notifyCustomer(
     bookingId,
-    [
-      "⚠️ สลิปค่าจองไม่ผ่านการตรวจสอบ",
-      "",
-      `รหัสจอง: ${bookingId.slice(0, 8).toUpperCase()}`,
-      "",
-      "กรุณาติดต่อแอดมินเพื่อตรวจสอบอีกครั้ง",
-      `${siteUrl()}/booking/${bookingId}`,
-    ].join("\n")
+    slipRejectedText({ bookingId, bookingUrl: `${siteUrl()}/booking/${bookingId}` })
   );
 
   revalidatePath("/admin/bookings");
@@ -648,19 +644,14 @@ async function approveRequestAction(formData: FormData) {
 
   await notifyCustomer(
     bookingId,
-    [
-      "✅ รถว่าง! ยืนยันคำขอจองแล้ว",
-      "",
-      `รถ: ${booking.car.brand} ${booking.car.name}`,
-      `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
-      `คืนรถ: ${formatBangkokDateTime(booking.endDate)}`,
-      `ยอดรวม: ${booking.totalPrice.toLocaleString()} บาท`,
-      "",
-      `กรุณาโอนค่าจอง ${(await getSettings()).bookingFee.toLocaleString()} บาท`,
-      "แล้วแนบสลิปและอัปโหลดเอกสารที่ลิงก์นี้ครับ",
-      "",
-      `${siteUrl()}/booking/${bookingId}`,
-    ].join("\n")
+    requestApprovedText({
+      carLabel: `${booking.car.brand} ${booking.car.name}`,
+      start: booking.startDate,
+      end: booking.endDate,
+      total: booking.totalPrice,
+      bookingFee: (await getSettings()).bookingFee,
+      bookingUrl: `${siteUrl()}/booking/${bookingId}`,
+    })
   );
 
   revalidatePath("/admin/bookings");
@@ -692,15 +683,10 @@ async function rejectRequestAction(formData: FormData) {
 
   await notifyCustomer(
     bookingId,
-    [
-      "😔 ขออภัย รถไม่ว่างในช่วงที่ขอ",
-      "",
-      `รถ: ${booking.car.brand} ${booking.car.name}`,
-      `รับรถ: ${formatBangkokDateTime(booking.startDate)}`,
-      "",
-      "เจ้าของรถแจ้งว่ารถไม่ว่างในช่วงเวลานี้",
-      'พิมพ์ "จองรถ" เพื่อเลือกรถคันอื่นหรือวันอื่นได้เลยครับ',
-    ].join("\n")
+    requestRejectedText({
+      carLabel: `${booking.car.brand} ${booking.car.name}`,
+      start: booking.startDate,
+    })
   );
 
   revalidatePath("/admin/bookings");
@@ -861,18 +847,13 @@ async function swapCarAction(formData: FormData) {
   if (formData.get("notifyCustomer") === "on") {
     await notifyCustomer(
       bookingId,
-      [
-        "🚗 แจ้งเปลี่ยนรถสำหรับการจองของคุณ",
-        "",
-        `จากเดิม: ${oldLabel}`,
-        `เปลี่ยนเป็น: ${newLabel}`,
-        `เหตุผล: ${reasonLabel}`,
-        totalPrice !== booking.totalPrice
-          ? `ยอดค่าเช่าใหม่: ${totalPrice.toLocaleString()} บาท`
-          : "ยอดค่าเช่าเท่าเดิม",
-        "",
-        `ดูรายละเอียด: ${siteUrl()}/booking/${bookingId}`,
-      ].join("\n")
+      carSwappedText({
+        oldLabel,
+        newLabel,
+        reasonLabel,
+        newTotal: totalPrice !== booking.totalPrice ? totalPrice : null,
+        bookingUrl: `${siteUrl()}/booking/${bookingId}`,
+      })
     );
   }
 

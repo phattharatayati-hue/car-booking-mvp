@@ -18,6 +18,8 @@ import {
 import { getRules, saveRule, type Rule } from "@/lib/notification-rules";
 import { sampleMessages } from "@/lib/notification-samples";
 import LinePreview from "@/components/LinePreview";
+import Link from "next/link";
+import { lineMessageCatalog } from "@/lib/line-message-catalog";
 
 const MODE_LABEL: Record<NotifyMode, string> = {
   instant: "ส่งทันที",
@@ -175,10 +177,11 @@ const ERRORS: Record<string, string> = {
 export default async function NotificationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; view?: string }>;
 }) {
   await requireStaff();
-  const { ok, error } = await searchParams;
+  const { ok, error, view } = await searchParams;
+  const showAll = view === "all";
   const rules = await getRules();
   const groups: { title: string; note: string; items: NotificationDef[] }[] = [
     {
@@ -201,15 +204,36 @@ export default async function NotificationsPage({
         <p className="text-slate-500 text-sm mt-1 leading-relaxed">
           เปิด/ปิด และตั้งเวลาการแจ้งเตือนแต่ละแบบ · แบบตั้งเวลาระบบเช็คทุก 5 นาที
           จึงอาจส่งช้ากว่าเวลาที่ตั้งได้ไม่เกิน 5 นาที · ข้อความที่แอดมินกดส่งเอง
-          (อัปเดตการจอง ใบเสร็จ โอนเงินประกันคืน การ์ดงานคนขับ) ส่งตามปุ่มเสมอ ไม่อยู่ในหน้านี้
+          (อัปเดตการจอง ใบเสร็จ โอนเงินประกันคืน การ์ดงานคนขับ) ส่งตามปุ่มเสมอ ดูหน้าตาได้ที่แท็บตัวอย่างข้อความทั้งหมด
         </p>
       </div>
+      {/* สลับระหว่างหน้าตั้งค่า กับหน้ารวมตัวอย่างข้อความทั้งหมด */}
+      <div className="mb-6 inline-flex rounded-xl border border-slate-200 bg-white p-1 text-sm">
+        <Link
+          href="/admin/notifications"
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            showAll ? "text-slate-600 hover:text-slate-900" : "bg-slate-900 text-white"
+          }`}
+        >
+          ตั้งค่าการแจ้งเตือน
+        </Link>
+        <Link
+          href="/admin/notifications?view=all"
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            showAll ? "bg-slate-900 text-white" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          ตัวอย่างข้อความทั้งหมด
+        </Link>
+      </div>
+
       {ok && <p className={`mb-4 rounded-xl border px-4 py-3 text-sm ${NOTICE.ok}`}>บันทึกแล้ว</p>}
       {error && (
         <p className="mb-4 rounded-xl border px-4 py-3 text-sm bg-red-50 border-red-200 text-red-800">
           {ERRORS[error] ?? "บันทึกไม่สำเร็จ"}
         </p>
       )}
+      {showAll ? <MessageGallery /> : (
       <div className="space-y-8">
         {groups.map((g) => (
           <section key={g.title}>
@@ -218,6 +242,56 @@ export default async function NotificationsPage({
             <div className="space-y-3">
               {g.items.map((def) => (
                 <RuleCard key={def.key} def={def} rule={rules[def.key]} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * รวมตัวอย่างข้อความ LINE ทุกแบบในระบบ — วาดจากฟังก์ชันตัวเดียวกับที่ส่งจริง
+ * แก้การ์ดหรือถ้อยคำในโค้ดแล้ว deploy หน้านี้เปลี่ยนตามเอง ไม่ต้องส่งทดสอบเข้า LINE
+ */
+function MessageGallery() {
+  const catalog = lineMessageCatalog();
+  const total = catalog.reduce((n, g) => n + g.items.length, 0);
+
+  return (
+    <div>
+      <p className="text-sm text-slate-500 mb-4">
+        ทั้งหมด {total} แบบ · ใช้ข้อมูลสมมติ หน้าตาใกล้เคียงในแอป LINE
+        (ฟอนต์และระยะห่างอาจต่างเล็กน้อย)
+      </p>
+
+      {/* ทางลัดไปแต่ละกลุ่ม — หน้านี้ยาว */}
+      <nav className="mb-8 flex flex-wrap gap-2">
+        {catalog.map((g) => (
+          <a
+            key={g.id}
+            href={`#${g.id}`}
+            className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-700 hover:border-slate-300"
+          >
+            {g.title} <span className="text-slate-400">{g.items.length}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div className="space-y-12">
+        {catalog.map((g) => (
+          <section key={g.id} id={g.id} className="scroll-mt-6">
+            <h2 className="font-semibold text-slate-900 text-lg">{g.title}</h2>
+            <p className="text-xs text-slate-500 mb-4">{g.note}</p>
+            <div className="grid gap-5 [grid-template-columns:repeat(auto-fill,minmax(310px,1fr))]">
+              {g.items.map((item) => (
+                <article key={`${g.id}-${item.title}`} className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
+                  <p className="text-xs text-slate-500 mb-2 leading-relaxed">{item.when}</p>
+                  <LinePreview messages={item.messages} full />
+                </article>
               ))}
             </div>
           </section>
