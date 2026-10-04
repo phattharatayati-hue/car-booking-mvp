@@ -14,8 +14,10 @@ import {
   bullets,
   sectionTitle,
   btnGold,
+  btn,
   line,
 } from "@/lib/line-flex";
+import { rentBreakdown, rentLineText } from "@/lib/rent-breakdown";
 
 /** ลิงก์ค้นหาจุดนัดใน Google Maps */
 function mapsLink(place: string): string {
@@ -316,7 +318,35 @@ export async function myJobsFlex(lineUserId: string) {
 }
 
 /** คนรับงานกดปุ่ม "รับทราบ" — ออฟฟิศจะเห็นว่างานถึงมือแล้ว */
-export async function ackJob(assignmentId: string, lineUserId: string): Promise<string> {
+/** วันเวลาแบบสั้น "5 ธ.ค. 06:30" — การ์ดสรุปงานไม่ต้องมีปี อ่านเร็วกว่า */
+function shortWhen(d: Date): string {
+  const date = new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(d));
+  return `${date} ${formatBangkokTime(d)}`;
+}
+
+/** เบอร์โทรเหลือแต่ตัวเลข ใช้ทำลิงก์ tel: ให้กดโทรออกได้ */
+function telUri(phone: string): string | null {
+  const digits = phone.replace(/[^\d+]/g, "");
+  return digits.length >= 9 ? `tel:${digits}` : null;
+}
+
+/**
+ * คนรับงานกด "รับทราบ" — ตอบกลับเป็นการ์ดสรุปงานครบในใบเดียว
+ *
+ * เรียงตามที่หน้างานต้องใช้: รถ → ลูกค้า+เบอร์ → รับ/คืน → ค่าเช่า ประกัน
+ * ปุ่มโทรหาลูกค้าอยู่ในการ์ดเลย ไม่ต้องเลื่อนกลับขึ้นไปหาการ์ดงาน
+ * (การ์ดงานเดิมที่มีรายละเอียดยอดเก็บหน้างานยังอยู่เหมือนเดิม ไม่ได้แตะ)
+ *
+ * คืนเป็นข้อความธรรมดาเฉพาะกรณีกดไม่ได้ (ไม่พบงาน · ไม่ใช่งานของคุณ · กดซ้ำ)
+ */
+export async function ackJob(
+  assignmentId: string,
+  lineUserId: string
+): Promise<string | Record<string, unknown>> {
   const job = await prisma.bookingAssignment.findUnique({
     where: { id: assignmentId },
     include: jobInclude,
@@ -333,18 +363,71 @@ export async function ackJob(assignmentId: string, lineUserId: string): Promise<
     data: { ackedAt: new Date() },
   });
 
-  const ackPlace = await placeLines(job.place);
+  const kind = job.kind as HandoffKind;
+  const b = job.booking;
+  const car = b.car;
+  const [settings, rent] = await Promise.all([getSettings(), rentBreakdown(b)]);
+  const deposit = securityDepositOf(car, settings);
 
-  return [
-    `✅ รับทราบงาน${HANDOFF_LABEL[job.kind as HandoffKind]}แล้ว`,
-    "",
-    `นัด ${formatBangkokDateTime(job.meetAt)}`,
-    `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น.`,
-    `รถ: ${job.booking.car.brand} ${job.booking.car.name} (${job.booking.car.licensePlate})`,
-    ...(ackPlace.length ? ["", ...ackPlace] : []),
-    "",
-    "เมื่อทำงานเสร็จ กดปุ่มปิดงานที่การ์ดได้เลยครับ",
-  ].join("\n");
+  const placeText = (when: Date, place: string | null) =>
+    place ? `${shortWhen(when)} · ${place}` : shortWhen(when);
+
+  /* ค่าเช่า "1,000 × 2 = 2,000" ต่อช่วงราคา — จองคร่อมหลายช่วงขึ้นหลายบรรทัด
+     ถ้ายอดจองไม่เท่าค่าเช่าล้วน (มีค่าส่งรถ ค่านอกเวลา แผนเดินทาง หรือส่วนลด)
+     ใส่ส่วนต่างเป็นบรรทัดแยก ยอดรวมท้ายการ์ดจะได้บวกกันลงตัวทุกครั้ง */
+  const money: unknown[] = [];
+  if (rent && rent.segments.length) {
+    rent.segments.forEach((seg, i) => {
+      money.push(kv(i === 0 ? "ค่าเช่าต่อวัน" : "+", rentLineText(seg)));
+    });
+    const other = b.totalPrice - rent.rentTotal;
+    if (other > 0) money.push(kv("ค่าบริการอื่น", other.toLocaleString()));
+    if (other < 0) money.push(kv("ส่วนลด", `-${Math.abs(other).toLocaleString()}`));
+  } else {
+    money.push(kv("ค่าเช่า", b.totalPrice.toLocaleString()));
+  }
+  money.push(kv("ประกัน", deposit.toLocaleString()));
+  money.push(kv("รวม", `${(b.totalPrice + deposit).toLocaleString()} บาท`));
+
+  const tel = telUri(b.customer.phone);
+  const buttons: unknown[] = [];
+  if (tel) buttons.push(btn("โทรหาลูกค้า", tel));
+  // จุดนัดที่ไม่ใช่จุดประจำ — ใส่ปุ่มแผนที่ (จุดประจำทุกคนไปเป็นอยู่แล้ว)
+  const placeInfo = await placeLines(job.place);
+  if (job.place && placeInfo.length > 1) buttons.push(btnGold("เปิดแผนที่", mapsLink(job.place)));
+
+  return card({
+    altText: `รับทราบงาน${HANDOFF_LABEL[kind]} — ${car.brand} ${car.name} ${shortWhen(job.meetAt)}`,
+    title: `✅ รับทราบงาน${HANDOFF_LABEL[kind]}แล้ว`,
+    subtitle: `ออกเดินทาง ${formatBangkokTime(leaveAt(job.meetAt))} น. · นัด ${shortWhen(job.meetAt)}`,
+    tone: kind === "PICKUP" ? "danger" : "ok",
+    body: [
+      {
+        type: "text",
+        text: `${car.brand} ${car.name} (${car.licensePlate})`,
+        weight: "bold",
+        size: "md",
+        wrap: true,
+      },
+      kv("ลูกค้า", b.customer.fullName),
+      kv("โทร", b.customer.phone),
+      line,
+      kv("รับ", placeText(b.startDate, b.pickupPlace)),
+      kv("คืน", placeText(b.endDate, b.returnPlace)),
+      ...(rent ? [kv("รวม", `${rent.days} วัน`)] : []),
+      line,
+      ...money,
+      line,
+      {
+        type: "text",
+        text: "เมื่อทำงานเสร็จ กดปุ่มปิดงานที่การ์ดงานได้เลยครับ",
+        size: "xs",
+        color: "#8B8577",
+        wrap: true,
+      },
+    ],
+    buttons,
+  });
 }
 
 /** คนรับงานกดปุ่มปิดงานจากการ์ด */

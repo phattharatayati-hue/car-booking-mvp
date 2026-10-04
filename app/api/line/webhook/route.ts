@@ -120,7 +120,10 @@ async function handleEvent(event: LineEvent) {
     const jobId = params.get("id") ?? "";
 
     if (jobAction === "job_ack") {
-      await replyMessage(replyToken, await ackJob(jobId, userId));
+      // สำเร็จได้การ์ดสรุปงาน · กดไม่ได้ (ซ้ำ/ไม่ใช่งานของตัวเอง) ได้ข้อความสั้น
+      const ack = await ackJob(jobId, userId);
+      if (typeof ack === "string") await replyMessage(replyToken, ack);
+      else await replyRaw(replyToken, [ack]);
       return;
     }
     if (jobAction === "job_done") {
