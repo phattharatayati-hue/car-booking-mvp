@@ -11,9 +11,24 @@ import {
   STATUS_LABEL,
   STATUS_CLASS,
 } from "@/lib/booking-status";
+import {
+  parseDashboardRange,
+  bookingDateWhere,
+  RANGE_PRESETS,
+} from "@/lib/dashboard-range";
 
-export default async function AdminDashboard() {
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; from?: string; to?: string; by?: string }>;
+}) {
   await requireStaff();
+
+  /* ช่วงวันที่ — กรองเฉพาะตัวเลขที่เป็น "ยอดสะสม" (ยืนยันแล้ว · การจองทั้งหมด · เงิน · รายการล่าสุด)
+     ตัวเลขที่เป็น "สถานะตอนนี้" (รอตรวจเอกสาร · รถทั้งหมด · งานวันนี้ · ยังไม่มีคนรับ)
+     ไม่กรอง เพราะเป็นงานที่ต้องทำวันนี้ ถ้ากรองตามเดือนที่แล้วจะหายไปจากสายตา */
+  const range = parseDashboardRange(await searchParams);
+  const inRange = bookingDateWhere(range);
 
   const [
     pendingCount,
@@ -26,22 +41,23 @@ export default async function AdminDashboard() {
   ] =
     await Promise.all([
       prisma.booking.count({ where: { status: "PENDING_DEPOSIT" } }),
-      prisma.booking.count({ where: { status: "CONFIRMED" } }),
+      prisma.booking.count({ where: { status: "CONFIRMED", ...inRange } }),
       prisma.car.count(),
-      prisma.booking.count(),
+      prisma.booking.count({ where: inRange }),
       prisma.booking.aggregate({
         _sum: { totalPrice: true },
-        where: { status: { in: ["CONFIRMED", "COMPLETED"] } },
+        where: { status: { in: ["CONFIRMED", "COMPLETED"] }, ...inRange },
       }),
       /* จำนวนใบที่แอดมินยืนยันสลิปแล้ว — เอาไปคูณกับค่าจองต่อใบ
 
          ไม่ใช้ผลรวมของ deposit.amount เพราะฟิลด์นั้นคือ "ยอดที่ลูกค้าแจ้งว่าโอน"
          ซึ่งลูกค้าพิมพ์เอง อาจพิมพ์ผิดหรือโอนมาไม่ตรง จึงไม่ใช่ตัวเลขที่เอามาบอก
          ว่าร้านได้เงินเท่าไรได้ ค่าจองต่อใบเป็นค่าคงที่จากหน้าตั้งค่าระบบ */
-      prisma.deposit.count({ where: { status: "CONFIRMED" } }),
+      prisma.deposit.count({ where: { status: "CONFIRMED", booking: inRange } }),
       prisma.booking.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
+        where: inRange,
+        orderBy: range.by === "created" ? { createdAt: "desc" } : { startDate: "desc" },
+        take: 10,
         include: { car: true, customer: true },
       }),
     ]);
@@ -108,7 +124,7 @@ export default async function AdminDashboard() {
       ),
     },
     {
-      label: "ยืนยันแล้ว",
+      label: `ยืนยันแล้ว · ${range.label}`,
       value: confirmedCount,
       accent: "bg-emerald-50 text-emerald-700",
       href: "/admin/bookings",
@@ -138,7 +154,7 @@ export default async function AdminDashboard() {
       ),
     },
     {
-      label: "การจองทั้งหมด",
+      label: `การจอง · ${range.label}`,
       value: totalBookings,
       accent: "bg-violet-50 text-violet-700",
       href: "/admin/bookings",
@@ -184,9 +200,83 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <div className="mb-7">
+      <div className="mb-5">
         <h1 className="text-2xl font-bold text-slate-900">แดชบอร์ด</h1>
         <p className="text-slate-500 text-sm mt-1">ภาพรวมระบบจองรถ</p>
+      </div>
+
+      {/* ตัวกรองช่วงวันที่ — เป็นลิงก์/ฟอร์มแบบ GET ล้วน ไม่ต้องใช้ JavaScript
+          ช่วงที่เลือกอยู่ใน URL จึงกดย้อนกลับได้ และส่งลิงก์ให้คนอื่นดูช่วงเดียวกันได้ */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6">
+        <div className="flex flex-wrap gap-2">
+          {RANGE_PRESETS.map((p) => {
+            const active = range.key === p.key;
+            return (
+              <Link
+                key={p.key}
+                href={`/admin?range=${p.key}&by=${range.by}`}
+                className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${
+                  active
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                }`}
+              >
+                {p.label}
+              </Link>
+            );
+          })}
+        </div>
+
+        <form method="get" action="/admin" className="mt-3 flex flex-wrap items-end gap-3">
+          <input type="hidden" name="range" value="custom" />
+          <label className="text-xs text-slate-500">
+            ตั้งแต่วันที่
+            <input
+              id="dash-from"
+              type="date"
+              name="from"
+              defaultValue={range.fromStr}
+              required
+              className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <label className="text-xs text-slate-500">
+            ถึงวันที่
+            <input
+              id="dash-to"
+              type="date"
+              name="to"
+              defaultValue={range.toStr}
+              required
+              className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <label className="text-xs text-slate-500">
+            นับตาม
+            <select
+              id="dash-by"
+              name="by"
+              defaultValue={range.by}
+              className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              <option value="start">วันรับรถ</option>
+              <option value="created">วันที่ลูกค้าจอง</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
+          >
+            กรอง
+          </button>
+        </form>
+
+        <p className="mt-3 text-xs text-slate-500 leading-relaxed">
+          กำลังดู <b className="text-slate-700">{range.label}</b> · นับตาม
+          {range.by === "created" ? "วันที่ลูกค้ากดจอง" : "วันรับรถ"} · กรองเฉพาะ
+          ยืนยันแล้ว การจอง ค่าจอง มูลค่าการจอง และรายการด้านล่าง —
+          ตัวเลขงานที่ต้องทำ (รอตรวจเอกสาร งานวันนี้ ยังไม่มีคนรับ) แสดงสถานะปัจจุบันเสมอ
+        </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -211,7 +301,7 @@ export default async function AdminDashboard() {
       <div className="bg-panel rounded-2xl p-6 mb-6 text-white">
         <div className="grid sm:grid-cols-2 gap-6">
           <div>
-            <p className="text-white/75 text-sm">ค่าจองที่รับแล้ว</p>
+            <p className="text-white/75 text-sm">ค่าจองที่รับแล้ว · {range.label}</p>
             <p className="text-4xl font-bold mt-1.5">
               {depositReceived.toLocaleString()} ฿
             </p>
@@ -221,7 +311,7 @@ export default async function AdminDashboard() {
             </p>
           </div>
           <div className="sm:border-l sm:border-white/15 sm:pl-6">
-            <p className="text-white/75 text-sm">มูลค่าการจอง</p>
+            <p className="text-white/75 text-sm">มูลค่าการจอง · {range.label}</p>
             <p className="text-4xl font-bold mt-1.5 text-gold-fixed">
               {bookingValue.toLocaleString()} ฿
             </p>
@@ -267,7 +357,7 @@ export default async function AdminDashboard() {
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">การจองล่าสุด</h2>
+          <h2 className="font-semibold text-slate-900">การจอง · {range.label}</h2>
           <Link
             href="/admin/bookings"
             className="text-sm font-semibold text-blue-700 hover:text-blue-800"
@@ -309,7 +399,7 @@ export default async function AdminDashboard() {
             })}
           </ul>
         ) : (
-          <div className="py-14 text-center text-slate-500 text-sm">ยังไม่มีรายการจอง</div>
+          <div className="py-14 text-center text-slate-500 text-sm">ไม่มีการจองในช่วงนี้</div>
         )}
       </div>
     </div>
