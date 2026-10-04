@@ -154,7 +154,7 @@ export function carCarousel(cars: FlexCar[], site: string) {
   };
 }
 
-import { formatBangkokDateTime } from "@/lib/settings";
+import { formatBangkokDateTime, formatBangkokTime } from "@/lib/settings";
 
 function fmtDate(d: Date) {
   return formatBangkokDateTime(d);
@@ -935,20 +935,76 @@ export function flexNewBookingAdmin(d: {
   });
 }
 
+/** วันเวลาแบบสั้นสำหรับการ์ดแจ้งแอดมิน — "5 ต.ค. 09:00" ไม่มีปี อ่านเร็วกว่า */
+function shortWhen(d: Date): string {
+  const date = new Intl.DateTimeFormat("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(d));
+  return `${date} ${formatBangkokTime(d)}`;
+}
+
 export function flexSlipUploadedAdmin(d: {
   bookingId: string;
   carLabel: string;
   customerName: string;
   amount: number;
   adminUrl: string;
+  /* รายละเอียดการจอง — ให้แอดมินเห็นแล้วรู้เลยว่าจองอะไร ไม่ต้องเปิดหลังบ้าน
+     ไม่บังคับ เผื่อคำนวณราคาไม่ได้ การ์ดยังส่งออกได้แบบเดิม */
+  plate?: string;
+  start?: Date;
+  end?: Date;
+  days?: number;
+  /** ค่าเช่าแยกตามช่วงราคา — ช่วงเดียวคือราคาเท่ากันทุกวัน */
+  segments?: { pricePerDay: number; days: number; total: number }[];
+  /** ยอดจองทั้งหมดที่บันทึกไว้ (รวมค่าบริการอื่นและหักส่วนลดแล้ว) */
+  total?: number;
 }) {
+  const details: unknown[] = [];
+
+  if (d.start && d.end) {
+    details.push(kv("รับรถ", shortWhen(d.start)));
+    details.push(kv("คืนรถ", shortWhen(d.end)));
+  }
+  if (d.days) details.push(kv("รวม", `${d.days} วัน`));
+
+  /* "1,200 × 2 = 2,400" ต่อช่วงราคา — ถ้าการจองคร่อมหลายช่วงราคาจะขึ้นหลายบรรทัด
+     ไม่รวบเป็นบรรทัดเดียว เพราะราคาต่อวันไม่เท่ากัน เขียนคูณเดียวจะเป็นตัวเลขหลอกตา */
+  const segs = d.segments ?? [];
+  segs.forEach((seg, i) => {
+    details.push(
+      kv(
+        // ข้อความว่างใน Flex ถูก LINE ปฏิเสธทั้งการ์ด จึงใช้ "+" แทนช่องว่าง
+        i === 0 ? "ค่าเช่า" : "+",
+        `${seg.pricePerDay.toLocaleString()} × ${seg.days} = ${seg.total.toLocaleString()}`
+      )
+    );
+  });
+
+  /* ยอดรวมขึ้นเฉพาะตอนไม่เท่าค่าเช่า — คือมีค่าส่งรถ ค่านอกเวลา แผนเดินทาง หรือส่วนลด
+     ถ้าเท่ากันอยู่แล้วจะซ้ำซ้อนเปล่า ๆ */
+  const rentSum = segs.reduce((n, seg) => n + seg.total, 0);
+  if (d.total != null && (segs.length === 0 || d.total !== rentSum)) {
+    details.push(kv("ยอดจองรวม", `${d.total.toLocaleString()} บาท`));
+  }
+
   return card({
     altText: `ลูกค้าส่งสลิป ${code(d.bookingId)} — ${d.amount.toLocaleString()} บาท`,
     title: "ลูกค้าอัปโหลดสลิปแล้ว",
     subtitle: `รหัสจอง ${code(d.bookingId)}`,
     body: [
-      { type: "text", text: d.carLabel, weight: "bold", size: "md", color: INK, wrap: true },
+      {
+        type: "text",
+        text: d.plate ? `${d.carLabel} · ${d.plate}` : d.carLabel,
+        weight: "bold",
+        size: "md",
+        color: INK,
+        wrap: true,
+      },
       kv("ลูกค้า", d.customerName),
+      ...(details.length ? [line, ...details] : []),
       line,
       amountBox("ยอดที่ลูกค้าแจ้ง", d.amount, "กรุณาตรวจสอบกับรายการเดินบัญชี"),
     ],

@@ -106,9 +106,15 @@ export function sampleMessages(key: string): SampleMessage[] {
         flexSlipUploadedAdmin({
           bookingId: ID,
           carLabel: CAR,
+          plate: "CITY-01",
           customerName: "สมชาย ใจดี",
           amount: 500,
           adminUrl: SITE,
+          start: new Date("2026-10-05T02:00:00Z"),
+          end: new Date("2026-10-07T02:00:00Z"),
+          days: 2,
+          segments: [{ pricePerDay: 1200, days: 2, total: 2400 }],
+          total: 2400,
         }),
       ];
     case "admin_documents_uploaded":

@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { notifyAdminRaw, pushRaw, siteUrl } from "@/lib/line";
 import { flexSlipReceived, flexSlipUploadedAdmin } from "@/lib/line-flex";
 import { DOCUMENT_LABEL, unresolvedDocuments } from "@/lib/documents";
-import { getSettings } from "@/lib/settings";
+import { getSettings, lateRuleFromSettings } from "@/lib/settings";
+import { quoteBooking } from "@/lib/pricing";
+import { getAfterHoursRates } from "@/lib/after-hours-server";
+import { getCarRates } from "@/lib/car-rates-server";
 import { tripPlanLabel } from "@/lib/trip-plans";
 
 export async function POST(
@@ -86,13 +89,51 @@ export async function POST(
   });
 
   if (await notifyOn("admin_slip_uploaded")) try {
+    /* คำนวณค่าเช่าแยกช่วงราคาให้แอดมินเห็นในการ์ดเลย ไม่ต้องเปิดหลังบ้าน
+       ใช้ quoteBooking ตัวเดียวกับตอนสร้างใบจอง จำนวนวันจึงนับตรงกัน
+       ถ้าคำนวณพลาด (เช่น ฐานข้อมูลสะดุด) ยังส่งการ์ดแบบเดิมได้ — ห้ามทำให้แจ้งเตือนหาย */
+    let breakdown: {
+      days?: number;
+      segments?: { pricePerDay: number; days: number; total: number }[];
+    } = {};
+    try {
+      const [settings, rates, carRates] = await Promise.all([
+        getSettings(),
+        getAfterHoursRates(),
+        getCarRates(booking.carId),
+      ]);
+      const quote = quoteBooking({
+        start: booking.startDate,
+        end: booking.endDate,
+        pricePerDay: booking.car.pricePerDay,
+        rates,
+        carRates,
+        lateRule: lateRuleFromSettings(settings),
+      });
+      breakdown = {
+        days: quote.days,
+        segments: quote.segments.map((seg) => ({
+          pricePerDay: seg.pricePerDay,
+          days: seg.days,
+          total: seg.total,
+        })),
+      };
+    } catch (err) {
+      console.error("slip card breakdown failed:", err);
+    }
+
     await notifyAdminRaw(
       flexSlipUploadedAdmin({
         bookingId: booking.id,
         carLabel: `${booking.car.brand} ${booking.car.name}`,
+        plate: booking.car.licensePlate,
         customerName: booking.customer.fullName,
         amount: deposit.amount,
         adminUrl: `${siteUrl()}/admin/bookings`,
+        start: booking.startDate,
+        end: booking.endDate,
+        total: booking.totalPrice,
+        ...breakdown,
       })
     );
   } catch (err) {
