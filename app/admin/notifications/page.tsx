@@ -212,7 +212,7 @@ export default async function NotificationsPage({
         <Link
           href="/admin/notifications"
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            showAll ? "text-slate-600 hover:text-slate-900" : "bg-slate-900 text-white"
+            showAll ? "text-slate-600 hover:text-slate-900" : "bg-blue-600 text-white"
           }`}
         >
           ตั้งค่าการแจ้งเตือน
@@ -220,7 +220,7 @@ export default async function NotificationsPage({
         <Link
           href="/admin/notifications?view=all"
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            showAll ? "bg-slate-900 text-white" : "text-slate-600 hover:text-slate-900"
+            showAll ? "bg-blue-600 text-white" : "text-slate-600 hover:text-slate-900"
           }`}
         >
           ตัวอย่างข้อความทั้งหมด

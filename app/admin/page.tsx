@@ -216,8 +216,10 @@ export default async function AdminDashboard({
                 key={p.key}
                 href={`/admin?range=${p.key}&by=${range.by}`}
                 className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${
+                  /* ใช้สีปุ่มหลักของระบบ (bg-blue-600 = เขียวแบรนด์) ไม่ใช้ slate-900
+                     เพราะโหมดมืดสลับ slate-900 เป็นสีอ่อน ตัวหนังสือขาวเลยจมหาย */
                   active
-                    ? "bg-slate-900 text-white border-slate-900"
+                    ? "bg-blue-600 text-white border-blue-600"
                     : "border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900"
                 }`}
               >
@@ -265,7 +267,7 @@ export default async function AdminDashboard({
           </label>
           <button
             type="submit"
-            className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
+            className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm shadow-blue-600/25 transition-colors"
           >
             กรอง
           </button>
