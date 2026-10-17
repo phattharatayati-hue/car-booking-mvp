@@ -7,7 +7,8 @@ import { getSettings } from "@/lib/settings";
 import { renderReceiptPdf } from "@/lib/receipt-pdf";
 import type { ReceiptItem } from "@/lib/receipt";
 import { ZipWriter } from "@/lib/zip-stream";
-import { datasetsForScope, ts, type ExportOptions } from "@/lib/export-data";
+import { datasetsForScope, ts, csvCell, type ExportOptions } from "@/lib/export-data";
+import { FILES_PER_PART, bookingIdsWithFiles, fetchBlob } from "@/lib/export-files";
 
 /* react-pdf ต้องรันบน Node ไม่ใช่ Edge */
 export const runtime = "nodejs";
@@ -95,14 +96,93 @@ function buildReadme(args: {
   L.push("");
   L.push("สิ่งที่ 'ไม่รวม' ในชุดนี้ (ตั้งใจ)");
   L.push("-".repeat(56));
-  L.push("- รูปและเอกสารทั้งหมดใน Vercel Blob: บัตรประชาชน/Passport ใบขับขี่ เอกสารการเดินทาง");
-  L.push("  สลิปโอนเงิน รูปสภาพรถจากคนส่งรถ รูปรถ ลายเซ็นและตราประทับ");
+  L.push("- รูปรถ ลายเซ็นและตราประทับ (รูปเอกสารลูกค้า สลิป รูปสภาพรถ โหลดแยกเป็นชุด ๆ จากหน้าส่งออก)");
   L.push("- เลขบัตรประชาชนของลูกค้า");
   L.push("- รหัสผ่านและโทเคนทุกชนิด (รหัสแอดมิน, LINE, Google) และค่าตั้งค่าลับของระบบ");
   L.push("- เลขบัญชีคืนเงินประกันของรายที่โอนคืนแล้ว (ระบบลบทิ้งตามนโยบายอยู่แล้ว)");
   L.push("  รายที่ยังไม่ได้โอนคืนจะมีเลขบัญชีใน refunds.csv เพื่อให้บริษัทโอนต่อได้");
   L.push("");
   return L.join("\r\n");
+}
+
+/** ZIP ชุดรูป/เอกสารที่ลูกค้าอัปโหลด: files/<รหัสการจอง>/<ชนิด>.<นามสกุล> + manifest.csv + README.txt */
+async function* buildFilesPart(
+  zip: ZipWriter,
+  part: number,
+  started: number,
+  by: string
+): AsyncGenerator<Uint8Array> {
+  const allIds = await bookingIdsWithFiles();
+  const ids = allIds.slice((part - 1) * FILES_PER_PART, part * FILES_PER_PART);
+  const bookings = await prisma.booking.findMany({
+    where: { id: { in: ids } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    include: {
+      customer: true,
+      documents: true,
+      deposit: true,
+      refund: true,
+      assignments: { include: { photos: { orderBy: { createdAt: "asc" } } } },
+    },
+  });
+
+  const KIND: Record<string, string> = {
+    ID_CARD: "บัตรประชาชน-Passport",
+    DRIVER_LICENSE: "ใบขับขี่",
+    TRAVEL_PROOF: "เอกสารเดินทาง",
+  };
+  const manifest: string[][] = [["รหัสการจอง", "ลูกค้า", "ประเภท", "ไฟล์ใน ZIP", "สถานะ"]];
+  const skipped: string[] = [];
+  let count = 0;
+
+  for (const b of bookings) {
+    const items: { label: string; url: string }[] = [];
+    for (const d of b.documents) {
+      const label = KIND[d.kind] ?? d.kind;
+      items.push({ label, url: d.fileUrl });
+      d.extraUrls.forEach((u, i) => items.push({ label: `${label}-เพิ่ม${i + 1}`, url: u }));
+    }
+    if (b.deposit?.slipImageUrl) items.push({ label: "สลิปค่าจอง", url: b.deposit.slipImageUrl });
+    if (b.refund?.slipUrl) items.push({ label: "สลิปคืนเงินประกัน", url: b.refund.slipUrl });
+    for (const a of b.assignments) {
+      a.photos.forEach((p, i) =>
+        items.push({ label: `รูปสภาพรถ-${a.kind}-${i + 1}`, url: p.fileUrl })
+      );
+    }
+
+    for (const it of items) {
+      if (Date.now() - started > PDF_BUDGET_MS) {
+        skipped.push(`${b.id} ${it.label}`);
+        manifest.push([b.id, b.customer.fullName, it.label, "", "ข้าม (เวลาไม่พอ)"]);
+        continue;
+      }
+      const f = await fetchBlob(it.url);
+      if (!f) {
+        skipped.push(`${b.id} ${it.label}`);
+        manifest.push([b.id, b.customer.fullName, it.label, "", "ไม่พบไฟล์ (อาจถูกลบตามนโยบาย)"]);
+        continue;
+      }
+      const path = `files/${b.id}/${it.label}.${f.ext}`;
+      count++;
+      manifest.push([b.id, b.customer.fullName, it.label, path, "ok"]);
+      yield zip.add(path, f.buf, false);
+    }
+  }
+
+  const csv = "\uFEFF" + manifest.map((r) => r.map((c) => csvCell(c)).join(",")).join("\r\n") + "\r\n";
+  yield zip.add("manifest.csv", Buffer.from(csv, "utf8"), true);
+  const readme = [
+    `รูป/เอกสารที่ลูกค้าอัปโหลด — ชุดที่ ${part} (ใบจอง ${bookings.length} ใบ, ไฟล์ ${count} ไฟล์)`,
+    `ส่งออกโดย: ${by}`,
+    "",
+    "!! มีบัตรประชาชน/ใบขับขี่ของลูกค้า — เก็บเฉพาะผู้ได้รับมอบหมาย ห้ามส่งต่อช่องทางไม่ปลอดภัย",
+    "โฟลเดอร์ files/<รหัสการจอง>/ ตรงกับคอลัมน์ 'รหัสการจอง' ใน bookings.csv",
+    "manifest.csv ระบุว่าไฟล์ไหนเป็นของใครและไฟล์ไหนโหลดไม่ได้",
+    skipped.length ? `\nโหลดไม่ได้/ข้าม ${skipped.length} ไฟล์ — ดู manifest.csv (ถ้าข้ามเพราะเวลา ให้โหลดชุดนี้ซ้ำ)` : "",
+    "",
+  ].join("\r\n");
+  yield zip.add("README.txt", Buffer.from("\uFEFF" + readme, "utf8"), true);
+  yield zip.finish();
 }
 
 export async function GET(request: Request) {
@@ -113,15 +193,17 @@ export async function GET(request: Request) {
 
   const sp = new URL(request.url).searchParams;
   const scopeRaw = sp.get("scope");
-  const scope: "all" | "data" | "receipts" =
-    scopeRaw === "data" || scopeRaw === "receipts" ? scopeRaw : "all";
+  const scope: "all" | "data" | "receipts" | "files" =
+    scopeRaw === "data" || scopeRaw === "receipts" || scopeRaw === "files" ? scopeRaw : "all";
+  const partRaw = Number(sp.get("part"));
+  const part = Number.isInteger(partRaw) && partRaw >= 1 ? partRaw : 1;
   const yearRaw = Number(sp.get("year"));
   const year = Number.isInteger(yearRaw) && yearRaw >= 2400 && yearRaw <= 2700 ? yearRaw : null;
   if (scope === "receipts" && !year) {
     return new Response("ระบุปี พ.ศ. ของใบเสร็จด้วย (year)", { status: 400 });
   }
 
-  const withPdf = scope !== "data";
+  const withPdf = scope === "all" || scope === "receipts";
   const opts: ExportOptions = {
     receiptYear: scope === "receipts" ? year : null,
     withPdf,
@@ -129,7 +211,7 @@ export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   const actor = { id: me.id, name: me.name, role: me.role };
   const by = `${me.name} <${me.email}>`;
-  const label = `${scope}${scope === "receipts" ? ` ปี ${year}` : ""}`;
+  const label = `${scope}${scope === "receipts" ? ` ปี ${year}` : ""}${scope === "files" ? ` ชุด ${part}` : ""}`;
 
   await auditAs(actor, {
     action: "export.download",
@@ -142,6 +224,16 @@ export async function GET(request: Request) {
     const files: FileInfo[] = [];
     const exportedAt = new Date();
     const started = Date.now();
+
+    if (scope === "files") {
+      yield* buildFilesPart(zip, part, started, by);
+      await auditAs(actor, {
+        action: "export.finish",
+        entity: "export",
+        summary: `ส่งออกรูป/เอกสารลูกค้าเสร็จ (ชุด ${part})`,
+      });
+      return;
+    }
 
     // 1) ไฟล์ CSV
     for (const d of datasetsForScope(scope)) {
@@ -254,7 +346,9 @@ export async function GET(request: Request) {
 
   const stamp = ts(new Date()).slice(0, 10);
   const name =
-    scope === "receipts"
+    scope === "files"
+      ? `car-booking-customer-files-part${part}-${stamp}.zip`
+      : scope === "receipts"
       ? `receipts-${year}-${stamp}.zip`
       : scope === "data"
         ? `car-booking-data-${stamp}.zip`

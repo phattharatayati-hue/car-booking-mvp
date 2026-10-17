@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireExportOwner } from "@/lib/export-guard";
 import { DATASETS, ts } from "@/lib/export-data";
 import { BTN } from "@/lib/ui";
+import { FILES_PER_PART, bookingIdsWithFiles } from "@/lib/export-files";
 
 /**
  * ส่งออกข้อมูลทั้งระบบให้บริษัทตอนปิดระบบ
@@ -14,6 +15,8 @@ import { BTN } from "@/lib/ui";
 export default async function AdminExportPage() {
   await requireExportOwner();
 
+  const fileBookingIds = await bookingIdsWithFiles();
+  const fileParts = Math.ceil(fileBookingIds.length / FILES_PER_PART);
   const [counts, receiptYears, recent] = await Promise.all([
     Promise.all(DATASETS.map((d) => d.count())),
     prisma.receipt.groupBy({ by: ["year"], _count: { _all: true }, orderBy: { year: "asc" } }),
@@ -75,6 +78,24 @@ export default async function AdminExportPage() {
         )}
       </div>
 
+      {/* รูป/เอกสารลูกค้า */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
+        <h2 className="font-semibold text-slate-900">รูป/เอกสารที่ลูกค้าอัปโหลด</h2>
+        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+          บัตรประชาชน ใบขับขี่ เอกสารเดินทาง สลิป และรูปสภาพรถ จาก {fileBookingIds.length} ใบจอง
+          แบ่งเป็น {fileParts} ชุด (ชุดละไม่เกิน {FILES_PER_PART} ใบจอง) เพื่อไม่ให้เกินเวลาของระบบ — โหลดให้ครบทุกชุด
+          ในแต่ละชุดมี manifest.csv บอกว่าไฟล์ไหนเป็นของใคร
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {Array.from({ length: fileParts }, (_, i) => (
+            <a key={i} href={`/admin/export/download?scope=files&part=${i + 1}`} className={BTN.smGhost}>
+              ชุดที่ {i + 1}
+            </a>
+          ))}
+        </div>
+        <p className="text-xs text-amber-700 mt-3">มีข้อมูลอ่อนไหว (บัตรประชาชน/ใบขับขี่) — เก็บและส่งมอบอย่างปลอดภัย</p>
+      </div>
+
       {/* สิ่งที่อยู่ใน ZIP */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
         <h2 className="font-semibold text-slate-900 mb-3">ไฟล์ที่จะอยู่ใน ZIP</h2>
@@ -106,7 +127,7 @@ export default async function AdminExportPage() {
       <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-5 mb-5 text-sm leading-relaxed">
         <p className="font-semibold mb-1">ไม่รวมในไฟล์นี้ (ตั้งใจ)</p>
         <ul className="list-disc pl-5 space-y-0.5">
-          <li>รูป/เอกสารใน Blob ทั้งหมด: บัตรประชาชน ใบขับขี่ เอกสารเดินทาง สลิป รูปสภาพรถ รูปรถ</li>
+          <li>รูปรถ ลายเซ็น ตราประทับ (รูปเอกสารลูกค้า/สลิป โหลดแยกที่กล่องด้านบน)</li>
           <li>เลขบัตรประชาชน รหัสผ่าน โทเคนทุกชนิด</li>
           <li>เลขบัญชีคืนเงินของรายที่โอนคืนแล้ว</li>
         </ul>
