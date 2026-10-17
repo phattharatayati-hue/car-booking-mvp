@@ -17,7 +17,7 @@ import {
  *
  * หมายเหตุ — ตัวแก้จริงของอาการ "เชื่อมแล้วหลุดทุก 7 วัน" ไม่ได้อยู่ในโค้ด
  * แต่อยู่ที่สถานะ Publishing ของ OAuth consent screen ใน Google Cloud Console
- * (Testing = refresh token หมดอายุใน 7 วันเสมอ) ดู GOOGLE-CALENDAR.md
+ * (Testing = refresh token หมดอายุใน 7 วันเสมอ) ดู README.md ภาคที่ 7
  */
 
 type AdminRow = {

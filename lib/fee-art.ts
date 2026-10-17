@@ -17,7 +17,7 @@ export type ArtPalette = {
   soft: string;
 };
 
-/** โทนแบรนด์ที่บริษัทส่งมา (ดู BRAND-COLORS.md) */
+/** โทนแบรนด์ที่บริษัทส่งมา (ดู README.md ภาคที่ 9) */
 export const BRAND_ART_PALETTE: ArtPalette = {
   ink: "#17251f",
   body: "#1e5841",

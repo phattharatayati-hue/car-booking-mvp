@@ -694,7 +694,7 @@ export default async function AdminGuidePage() {
             ใน Google Cloud Console จะถูกบังคับให้สิทธิ์หมดอายุใน 7 วันเสมอ
             ผู้ดูแลระบบต้องเข้า Google Cloud Console แล้วกด <b>Publish app</b>{" "}
             เปลี่ยนเป็น In production หนึ่งครั้ง จากนั้นทุกคนเชื่อมใหม่อีกรอบก็จบ
-            รายละเอียดทั้งหมดอยู่ในไฟล์ GOOGLE-CALENDAR.md ของโปรเจกต์
+            รายละเอียดทั้งหมดอยู่ในไฟล์ README.md ภาคที่ 7 ของโปรเจกต์
           </Note>
         </Section>
 
