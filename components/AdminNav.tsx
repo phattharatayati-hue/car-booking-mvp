@@ -233,6 +233,21 @@ const ITEMS = [
     ),
   },
   {
+    href: "/admin/export",
+    group: "system",
+    label: "ส่งออกข้อมูล",
+    devOnly: true,
+    icon: (
+      <path
+        d="M12 4v10m0 0l-4-4m4 4l4-4M5 19h14"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
     href: "/admin/audit",
     group: "system",
     label: "ประวัติการใช้งาน",

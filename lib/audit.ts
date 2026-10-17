@@ -35,6 +35,7 @@ export const AUDIT_GROUPS: Record<string, string> = {
   user: "จัดการผู้ใช้",
   settings: "ตั้งค่าระบบ",
   master: "ข้อมูลพื้นฐาน",
+  export: "ส่งออกข้อมูล",
 };
 
 /** ป้ายไทยของแต่ละ action — ที่ไม่มีในนี้จะใช้ summary แทน */
@@ -82,6 +83,10 @@ export const AUDIT_LABEL: Record<string, string> = {
   "master.point_add": "เพิ่มจุดรับ-ส่งรถ",
   "master.point_toggle": "เปิด/ปิดจุดรับ-ส่งรถ",
   "master.point_delete": "ลบจุดรับ-ส่งรถ",
+
+  "export.download": "เริ่มส่งออกข้อมูล",
+  "export.finish": "ส่งออกข้อมูลเสร็จ",
+  "export.failed": "ส่งออกข้อมูลไม่สำเร็จ",
 };
 
 /** กลุ่มของ action (ส่วนหน้าก่อนจุด) */

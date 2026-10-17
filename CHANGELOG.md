@@ -4,6 +4,22 @@
 
 ---
 
+## 17 ต.ค. 2569
+
+### ย้ายไป Vercel Hobby + หน้าส่งออกข้อมูลก่อนปิดระบบ
+
+**Cron** — `vercel.json` ปรับ `/api/cron/reminders` เป็นวันละครั้ง (Hobby ตั้งถี่กว่านี้ไม่ได้ ไม่งั้น deploy ไม่ผ่าน)
+การเตือนลูกค้าทุก 15 นาทีย้ายไป GitHub Actions (`.github/workflows/customer-reminders.yml`)
+ต้องตั้ง Secrets `CRON_SECRET` กับ `SITE_URL`
+
+**ส่งออกข้อมูลทั้งระบบ** — หน้า `/admin/export` โหลด ZIP เดียว: CSV 19 ไฟล์ + ใบเสร็จ PDF + README.txt
+(มี SHA-256 ของทุกไฟล์) เข้าได้เฉพาะบัญชี DEV — ล็อกให้เหลืออีเมลเดียวได้ด้วย env `EXPORT_OWNER_EMAIL`
+ไม่รวมรูป/เอกสารใน Blob เลขบัตรประชาชน รหัสผ่านและโทเคน · ทุกครั้งที่ส่งออกบันทึกใน audit log
+ไฟล์: `app/admin/export/page.tsx`, `app/admin/export/download/route.ts`, `lib/export-data.ts`,
+`lib/export-guard.ts`, `lib/zip-stream.ts` (ตัวเขียน ZIP แบบสตรีม ไม่เพิ่ม dependency)
+
+---
+
 ## 4 ต.ค. 2569
 
 ### แจ้งเตือน LINE
