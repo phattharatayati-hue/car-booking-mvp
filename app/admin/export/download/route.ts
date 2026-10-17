@@ -8,6 +8,7 @@ import { renderReceiptPdf } from "@/lib/receipt-pdf";
 import type { ReceiptItem } from "@/lib/receipt";
 import { ZipWriter } from "@/lib/zip-stream";
 import { datasetsForScope, ts, csvCell, type ExportOptions } from "@/lib/export-data";
+import { renderBookingPdf, imageFormat, type BookingPdfData, type BookingPdfImage } from "@/lib/booking-pdf";
 import { FILES_PER_PART, bookingIdsWithFiles, fetchBlob } from "@/lib/export-files";
 
 /* react-pdf ต้องรันบน Node ไม่ใช่ Edge */
@@ -18,6 +19,8 @@ export const maxDuration = 300;
 
 /** หยุดสร้าง PDF เมื่อใช้เวลาไปเท่านี้ เหลือเวลาให้เขียน README และปิดไฟล์ ZIP ให้สมบูรณ์ */
 const PDF_BUDGET_MS = 230_000;
+/** PDF รายใบจองมีรูปแนบ หนักกว่ากัน จึงแบ่งชุดเล็ก */
+const BOOKING_PDF_PER_PART = 5;
 
 type FileInfo = { name: string; title: string; note: string; rows: number | null; bytes: number; sha256: string };
 
@@ -185,6 +188,122 @@ async function* buildFilesPart(
   yield zip.finish();
 }
 
+/** PDF หนึ่งไฟล์ต่อหนึ่งใบจอง: หน้าแรกสรุปรายละเอียด ตามด้วยรูปเอกสารหน้าละรูป */
+async function* buildBookingPdfPart(
+  zip: ZipWriter,
+  part: number,
+  started: number,
+  origin: string,
+  by: string
+): AsyncGenerator<Uint8Array> {
+  const all = await prisma.booking.findMany({
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+  const ids = all.slice((part - 1) * BOOKING_PDF_PER_PART, part * BOOKING_PDF_PER_PART).map((x) => x.id);
+  const bookings = await prisma.booking.findMany({
+    where: { id: { in: ids } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    include: {
+      customer: true,
+      car: true,
+      documents: true,
+      deposit: true,
+      refund: true,
+      assignments: { include: { photos: { orderBy: { createdAt: "asc" } } } },
+    },
+  });
+
+  const KIND: Record<string, string> = {
+    ID_CARD: "บัตรประชาชน / Passport",
+    DRIVER_LICENSE: "ใบขับขี่",
+    TRAVEL_PROOF: "เอกสารเดินทาง",
+  };
+  const failed: string[] = [];
+  const skipped: string[] = [];
+  const index: string[][] = [["รหัสการจอง", "ลูกค้า", "ไฟล์", "สถานะ"]];
+
+  for (const b of bookings) {
+    if (Date.now() - started > PDF_BUDGET_MS) {
+      skipped.push(b.id);
+      index.push([b.id, b.customer.fullName, "", "ข้าม (เวลาไม่พอ)"]);
+      continue;
+    }
+    const items: { label: string; url: string }[] = [];
+    for (const d of b.documents) {
+      const label = KIND[d.kind] ?? d.kind;
+      items.push({ label, url: d.fileUrl });
+      d.extraUrls.forEach((u, i) => items.push({ label: `${label} (เพิ่ม ${i + 1})`, url: u }));
+    }
+    if (b.deposit?.slipImageUrl) items.push({ label: "สลิปค่าจอง", url: b.deposit.slipImageUrl });
+    if (b.refund?.slipUrl) items.push({ label: "สลิปคืนเงินประกัน", url: b.refund.slipUrl });
+    for (const a of b.assignments) {
+      a.photos.forEach((p, i) => items.push({ label: `รูปสภาพรถ ${a.kind} #${i + 1}`, url: p.fileUrl }));
+    }
+
+    const images: BookingPdfImage[] = [];
+    for (const it of items) {
+      const f = await fetchBlob(it.url);
+      if (!f) {
+        images.push({ label: it.label, data: null, format: null, note: "ไม่พบไฟล์ (อาจถูกลบตามนโยบาย)" });
+        continue;
+      }
+      const format = imageFormat(f.buf);
+      images.push(
+        format
+          ? { label: it.label, data: f.buf, format }
+          : { label: it.label, data: null, format: null, note: `ชนิดไฟล์ .${f.ext} แสดงใน PDF ไม่ได้ — ดูไฟล์ต้นฉบับจากชุดรูปภาพ` }
+      );
+    }
+
+    const data: BookingPdfData = {
+      id: b.id,
+      status: b.status,
+      channel: b.channel,
+      createdAt: b.createdAt,
+      customer: { fullName: b.customer.fullName, phone: b.customer.phone, email: b.customer.email },
+      car: `${b.car.brand} ${b.car.name} (${b.car.licensePlate})`,
+      startDate: b.startDate,
+      endDate: b.endDate,
+      pickupPlace: b.pickupPlace,
+      returnPlace: b.returnPlace,
+      totalPrice: b.totalPrice,
+      discountAmount: b.discountAmount,
+      discountLabel: b.discountLabel,
+      deposit: b.deposit ? { amount: b.deposit.amount, status: b.deposit.status } : null,
+      refund: b.refund ? (b.refund.slipUrl ? "โอนคืนแล้ว" : "ยังไม่โอนคืน/อยู่ระหว่างดำเนินการ") : null,
+      note: b.note,
+      adminNote: b.adminNote,
+      docs: b.documents.map((d) => ({ label: KIND[d.kind] ?? d.kind, status: d.status, reason: d.rejectReason })),
+      images,
+    };
+    try {
+      const buf = await renderBookingPdf(data, origin);
+      yield zip.add(`bookings/${b.id}.pdf`, buf, false);
+      index.push([b.id, b.customer.fullName, `bookings/${b.id}.pdf`, "ok"]);
+    } catch (err) {
+      console.error("export: booking pdf failed:", b.id, err);
+      failed.push(b.id);
+      index.push([b.id, b.customer.fullName, "", "สร้าง PDF ไม่สำเร็จ"]);
+    }
+  }
+
+  const csv = "\uFEFF" + index.map((r) => r.map((c) => csvCell(c)).join(",")).join("\r\n") + "\r\n";
+  yield zip.add("index.csv", Buffer.from(csv, "utf8"), true);
+  const readme = [
+    `PDF รายใบจอง — ชุดที่ ${part} (${bookings.length} ใบจอง)`,
+    `ส่งออกโดย: ${by}`,
+    "",
+    "!! มีบัตรประชาชน/ใบขับขี่ของลูกค้า — เก็บเฉพาะผู้ได้รับมอบหมาย",
+    "แต่ละไฟล์ใน bookings/ คือหนึ่งใบจอง: หน้าแรกสรุปรายละเอียด หน้าถัด ๆ ไปคือรูปเอกสาร/สลิป/รูปสภาพรถ",
+    failed.length ? `สร้างไม่สำเร็จ ${failed.length} ใบ: ${failed.join(", ")}` : "",
+    skipped.length ? `ข้ามเพราะเวลาไม่พอ ${skipped.length} ใบ: ${skipped.join(", ")} — โหลดชุดนี้ซ้ำ` : "",
+    "",
+  ].join("\r\n");
+  yield zip.add("README.txt", Buffer.from("\uFEFF" + readme, "utf8"), true);
+  yield zip.finish();
+}
+
 export async function GET(request: Request) {
   const me = await currentAdmin();
   if (!me || !isExportOwner(me)) {
@@ -193,8 +312,10 @@ export async function GET(request: Request) {
 
   const sp = new URL(request.url).searchParams;
   const scopeRaw = sp.get("scope");
-  const scope: "all" | "data" | "receipts" | "files" =
-    scopeRaw === "data" || scopeRaw === "receipts" || scopeRaw === "files" ? scopeRaw : "all";
+  const scope: "all" | "data" | "receipts" | "files" | "bookingpdf" =
+    scopeRaw === "data" || scopeRaw === "receipts" || scopeRaw === "files" || scopeRaw === "bookingpdf"
+      ? scopeRaw
+      : "all";
   const partRaw = Number(sp.get("part"));
   const part = Number.isInteger(partRaw) && partRaw >= 1 ? partRaw : 1;
   const yearRaw = Number(sp.get("year"));
@@ -211,7 +332,7 @@ export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
   const actor = { id: me.id, name: me.name, role: me.role };
   const by = `${me.name} <${me.email}>`;
-  const label = `${scope}${scope === "receipts" ? ` ปี ${year}` : ""}${scope === "files" ? ` ชุด ${part}` : ""}`;
+  const label = `${scope}${scope === "receipts" ? ` ปี ${year}` : ""}${scope === "files" || scope === "bookingpdf" ? ` ชุด ${part}` : ""}`;
 
   await auditAs(actor, {
     action: "export.download",
@@ -225,12 +346,14 @@ export async function GET(request: Request) {
     const exportedAt = new Date();
     const started = Date.now();
 
-    if (scope === "files") {
-      yield* buildFilesPart(zip, part, started, by);
+    if (scope === "files" || scope === "bookingpdf") {
+      yield* (scope === "files"
+        ? buildFilesPart(zip, part, started, by)
+        : buildBookingPdfPart(zip, part, started, origin, by));
       await auditAs(actor, {
         action: "export.finish",
         entity: "export",
-        summary: `ส่งออกรูป/เอกสารลูกค้าเสร็จ (ชุด ${part})`,
+        summary: `ส่งออก${scope === "files" ? "รูป/เอกสารลูกค้า" : "PDF รายใบจอง"}เสร็จ (ชุด ${part})`,
       });
       return;
     }
@@ -346,7 +469,9 @@ export async function GET(request: Request) {
 
   const stamp = ts(new Date()).slice(0, 10);
   const name =
-    scope === "files"
+    scope === "bookingpdf"
+      ? `car-booking-booking-pdf-part${part}-${stamp}.zip`
+      : scope === "files"
       ? `car-booking-customer-files-part${part}-${stamp}.zip`
       : scope === "receipts"
       ? `receipts-${year}-${stamp}.zip`

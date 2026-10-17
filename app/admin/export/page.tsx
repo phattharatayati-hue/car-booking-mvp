@@ -16,6 +16,8 @@ export default async function AdminExportPage() {
   await requireExportOwner();
 
   const fileBookingIds = await bookingIdsWithFiles();
+  const bookingTotal = await prisma.booking.count();
+  const bookingPdfParts = Math.ceil(bookingTotal / 5);
   const fileParts = Math.ceil(fileBookingIds.length / FILES_PER_PART);
   const [counts, receiptYears, recent] = await Promise.all([
     Promise.all(DATASETS.map((d) => d.count())),
@@ -94,6 +96,23 @@ export default async function AdminExportPage() {
           ))}
         </div>
         <p className="text-xs text-amber-700 mt-3">มีข้อมูลอ่อนไหว (บัตรประชาชน/ใบขับขี่) — เก็บและส่งมอบอย่างปลอดภัย</p>
+      </div>
+
+      {/* PDF รายใบจอง */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-5">
+        <h2 className="font-semibold text-slate-900">PDF รายใบจอง (เรียงเป็นเอกสาร)</h2>
+        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+          PDF หนึ่งไฟล์ต่อหนึ่งใบจอง ({bookingTotal} ใบ): หน้าแรกสรุปลูกค้า รถ วันเช่า การเงิน แล้วตามด้วยรูปบัตร ใบขับขี่
+          เอกสารเดินทาง สลิป และรูปสภาพรถ หน้าละรูป แบ่งเป็น {bookingPdfParts} ชุด (ชุดละ 5 ใบจอง)
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {Array.from({ length: bookingPdfParts }, (_, i) => (
+            <a key={i} href={`/admin/export/download?scope=bookingpdf&part=${i + 1}`} className={BTN.smGhost}>
+              ชุดที่ {i + 1}
+            </a>
+          ))}
+        </div>
+        <p className="text-xs text-amber-700 mt-3">มีบัตรประชาชน/ใบขับขี่ของลูกค้า — เก็บและส่งมอบอย่างปลอดภัย</p>
       </div>
 
       {/* สิ่งที่อยู่ใน ZIP */}
