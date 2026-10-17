@@ -1,0 +1,22 @@
+# ยิง /api/cron/customer-reminders ทุก 15 นาที (Vercel Hobby ตั้ง cron ถี่กว่าวันละครั้งไม่ได้)
+# ต้องตั้ง Repository secrets: CRON_SECRET และ SITE_URL (ไม่มี / ท้าย)
+# หมายเหตุ: GitHub Actions อาจเลื่อนรอบได้หลายนาทีช่วงโหลดสูง
+name: customer-reminders
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Call reminder endpoint
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$SITE_URL" && test -n "$CRON_SECRET" || { echo "missing secrets"; exit 1; }
+          curl --fail-with-body -sS -m 60 --retry 2 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/customer-reminders"
