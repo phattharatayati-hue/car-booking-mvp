@@ -1,3 +1,4 @@
+import { BOOKING_CLOSED, BOOKING_CLOSED_MESSAGE, bookingClosedResponse } from "@/lib/booking-closed";
 import { NextResponse } from "next/server";
 import { createBooking } from "@/lib/create-booking";
 import { getSessionCustomerId } from "@/lib/customer-session";
@@ -5,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { isLineFriend, NEED_LINE_MSG, NEED_FRIEND_MSG, LINE_DOWN_MSG } from "@/lib/line-friend";
 
 export async function POST(request: Request) {
+  if (BOOKING_CLOSED) return bookingClosedResponse();
   const body = await request.json();
 
   // ถ้าเข้าสู่ระบบด้วย LINE อยู่ ให้การจองไปเข้าบัญชีนั้นเสมอ

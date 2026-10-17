@@ -1,3 +1,4 @@
+import { BOOKING_CLOSED, BOOKING_CLOSED_MESSAGE } from "@/lib/booking-closed";
 import { prisma } from "@/lib/prisma";
 import { notifyOn } from "@/lib/notification-rules";
 import { unresolvedDocuments } from "@/lib/documents";
@@ -83,6 +84,10 @@ async function clearDraft(lineUserId: string) {
 
 /** ขั้นที่ 1 — แสดงรถให้เลือก */
 export async function startBooking(replyToken: string, lineUserId: string) {
+  if (BOOKING_CLOSED) {
+    await replyMessage(replyToken, BOOKING_CLOSED_MESSAGE);
+    return;
+  }
   const cars = await prisma.car.findMany({
     where: { status: "AVAILABLE" },
     orderBy: { pricePerDay: "asc" },
@@ -599,6 +604,14 @@ export async function handlePostback(
 ) {
   const params = new URLSearchParams(data);
   const action = params.get("action");
+
+  if (
+    BOOKING_CLOSED &&
+    ["start_booking", "pick_car", "pick_start", "pick_end", "confirm"].includes(action ?? "")
+  ) {
+    await replyMessage(replyToken, BOOKING_CLOSED_MESSAGE);
+    return;
+  }
 
   switch (action) {
     case "confirm_pickup":

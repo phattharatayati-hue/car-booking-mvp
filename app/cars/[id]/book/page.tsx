@@ -1,3 +1,4 @@
+import { BOOKING_CLOSED, BOOKING_CLOSED_MESSAGE } from "@/lib/booking-closed";
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
@@ -34,6 +35,20 @@ export default async function BookCarPage({
 
   if (!car || car.status !== "AVAILABLE") {
     notFound();
+  }
+
+  if (BOOKING_CLOSED) {
+    return (
+      <PublicShell>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="max-w-md rounded-2xl bg-white border border-slate-200 p-8 text-center shadow-sm">
+        <div className="text-4xl mb-3">🚫</div>
+        <h1 className="text-lg font-bold text-slate-900 mb-2">ปิดรับจองชั่วคราว</h1>
+        <p className="text-slate-600 text-sm">{BOOKING_CLOSED_MESSAGE}</p>
+      </div>
+    </div>
+      </PublicShell>
+    );
   }
 
   const settings = await getSettings();

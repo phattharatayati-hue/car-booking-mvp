@@ -1,3 +1,4 @@
+import { BOOKING_CLOSED, BOOKING_CLOSED_MESSAGE, bookingClosedResponse } from "@/lib/booking-closed";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createBooking } from "@/lib/create-booking";
@@ -32,6 +33,7 @@ async function verifyIdToken(idToken: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
+  if (BOOKING_CLOSED) return bookingClosedResponse();
   try {
     const body = await request.json();
     const { idToken, carId, startDate, endDate, startTime, endTime, phone, pickupPlace, returnPlace } =
